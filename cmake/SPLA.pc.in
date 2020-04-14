@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+external_packages=
+
+Name: SPLA
+Description: Specialized Parallel Linear Algebra
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lspla
+Cflags: -I${includedir}
+Requires.private: @SPLA_EXTERNAL_PKG_PACKAGES@

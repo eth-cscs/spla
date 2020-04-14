@@ -1,0 +1,5 @@
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/SPLASharedConfig.cmake")
+	include("${CMAKE_CURRENT_LIST_DIR}/SPLASharedConfig.cmake")
+else()
+	include("${CMAKE_CURRENT_LIST_DIR}/SPLAStaticConfig.cmake")
+endif()
