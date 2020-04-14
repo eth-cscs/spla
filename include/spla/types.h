@@ -57,6 +57,7 @@ enum SplaProcessingUnit {
 // C only
 typedef enum SplaDistributionType SplaDistributionType;
 typedef enum SplaProcessingUnit SplaProcessingUnit;
+/*! \endcond */
 #endif  // cpp
 
 #endif

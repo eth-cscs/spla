@@ -54,9 +54,9 @@
 #include "spla/context.hpp"
 #include "spla/matrix_distribution.hpp"
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 namespace spla {
-#endif
+/*! \endcond */
 
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A B +

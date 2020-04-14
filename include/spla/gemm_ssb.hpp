@@ -55,9 +55,9 @@
 #include "spla/context.hpp"
 #include "spla/matrix_distribution.hpp"
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 namespace spla {
-#endif
+/*! \endcond */
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A^H B +
  * \beta C \f$ in single precision. \f$A\f$ and \f$B\f$ are only split along the row dimension

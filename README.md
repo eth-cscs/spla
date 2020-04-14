@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/spla/badge/?version=latest)](https://spla.readthedocs.io/en/latest/?badge=latest)
+
 # SPLA - Specialized Parallel Linear Algebra
 SPLA provides specialized functions for linear algebra computations, which are inspired by requirements in computational material science codes.
 
@@ -52,6 +54,27 @@ See documentation for details.
      |    |                     |    |
      ------                     ------
        A                          C
+
+## Documentation
+Documentation can be found [here](https://spla.readthedocs.io/en/latest/).
+
+## Installation
+The build system follows the standard CMake workflow. Example:
+```console
+mkdir build
+cd build
+cmake .. -DSPLA_OMP=ON -DSPLA_GPU_BACKEND=CUDA -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j8 install
+```
+
+### CMake options
+| Option                | Default | Description                                      |
+|-----------------------|---------|--------------------------------------------------|
+| SPLA_OMP              | ON      | Enable multi-threading with OpenMP               |
+| SPLA_GPU_BACKEND      | OFF     | Select GPU backend. Can be OFF, CUDA or ROCM     |
+| SPLA_BUILD_TESTS      | OFF     | Build test executables for developement purposes |
+| SPLA_INSTALL          | ON      | Add library to install target                    |
+
 ## Acknowledgements
 The development of SPLA would not be possible without support of the following organizations:
 

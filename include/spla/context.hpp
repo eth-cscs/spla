@@ -34,9 +34,9 @@
 #include "spla/config.h"
 #include "spla/types.h"
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 namespace spla {
-#endif
+/*! \endcond */
 
 class ContextInternal;
 
