@@ -59,10 +59,7 @@ template <typename T>
 auto translate_gpu_pointer(T* inputPointer) -> std::pair<T*, T*> {
   gpu::PointerAttributes attr;
   auto status = gpu::pointer_get_attributes(&attr, static_cast<const void*>(inputPointer));
-  gpu::get_last_error();  // if pointer is not registered, error will be stored and has to be
-                          // cleared
 
-  gpu::get_last_error();
 #ifdef SPLA_ROCM
   if (status != gpu::status::Success) {
 #else
