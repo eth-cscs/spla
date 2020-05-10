@@ -171,7 +171,12 @@ inline auto malloc(ARGS&&... args) -> StatusType {
 
 template <typename... ARGS>
 inline auto malloc_host(ARGS&&... args) -> StatusType {
+#if defined(SPLA_CUDA)
   return GPU_PREFIX(MallocHost)(std::forward<ARGS>(args)...);
+#else
+  // hip deprecated hipMallocHost in favour of hipHostMalloc
+  return GPU_PREFIX(HostMalloc)(std::forward<ARGS>(args)...);
+#endif
 }
 
 template <typename... ARGS>
@@ -181,7 +186,12 @@ inline auto free(ARGS&&... args) -> StatusType {
 
 template <typename... ARGS>
 inline auto free_host(ARGS&&... args) -> StatusType {
+#if defined(SPLA_CUDA)
   return GPU_PREFIX(FreeHost)(std::forward<ARGS>(args)...);
+#else
+  // hip deprecated hipFreeHost in favour of hipHostFree
+  return GPU_PREFIX(HostFree)(std::forward<ARGS>(args)...);
+#endif
 }
 
 template <typename... ARGS>

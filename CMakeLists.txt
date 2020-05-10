@@ -53,10 +53,6 @@ if(SPLA_GPU_BACKEND)
 	endif()
 endif()
 
-# TODO
-if(SPLA_ROCM)
-	message(FATAL_ERROR "ROCm not yet supported!")
-endif()
 
 # set preferred library type
 if (SPLA_STATIC)
@@ -136,6 +132,14 @@ if(SPLA_CUDA)
 	find_library(CUDA_BLAS_LIBRARY cublas PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
 	list(APPEND SPLA_EXTERNAL_LIBS ${CUDA_CUDART_LIBRARY} ${CUDA_BLAS_LIBRARY})
 	list(APPEND SPLA_EXTERNAL_INCLUDE_DIRS ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+endif()
+
+# ROCm
+if(SPLA_ROCM)
+  find_package(ROCBLAS REQUIRED)
+  find_package(HIPLIBS REQUIRED)
+  list(APPEND SPLA_EXTERNAL_LIBS ROCBLAS::rocblas HIPLIBS::hiplibs)
+  list(APPEND SPLA_DEFINITIONS -D__HIP_PLATFORM_HCC__) # required for parsing hip headers
 endif()
 
 
