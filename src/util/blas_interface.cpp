@@ -31,22 +31,13 @@
 
 #include "spla/config.h"
 
+// OpenBlas uses different types
 #if defined(SPLA_BLAS_OPENBLAS)
-
-#include <cblas.h>
 
 using FloatComplexPtr = float *;
 using DoubleComplexPtr = double *;
 using ConstFloatComplexPtr = const float *;
 using ConstDoubleComplexPtr = const double *;
-
-#elif defined(SPLA_BLAS_MKL)
-
-#include <mkl.h>
-using FloatComplexPtr = void *;
-using DoubleComplexPtr = void *;
-using ConstFloatComplexPtr = const void *;
-using ConstDoubleComplexPtr = const void *;
 
 #else
 
@@ -54,6 +45,17 @@ using FloatComplexPtr = void *;
 using DoubleComplexPtr = void *;
 using ConstFloatComplexPtr = const void *;
 using ConstDoubleComplexPtr = const void *;
+
+#endif
+
+
+// use blas header if found
+#if defined(SPLA_BLAS_HEADER_NAME)
+
+#include SPLA_BLAS_HEADER_NAME
+
+#else
+
 extern "C" {
 
 enum CBLAS_ORDER { CblasRowMajor = 101, CblasColMajor = 102 };
