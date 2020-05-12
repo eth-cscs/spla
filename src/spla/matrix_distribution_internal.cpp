@@ -30,6 +30,7 @@
 #include <functional>
 #include <set>
 #include <vector>
+#include <cstring>
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "spla/matrix_distribution.hpp"
@@ -140,9 +141,15 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm)
       procGridCols_(1),
       rowBlockSize_(64),
       colBlockSize_(64) {
-  MPI_Comm newComm;
-  mpi_check_status(MPI_Comm_dup(comm, &newComm));
-  comms_.emplace_back(newComm);
+  const MPI_Comm selfComm = MPI_COMM_SELF;
+  if (!std::memcmp(&comm, &selfComm, sizeof(MPI_Comm))) {
+    // don't duplicate self communicator
+    comms_.emplace_back(comm);
+  } else {
+    MPI_Comm newComm;
+    mpi_check_status(MPI_Comm_dup(comm, &newComm));
+    comms_.emplace_back(newComm);
+  }
   procGridRows_ = comms_.front().size();
 }
 
