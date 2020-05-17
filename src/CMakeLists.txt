@@ -18,6 +18,8 @@ if(SPLA_CUDA OR SPLA_ROCM)
 				gemm_ssb/gemm_ssb_gpu.cpp
 				gemm_sbs/stripe_gpu.cpp
 				gemm_sbs/gemm_sbs_gpu.cpp
+				gpu_util/gemm_gpu.cpp
+				gpu_util/multiply_gpu.cpp
 		)
 endif()
 

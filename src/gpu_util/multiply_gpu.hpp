@@ -25,55 +25,26 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_TYPES_H
-#define SPLA_TYPES_H
+#ifndef SPLA_MULTIPLY_GPU_HPP
+#define SPLA_MULTIPLY_GPU_HPP
 
-#include "spla/config.h"
+#include <cmath>
+#include <vector>
+#include "memory/gpu_array_view.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
+#include "gpu_util/gpu_helper.hpp"
+#include "gpu_util/gpu_blas_api.hpp"
 
-enum SplaDistributionType {
-  /**
-   * Blacs block cyclic distribution.
-   */
-  SPLA_DIST_BLACS_BLOCK_CYCLIC,
-  /**
-   * Mirror distribution, where each rank holds a full matrix copy.
-   */
-  SPLA_DIST_MIRROR
-};
+namespace spla {
+template <typename T>
+auto multiply_gpu(const gpu::blas::HandleType &handle,
+                  gpu::blas::OperationType transa,
+                  gpu::blas::OperationType transb, T alpha,
+                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileA,
+                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB,
+                  T beta, GPUArrayView2D<T> result) -> void;
 
-enum SplaProcessingUnit {
-  /**
-   * Host / CPU
-   */
-  SPLA_PU_HOST,
-  /**
-   * GPU
-   */
-  SPLA_PU_GPU
-};
-
-enum SplaOperation {
-  /**
-   * None
-   */
-  SPLA_OP_NONE,
-  /**
-   * Transpose
-   */
-  SPLA_OP_TRANSPOSE,
-  /**
-   * Conjugate transpose
-   */
-  SPLA_OP_CONJ_TRANSPOSE
-};
-
-#ifndef __cplusplus
-/*! \cond PRIVATE */
-// C only
-typedef enum SplaDistributionType SplaDistributionType;
-typedef enum SplaProcessingUnit SplaProcessingUnit;
-typedef enum SplaOperation SplaOperation;
-/*! \endcond */
-#endif  // cpp
-
+}  // namespace spla
 #endif

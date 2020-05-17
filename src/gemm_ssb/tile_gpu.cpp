@@ -41,7 +41,7 @@
 #include "gpu_util/gpu_helper.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
-#include "gemm_ssb/multiply_ssb_gpu.hpp"
+#include "gpu_util/multiply_gpu.hpp"
 #include "gemm_ssb/tile_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 
@@ -145,8 +145,8 @@ auto TileGPU<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
     std::memset(tileHost_.data(), 0, tileHost_.size() * sizeof(T));
   } else {
     ValueType beta = RealValueGPU<T>::create(0.0);
-    multiply_ssb_gpu<ValueType>(
-        blasHandle_.get(), alpha_,
+    multiply_gpu<ValueType>(
+        blasHandle_.get(), gpu::blas::operation::ConjugateTranspose, gpu::blas::operation::None, alpha_,
         matA_.sub_accessor(0, blockInfos_.front().globalSubRowIdx, matA_.rows(), numTileRows),
         matB_.sub_accessor(0, blockInfos_.front().globalSubColIdx, matB_.rows(), numTileCols), beta, tileGPU_);
     copy_from_gpu_async(blasHandle_.stream_handle().get(), GPUArrayConstView2D<T>(tileGPU_),

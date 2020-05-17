@@ -33,7 +33,7 @@
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "util/common_types.hpp"
-#include "gemm_sbs/multiply_sbs_gpu.hpp"
+#include "gpu_util/multiply_gpu.hpp"
 namespace spla {
 
 template <typename T>
@@ -222,7 +222,9 @@ auto StripeGPU<T>::multiply() -> void {
       const IntType currentRowBlockSize = std::min<IntType>(m - row, rowBlockSize);
       auto viewC = matC_.get_tile(0, blockInfos_.front().globalSubColIdx, currentRowBlockSize,
                                   currentColBlockSize, blasHandle_.stream_handle().get());
-      multiply_sbs_gpu<T>(blasHandle_.get(), alpha_, matA_, matB, beta_, viewC);
+      multiply_gpu<T>(blasHandle_.get(), gpu::blas::operation::None,
+                      gpu::blas::operation::None, alpha_, matA_, matB, beta_,
+                      viewC);
       if(!viewCHost_.empty()) {
         copy_from_gpu_async(
             blasHandle_.stream_handle().get(), GPUArrayConstView2D<T>(viewC),

@@ -44,82 +44,12 @@
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gemm_sbs/stripe_gpu.hpp"
-#include "gemm_sbs/multiply_sbs_gpu.hpp"
+#include "gpu_util/gemm_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "block_generation/block_cyclic_generator.hpp"
 
 namespace spla {
-
-template <typename T>
-static void gemm_sbs_gpu_single_rank(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B,
-                              int ldb, int bRowOffset, int bColOffset,
-                              MatrixDistributionInternal &descB, T beta, T *C, int ldc,
-                              ContextInternal &ctx) {
-  const T* hostPtrA;
-  const T* gpuPtrA;
-  const T* hostPtrB;
-  const T* gpuPtrB;
-  T* hostPtrC;
-  T* gpuPtrC;
-
-  std::tie(hostPtrA, gpuPtrA) =  translate_gpu_pointer(A);
-  std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
-  std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
-
-  IntType maxGPUMultiplyBufferSize =
-      ctx.gpu_memory_limit() / (sizeof(T) * 3);  // 3 buffers per stripe
-  maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
-
-  auto& blasHandles = ctx.gpu_blas_handles(1);
-  auto& gpuBuffers = ctx.gpu_buffers(3);
-  auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
-                      : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            HostArrayConstView2D<T>(A, k, mLocal, lda), maxGPUMultiplyBufferSize,
-                            gpuBuffers[0]);
-
-  auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(GPUArrayConstView2D<T>(
-                            gpuPtrB + bRowOffset + bColOffset * ldb, n, k, ldb))
-                      : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            HostArrayConstView2D<T>(B + bRowOffset + bColOffset * ldb, n, k, ldb),
-                            maxGPUMultiplyBufferSize, gpuBuffers[1]);
-
-  auto matC = gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(
-                            GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
-                      : GPUMatrixAccessor<GPUArrayView2D<T>>(
-                            HostArrayConstView2D<T>(C, n, mLocal, ldc), maxGPUMultiplyBufferSize,
-                            gpuBuffers[2]);
-
-
-  IntType rowBlockSize = matC.rows();
-  if(matC.max_tile_size() < matC.rows() * matC.cols()) {
-    // if not fully on GPU, try square size
-    rowBlockSize = std::min<IntType>(std::sqrt(matC.max_tile_size()), rowBlockSize);
-  }
-
-  const IntType colBlockSize = std::min(matC.max_tile_size() / rowBlockSize, matC.cols());
-  rowBlockSize = std::min(matC.max_tile_size() / colBlockSize, matC.rows());
-
-  for(IntType col =0 ; col < matC.cols(); col += colBlockSize) {
-    const IntType currentCols = std::min(matC.cols() - col, colBlockSize);
-    for (IntType row = 0; row < matC.rows(); row += rowBlockSize) {
-      const IntType currentRows = std::min(matC.rows() - row, rowBlockSize);
-      auto viewC = matC.get_tile(row, col, currentRows, currentCols,
-                                 blasHandles.front().stream_handle().get());
-      multiply_sbs_gpu<T>(blasHandles.front().get(), alpha, matA, matB, beta, viewC);
-      if(hostPtrC) {
-        copy_from_gpu_async(
-            blasHandles.front().stream_handle().get(), GPUArrayConstView2D<T>(viewC),
-            HostArrayView2D<T>(hostPtrC + col * ldc + row, currentCols, currentRows, ldc));
-      }
-    }
-  }
-
-  gpu::check_status(gpu::stream_synchronize(blasHandles.front().stream_handle().get()));
-
-}
-
 /*
  *    ------ H     ------
  *    |    |       |    |
@@ -145,8 +75,10 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
   }
 
   if(descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_sbs_gpu_single_rank<T>(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                                       descB, beta, C, ldc, ctx);
+    return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
+                       mLocal, n, k, alpha, A, lda,
+                       B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc,
+                       ctx);
   }
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;

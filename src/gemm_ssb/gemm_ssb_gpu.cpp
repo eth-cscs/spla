@@ -44,79 +44,12 @@
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gemm_ssb/tile_gpu.hpp"
-#include "gemm_ssb/multiply_ssb_gpu.hpp"
+#include "gpu_util/gemm_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "block_generation/block_cyclic_generator.hpp"
 
 namespace spla {
-template <typename T>
-static void gemm_ssb_gpu_single_rank(int m, int n, int kLocal, T alpha, const T *A, int lda,
-                                     const T *B, int ldb, T beta, T *C, int ldc, int cRowStart,
-                                     int cColStart, MatrixDistributionInternal &descC,
-                                     ContextInternal &ctx) {
-  const T* hostPtrA;
-  const T* gpuPtrA;
-  const T* hostPtrB;
-  const T* gpuPtrB;
-  T* hostPtrC;
-  T* gpuPtrC;
-
-  std::tie(hostPtrA, gpuPtrA) =  translate_gpu_pointer(A);
-  std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
-  std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
-
-  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (3 * sizeof(T));
-  maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
-
-  auto& blasHandles = ctx.gpu_blas_handles(1);
-  auto& gpuBuffers = ctx.gpu_buffers(3);
-  auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
-                      : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            HostArrayConstView2D<T>(A, m, kLocal, lda), maxGPUMultiplyBufferSize,
-                            gpuBuffers[0]);
-
-  auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
-                      : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                            HostArrayConstView2D<T>(B, n, kLocal, ldb), maxGPUMultiplyBufferSize,
-                            gpuBuffers[1]);
-
-  auto matC = gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(
-                            GPUArrayView2D<T>(gpuPtrC + cRowStart + cColStart * ldc, n, m, ldc))
-                      : GPUMatrixAccessor<GPUArrayView2D<T>>(
-                            HostArrayConstView2D<T>(C + cRowStart + cColStart * ldc, n, m, ldc),
-                            maxGPUMultiplyBufferSize, gpuBuffers[2]);
-
-  IntType rowBlockSize = matC.rows();
-  if(matC.max_tile_size() < matC.rows() * matC.cols()) {
-    // if not fully on GPU, try square size
-    rowBlockSize = std::min<IntType>(std::sqrt(matC.max_tile_size()), rowBlockSize);
-  }
-
-  const IntType colBlockSize = std::min(matC.max_tile_size() / rowBlockSize, matC.cols());
-  rowBlockSize = std::min(matC.max_tile_size() / colBlockSize, matC.rows());
-
-  for(IntType col =0 ; col < matC.cols(); col += colBlockSize) {
-    const IntType currentCols = std::min(matC.cols() - col, colBlockSize);
-    for (IntType row = 0; row < matC.rows(); row += rowBlockSize) {
-      const IntType currentRows = std::min(matC.rows() - row, rowBlockSize);
-      auto viewC = matC.get_tile(row, col, currentRows, currentCols,
-                                 blasHandles.front().stream_handle().get());
-      multiply_ssb_gpu<T>(blasHandles.front().get(), alpha, matA, matB, beta, viewC);
-      if(hostPtrC) {
-        copy_from_gpu_async(blasHandles.front().stream_handle().get(),
-                            GPUArrayConstView2D<T>(viewC),
-                            HostArrayView2D<T>(hostPtrC + (col + cColStart) * ldc + row + cRowStart,
-                                               currentCols, currentRows, ldc));
-      }
-    }
-  }
-
-  gpu::check_status(gpu::stream_synchronize(blasHandles.front().stream_handle().get()));
-}
-
 /*
  *    ------ H     ------
  *    |    |       |    |
@@ -142,8 +75,11 @@ void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const 
   }
 
   if(descC.comm().size() == 1) {
-    return gemm_ssb_gpu_single_rank<T>(m, n, kLocal, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
-                                       cColStart, descC, ctx);
+    // return gemm_ssb_gpu_single_rank<T>(m, n, kLocal, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
+    //                                    cColStart, descC, ctx);
+    return gemm_gpu<T>(SplaOperation::SPLA_OP_CONJ_TRANSPOSE,
+                       SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda,
+                       B, ldb, beta, C + cRowStart + cColStart * ldc, ldc, ctx);
   }
 
   const T* hostPtrA;
