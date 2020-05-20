@@ -35,6 +35,7 @@
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm_sbs/stripe_host.hpp"
+#include "gemm/gemm_host.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
@@ -48,33 +49,6 @@
 #include "util/omp_definitions.hpp"
 
 namespace spla {
-
-template <typename T>
-static void gemm_sbs_host_single_rank(int m, int n, int k, T alpha, const T *A, int lda, const T *B,
-                                      int ldb, int bRowOffset, int bColOffset,
-                                      MatrixDistributionInternal &descB, T beta, T *C, int ldc,
-                                      ContextInternal &ctx) {
-  HostArrayConstView2D<T> viewA(A, k, m, lda);
-  HostArrayConstView2D<T> viewB(B + bRowOffset + bColOffset * ldb, n, k, ldb);
-  HostArrayView2D<T> viewC(C, n, m, ldc);
-
-  const IntType numThreadCols = static_cast<IntType>(std::sqrt(ctx.num_threads()));
-  const IntType numThreadRows = (ctx.num_threads() + numThreadCols - 1) / numThreadCols;
-
-  const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
-  const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
-
-  SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(ctx.num_threads())")
-  for (IntType col = 0; col < n; col += colBlockSize) {
-    for (IntType row = 0; row < m; row += rowBlockSize) {
-      const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-      const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
-      blas::gemm(blas::Order::COL_MAJOR, blas::Operation::NONE, blas::Operation::NONE, currentRows,
-                 currentCols, k, alpha, &viewA(0, row), lda, &viewB(col, 0), ldb, beta,
-                 &viewC(col, row), ldc);
-    }
-  }
-}
 
 /*
  *    ------                    ------
@@ -96,16 +70,17 @@ template <typename T>
 void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
                    int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
                    int ldc, ContextInternal &ctx) {
-  BlasThreadsGuard(1);  // make sure blas is not multithreaded
-
   if (k == 0 || n == 0) {
     return;
   }
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_sbs_host_single_rank<T>(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                                        descB, beta, C, ldc, ctx);
+    return gemm_host<T>(SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k,
+                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta,
+                        C, ldc, ctx);
   }
+
+  BlasThreadsGuard(1);  // make sure blas is not multithreaded. gemm_host() sets this internally
 
   HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
   HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);

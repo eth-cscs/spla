@@ -44,7 +44,7 @@
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gemm_sbs/stripe_gpu.hpp"
-#include "gpu_util/gemm_gpu.hpp"
+#include "gemm/gemm_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "block_generation/block_cyclic_generator.hpp"

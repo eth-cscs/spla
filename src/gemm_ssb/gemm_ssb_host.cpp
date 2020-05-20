@@ -44,35 +44,9 @@
 #include "util/blas_threads_guard.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
+#include "gemm/gemm_host.hpp"
 
 namespace spla {
-
-template <typename T>
-static void gemm_ssb_host_single_rank(int m, int n, int k, T alpha, const T *A, int lda, const T *B,
-                                      int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
-                                      MatrixDistributionInternal &descC, ContextInternal &ctx) {
-  HostArrayConstView2D<T> viewA(A, m, k, lda);
-  HostArrayConstView2D<T> viewB(B, n, k, ldb);
-  HostArrayView2D<T> viewC(C + cRowStart + cColStart * ldc, n, m, ldc);
-
-  const IntType numThreadCols = static_cast<IntType>(std::sqrt(ctx.num_threads()));
-  const IntType numThreadRows = (ctx.num_threads() + numThreadCols - 1) / numThreadCols;
-
-  const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
-  const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
-
-  SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(ctx.num_threads())")
-  for (IntType col = 0; col < n; col += colBlockSize) {
-    for (IntType row = 0; row < m; row += rowBlockSize) {
-      const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-      const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
-      blas::gemm(blas::Order::COL_MAJOR, blas::Operation::CONJ_TRANS, blas::Operation::NONE,
-                 currentRows, currentCols, k, alpha, &viewA(row, 0), lda, &viewB(col, 0), ldb, beta,
-                 &viewC(col, row), ldc);
-    }
-  }
-}
-
 /*
  *    ------ H     ------
  *    |    |       |    |
@@ -93,16 +67,18 @@ template <typename T>
 void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
                    T beta, T *C, int ldc, int cRowStart, int cColStart,
                    MatrixDistributionInternal &descC, ContextInternal &ctx) {
-  BlasThreadsGuard(1);  // make sure blas is not multithreaded
 
   if (m == 0 || n == 0) {
     return;
   }
 
   if (descC.comm().size() == 1) {
-    return gemm_ssb_host_single_rank<T>(m, n, kLocal, alpha, A, lda, B, ldb, beta, C, ldc,
-                                        cRowStart, cColStart, descC, ctx);
+    return gemm_host<T>(SPLA_OP_CONJ_TRANSPOSE, SPLA_OP_NONE, m, n, kLocal,
+                        alpha, A, lda, B, ldb, beta,
+                        C + cRowStart + cColStart * ldc, ldc, ctx);
   }
+
+  BlasThreadsGuard(1);  // make sure blas is not multithreaded. gemm_host() sets this internally
 
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);

@@ -26,16 +26,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cmath>
-#include <vector>
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
+#include "gemm/gemm_gpu.hpp"
+#include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_blas_api.hpp"
-#include "gpu_util/multiply_gpu.hpp"
-#include "gemm/gemm_gpu.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
+#include "gpu_util/multiply_gpu.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
+#include <cmath>
+#include <vector>
 
 namespace spla {
 
