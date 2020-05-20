@@ -11,6 +11,7 @@ set(SPLA_SOURCE_FILES
 	spla/gemm_ssb.cpp
 	spla/gemm_sbs.cpp
 	spla/context.cpp
+	spla/gemm.cpp
 	)
 
 if(SPLA_CUDA OR SPLA_ROCM)
