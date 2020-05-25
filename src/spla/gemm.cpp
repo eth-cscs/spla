@@ -100,7 +100,7 @@ void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
                                     beta, C, ldc, *(ctx.ctxInternal_));
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_gpu<const gpu::blas::ComplexDoubleType>(
+    gemm_gpu<gpu::blas::ComplexDoubleType>(
         opA, opB, m, n, k,
         gpu::blas::ComplexDoubleType{alpha.real(), alpha.imag()},
         reinterpret_cast<const gpu::blas::ComplexDoubleType *>(A), lda,
