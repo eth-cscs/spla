@@ -1,3 +1,4 @@
+[![CI status](https://github.com/eth-cscs/spla/workflows/CI/badge.svg)](https://github.com/eth-cscs/spla/actions?query=workflow%3ACI)
 [![Documentation Status](https://readthedocs.org/projects/spla/badge/?version=latest)](https://spla.readthedocs.io/en/latest/?badge=latest)
 
 # SPLA - Specialized Parallel Linear Algebra
