@@ -77,10 +77,10 @@ make -j8 install
 | SPLA_INSTALL          | ON      | Add library to install target                    |
 
 ## Acknowledgements
-The development of SPLA would not be possible without support of the following organizations:
+This work was supported by:
 
-| Logo | Name | URL |
-|:----:|:----:|:---:|
-|![ethz](docs/images/logo_ethz.png) | Swiss Federal Institute of Technology in Zürich | https://www.ethz.ch/      |
-|![cscs](docs/images/logo_cscs.png) | Swiss National Supercomputing Centre            | https://www.cscs.ch/      |
-|![pasc](docs/images/logo_max.png)  | MAX (MAterials design at the eXascale) <br> European Centre of Excellence | http://www.max-centre.eu/   |
+
+|![ethz](docs/images/logo_ethz.png) | [**Swiss Federal Institute of Technology in Zurich**](https://www.ethz.ch/) |
+|:----:|:----:|
+|![cscs](docs/images/logo_cscs.png) | [**Swiss National Supercomputing Centre**](https://www.cscs.ch/)            |
+|![max](docs/images/logo_max.png)  | [**MAterials design at the eXascale**](http://www.max-centre.eu) <br> (Horizon2020, grant agreement MaX CoE, No. 824143) |
