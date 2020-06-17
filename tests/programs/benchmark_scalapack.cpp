@@ -8,6 +8,7 @@
 #include "spla/matrix_distribution.hpp"
 #include "spla/spla.hpp"
 #include "mpi_util/mpi_init_handle.hpp"
+#include "timing/rt_graph.hpp"
 #include "CLI/CLI.hpp"
 #include "timing/timing.hpp"
 
@@ -69,12 +70,12 @@ void run_gemm(int globalRows, int colsA, int colsB, int numThreads, int blacsBlo
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
   const int maxRowsPerRank = (globalRows + worldSize - 1) / worldSize;
-  // const int globalRows = worldSize * localNumRows;
-  const int localNumRows = std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank);
+  const int localNumRows = std::max(std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
+  const int maxRowsC = (colsA / (blacsBlockSize * worldSize) + 1) * blacsBlockSize;
 
   std::vector<double> A(maxRowsPerRank * colsA);
   std::vector<double> B(maxRowsPerRank * colsB);
-  std::vector<double> C(colsA * colsB);
+  std::vector<double> C(maxRowsC * colsB);
 
   rt_graph::Timer timer;
 
@@ -85,14 +86,14 @@ void run_gemm(int globalRows, int colsA, int colsB, int numThreads, int blacsBlo
 
   // run once to warm up
   spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                 B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), colsA, 0, 0,
+                 B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0,
                  arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
     spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                   B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), colsA, 0, 0,
+                   B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0,
                    arrayDesc, ctx);
   }
   STOP_TIMING("spla");
@@ -108,7 +109,7 @@ void run_gemm(int globalRows, int colsA, int colsB, int numThreads, int blacsBlo
                 maxRowsPerRank, &info);
   call_descinit(descB.data(), globalRows, colsB, maxRowsPerRank, colsB, 0, 0, grid,
                 maxRowsPerRank, &info);
-  call_descinit(descC.data(), colsA, colsB, blacsBlockSize, blacsBlockSize, 0, 0, grid, colsA,
+  call_descinit(descC.data(), colsA, colsB, blacsBlockSize, blacsBlockSize, 0, 0, grid, maxRowsC,
                 &info);
 
   call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.data(), 1, 1, descA.data(), B.data(), 1, 1,
