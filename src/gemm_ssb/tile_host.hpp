@@ -49,10 +49,12 @@ class TileHost {
 public:
   using ValueType = T;
 
-  TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+  TileHost(IntType numThreads, MPICommunicatorHandle comm,
+           std::shared_ptr<Buffer<MPIAllocator>> buffer,
            std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-           const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
-           ValueType beta, HostArrayView2D<ValueType> C, IntType numBlockRows,
+           const HostArrayConstView2D<ValueType> &A,
+           const HostArrayConstView2D<ValueType> &B, ValueType beta,
+           HostArrayView2D<ValueType> C, IntType numBlockRows,
            IntType numBlockCols);
 
   auto multiply(IntType blockRowIdx, IntType blockColIdx) -> void;
@@ -75,6 +77,7 @@ protected:
   std::vector<BlockInfo> blockInfos_;
 
   // fixed
+  IntType numThreads_;
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   MPICommunicatorHandle comm_;

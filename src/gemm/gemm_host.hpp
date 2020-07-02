@@ -34,10 +34,9 @@
 
 namespace spla {
 template <typename T>
-void gemm_host(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntType k,
-              T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
-              IntType ldc, ContextInternal &ctx);
-
+void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
+               IntType m, IntType n, IntType k, T alpha, const T *A,
+               IntType lda, const T *B, IntType ldb, T beta, T *C, IntType ldc);
 
 }  // namespace spla
 #endif

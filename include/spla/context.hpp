@@ -88,9 +88,9 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Number of tiles per thread, which allow for communication and computation overlap.
+   * @return Number of tiles used to overlap computation and communication.
    */
-  int num_tiles_per_thread() const;
+  int num_tiles() const;
 
   /**
    * Access a Context parameter.
@@ -119,11 +119,11 @@ public:
   void set_num_threads(int numThreads);
 
   /**
-   * Set the number of tiles per thread.
+   * Set the number of tiles.
    *
-   * @param[in] numTilesPerThread Number of tiles per thread.
+   * @param[in] numTilesPerThread Number of tiles.
    */
-  void set_num_tiles_per_thread(int numTilesPerThread);
+  void set_num_tiles(int numTilesPerThread);
 
   /**
    * Set the number of streams on GPU.

@@ -49,11 +49,13 @@ class StripeHost {
 public:
   using ValueType = T;
 
-  StripeHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+  StripeHost(IntType numThreads, MPICommunicatorHandle comm,
+             std::shared_ptr<Buffer<MPIAllocator>> buffer,
              std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
              std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-             const HostArrayConstView2D<ValueType>& A, const HostArrayConstView2D<ValueType>& B,
-             ValueType beta, HostArrayView2D<ValueType> C, IntType numBlockCols);
+             const HostArrayConstView2D<ValueType> &A,
+             const HostArrayConstView2D<ValueType> &B, ValueType beta,
+             HostArrayView2D<ValueType> C, IntType numBlockCols);
 
   auto collect(IntType blockColIdx) -> void;
 
@@ -81,6 +83,7 @@ protected:
   std::vector<IntType> localColOffsets_; // Col offset of sub-matrix of B on each rank
 
   // fixed
+  IntType numThreads_;
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   std::shared_ptr<Buffer<MPIAllocator>> recvBuffer_;

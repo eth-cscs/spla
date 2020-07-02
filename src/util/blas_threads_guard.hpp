@@ -35,14 +35,31 @@ namespace spla {
 class BlasThreadsGuard {
 public:
   explicit BlasThreadsGuard(IntType numThreadsTarget)
-      : orignalNumThreads_(blas::get_num_threads()) {
-    blas::set_num_threads(numThreadsTarget);
+      : orignalNumThreads_(blas::get_num_threads()), numThreadsSet_(false) {
+    if (orignalNumThreads_ != numThreadsTarget) {
+      blas::set_num_threads(numThreadsTarget);
+      numThreadsSet_ =true;
+    }
   }
 
-  ~BlasThreadsGuard() { blas::set_num_threads(orignalNumThreads_); }
+  BlasThreadsGuard() = delete;
+
+  BlasThreadsGuard(const BlasThreadsGuard&) = delete;
+
+  BlasThreadsGuard(BlasThreadsGuard&&) = delete;
+
+  auto operator=(const BlasThreadsGuard&) -> BlasThreadsGuard& = delete;
+
+  auto operator=(BlasThreadsGuard&&) -> BlasThreadsGuard& = delete;
+
+  ~BlasThreadsGuard() {
+    if (numThreadsSet_)
+      blas::set_num_threads(orignalNumThreads_);
+  }
 
 private:
   IntType orignalNumThreads_;
+  bool numThreadsSet_;
 };
 }  // namespace spla
 

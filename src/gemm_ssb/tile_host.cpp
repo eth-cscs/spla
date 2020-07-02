@@ -31,6 +31,7 @@
 #include <cassert>
 #include <cstring>
 #include "tile_host.hpp"
+#include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "util/blas_interface.hpp"
@@ -38,21 +39,17 @@
 namespace spla {
 
 template <typename T>
-TileHost<T>::TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                      std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-                      const HostArrayConstView2D<ValueType>& A,
-                      const HostArrayConstView2D<ValueType>& B, ValueType beta,
-                      HostArrayView2D<ValueType> C, IntType numBlockRows, IntType numBlockCols)
-    : state_(TileState::Empty),
-      matrixDist_(std::move(matrixDist)),
-      buffer_(std::move(buffer)),
-      comm_(std::move(comm)),
-      numBlockRows_(numBlockRows),
-      numBlockCols_(numBlockCols),
-      A_(A),
-      B_(B),
-      C_(C),
-      alpha_(alpha),
+TileHost<T>::TileHost(IntType numThreads, MPICommunicatorHandle comm,
+                      std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                      std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                      ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                      HostArrayView2D<ValueType> C, IntType numBlockRows,
+                      IntType numBlockCols)
+    : state_(TileState::Empty), numThreads_(numThreads),
+      matrixDist_(std::move(matrixDist)), buffer_(std::move(buffer)),
+      comm_(std::move(comm)), numBlockRows_(numBlockRows),
+      numBlockCols_(numBlockCols), A_(A), B_(B), C_(C), alpha_(alpha),
       beta_(beta) {
   assert(A_.dim_inner() == B_.dim_inner());
   assert(buffer_);
@@ -99,9 +96,11 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 
     const ValueType beta = 0.0;
 
-    blas::gemm(blas::Order::COL_MAJOR, blas::Operation::CONJ_TRANS, blas::Operation::NONE,
-               numTileRows, numTileCols, k, alpha_, &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
-               &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta, tile_.data(), ldc);
+    gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_CONJ_TRANSPOSE,
+                 SplaOperation::SPLA_OP_NONE, numTileRows, numTileCols, k,
+                 alpha_, &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
+                 &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta,
+                 tile_.data(), ldc);
   }
 
   // set state atomically
@@ -160,22 +159,25 @@ auto TileHost<T>::extract() -> void {
   }
 
   // iterate over all blocks within tile
+  SPLA_OMP_PRAGMA("omp parallel num_threads(numThreads_)")
   for (const auto& info : blockInfos_) {
     const IntType tileRowOffset = info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
     const IntType tileColOffset = info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
     if (info.mpiRank == comm_.rank() || info.mpiRank < 0) {
       if (this->beta_ == ValueType(0.0) || this->beta_ == ValueType(-0.0)) {
+        SPLA_OMP_PRAGMA("omp for schedule(static)")
         for (IntType col = 0; col < info.numCols; ++col) {
-          for (IntType row = 0; row < info.numRows; ++row) {
-            this->C_(info.localColIdx + col, info.localRowIdx + row) =
-                this->tile_(col + tileColOffset, row + tileRowOffset);
-          }
+          std::memcpy(&(this->C_(info.localColIdx + col, info.localRowIdx)),
+                      &(this->tile_(col + tileColOffset, tileRowOffset)),
+                      info.numRows * sizeof(T));
         }
       } else {
+        SPLA_OMP_PRAGMA("omp for schedule(static)")
         for (IntType col = 0; col < info.numCols; ++col) {
           for (IntType row = 0; row < info.numRows; ++row) {
             this->C_(info.localColIdx + col, info.localRowIdx + row) =
-                beta_ * this->C_(info.localColIdx + col, info.localRowIdx + row) +
+                beta_ *
+                    this->C_(info.localColIdx + col, info.localRowIdx + row) +
                 this->tile_(col + tileColOffset, row + tileRowOffset);
           }
         }

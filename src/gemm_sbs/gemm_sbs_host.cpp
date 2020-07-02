@@ -75,12 +75,10 @@ void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   }
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_host<T>(SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k,
-                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta,
-                        C, ldc, ctx);
+    return gemm_host<T>(ctx.num_threads(), SPLA_OP_NONE, SPLA_OP_NONE, mLocal,
+                        n, k, alpha, A, lda, B + bRowOffset + bColOffset * ldb,
+                        ldb, beta, C, ldc);
   }
-
-  BlasThreadsGuard(1);  // make sure blas is not multithreaded. gemm_host() sets this internally
 
   HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
   HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
@@ -96,187 +94,46 @@ void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const
                                          bRowOffset, bColOffset));
   }
 
-  std::vector<std::vector<StripeHost<T>>> threadTiles(ctx.num_threads());
+  std::vector<StripeHost<T>> stripes;
+  stripes.reserve(ctx.num_threads());
 
   const IntType numBlockCols = matrixDist->num_block_cols();
   const IntType numBlockColsInTile =
       std::max<IntType>((128 + descB.col_block_size() - 1) / descB.col_block_size(), 1);
 
-  // create tiles
+  // create stripes
   {
-    auto &buffers = ctx.mpi_buffers(2 * ctx.num_threads() * ctx.num_tiles_per_thread());
-    auto &comms = descB.get_comms(ctx.num_threads() * ctx.num_tiles_per_thread());
+    auto &buffers = ctx.mpi_buffers(2 * ctx.num_tiles());
+    auto &comms = descB.get_comms(ctx.num_tiles());
     IntType idx = 0;
-    for (auto &tiles : threadTiles) {
-      for (IntType tileIdx = 0; tileIdx < ctx.num_tiles_per_thread(); ++tileIdx, ++idx) {
-        tiles.emplace_back(comms[idx], buffers[2 * idx], buffers[2 * idx + 1], matrixDist, alpha,
-                           viewA, viewB, beta, viewC, numBlockColsInTile);
-      }
+    for (IntType tileIdx = 0; tileIdx < ctx.num_tiles();
+         ++tileIdx, ++idx) {
+      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx],
+                           buffers[2 * idx + 1], matrixDist, alpha, viewA,
+                           viewB, beta, viewC, numBlockColsInTile);
     }
   }
 
-  const IntType numTilesPerThread = static_cast<IntType>(threadTiles[0].size());
+  IntType currentTileIdx = 0;
+  for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+       blockColIdx += numBlockColsInTile) {
 
-  int mpiThreadSupport;
-  mpi_check_status(MPI_Query_thread(&mpiThreadSupport));
+    IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
-  if (mpiThreadSupport == MPI_THREAD_MULTIPLE || ctx.num_threads() == 1) {
-    IntType currentTileIdx = 0;
-
-    SPLA_OMP_PRAGMA(
-        "omp parallel for schedule(static) num_threads(ctx.num_threads()) firstprivate(currentTileIdx)")
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
-      auto &tiles = threadTiles[omp_get_thread_num()];
-
-      IntType nextTileIdx = (currentTileIdx + 1) % numTilesPerThread;
-
-      if (tiles[nextTileIdx].state() == StripeState::InExchange) {
-        tiles[nextTileIdx].finalize_exchange();
-        tiles[nextTileIdx].multiply();
-      }
-
-      tiles[currentTileIdx].collect(blockColIdx);
-      tiles[currentTileIdx].start_exchange();
-
-      currentTileIdx = nextTileIdx;
-    }
-    SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
-      auto &tiles = threadTiles[omp_get_thread_num()];
-      const IntType numTiles = static_cast<IntType>(tiles.size());
-      for (IntType i = 0; i < numTiles; ++i) {
-        if (tiles[i].state() == StripeState::InExchange) {
-          tiles[i].finalize_exchange();
-          tiles[i].multiply();
-        }
-      }
-    }
-  } else {
-    /*
-     * MPI not thread safe -> funnel through master thread
-     */
-    if (mpiThreadSupport < MPI_THREAD_FUNNELED) throw MPIThreadSupportError();
-
-    std::atomic<int> numProcThreadsDone(0);
-    std::vector<std::atomic<int>> procThreadDone(ctx.num_threads() - 1);
-    for (auto &val : procThreadDone) {
-      val.store(0, std::memory_order_relaxed);
+    if (stripes[nextTileIdx].state() == StripeState::InExchange) {
+      stripes[nextTileIdx].finalize_exchange();
+      stripes[nextTileIdx].multiply();
     }
 
-    SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
-      const IntType numProcessingThreads = omp_get_num_threads() - 1;
-      if (omp_get_thread_num() == 0) {
-        /*
-         * Master thread
-         */
+    stripes[currentTileIdx].collect(blockColIdx);
+    stripes[currentTileIdx].start_exchange();
 
-        // iterate over tiles as long as processing is active
-        while (numProcThreadsDone.load(std::memory_order_relaxed) != numProcessingThreads) {
-          for (IntType tileIdx = 0;
-               tileIdx < numTilesPerThread &&
-               numProcThreadsDone.load(std::memory_order_relaxed) != numProcessingThreads;
-               ++tileIdx) {
-            // check all threads
-            for (IntType threadId = 0; threadId < numProcessingThreads; ++threadId) {
-              auto &t = threadTiles[threadId][tileIdx];
-              auto &tNext = threadTiles[threadId][(tileIdx + 1) % numTilesPerThread];
-
-              // wait for tile to be multiplied
-              while (!procThreadDone[threadId].load(std::memory_order_relaxed) &&
-                     t.state() != StripeState::Collected) {
-                // if next tile is already in exchange and ready, finalize
-                if (tNext.state() == StripeState::InExchange &&
-                    tNext.exchange_is_ready_and_active()) {
-                  tNext.finalize_exchange();
-                }
-              }
-
-              // if proc threads still active, tile must be in Multiplied state (due to while loop
-              // before)
-              if (!procThreadDone[threadId].load(std::memory_order_relaxed)) {
-                t.start_exchange();
-                if (tNext.state() == StripeState::InExchange) {
-                  tNext.finalize_exchange();
-                }
-              }
-            }
-          }
-        }
-
-        // start all remaining messages
-        for (IntType i = 0; i < numTilesPerThread; ++i) {
-          for (IntType threadId = 0; threadId < numProcessingThreads; ++threadId) {
-            auto &t = threadTiles[threadId][i];
-            const auto state = t.state();
-            if (state == StripeState::Collected) {
-              t.start_exchange();
-            }
-          }
-        }
-
-        // receive all remaining messages
-        for (IntType i = 0; i < numTilesPerThread; ++i) {
-          for (IntType threadId = 0; threadId < numProcessingThreads; ++threadId) {
-            auto &t = threadTiles[threadId][i];
-            const auto state = t.state();
-            if (state == StripeState::InExchange) {
-              t.finalize_exchange();
-            }
-          }
-        }
-
-      } else {
-        /*
-         * Processing threads
-         */
-        const IntType procThreadIdx = omp_get_thread_num() - 1;
-        IntType currentTileIdx = 0;
-
-        const IntType numIter = (numBlockCols + numBlockColsInTile - 1) / numBlockColsInTile;
-        const IntType numIterPerThread =
-            (numIter + numProcessingThreads - 1) / numProcessingThreads;
-
-        for (IntType blockColIdx = procThreadIdx * numIterPerThread * numBlockColsInTile;
-             blockColIdx < std::min<IntType>(numBlockCols, (procThreadIdx + 1) * numIterPerThread *
-                                                               numBlockColsInTile);
-             blockColIdx += numBlockColsInTile) {
-          auto &tiles = threadTiles[procThreadIdx];
-
-          // wait for tile to be exchanged in master thread. Tile may be Empty.
-          while (tiles[currentTileIdx].state() == StripeState::Collected) {
-          }
-          while (tiles[currentTileIdx].state() == StripeState::InExchange) {
-          }
-          // NOTE: combining into single while loop with "||" caused bug: state was sometimes
-          // InExchange after exiting
-
-          // extract if necessary
-          if (tiles[currentTileIdx].state() == StripeState::Exchanged) {
-            tiles[currentTileIdx].multiply();
-          }
-
-          tiles[currentTileIdx].collect(blockColIdx);
-          // tiles[currentTileIdx].multiply(tr, cRowStart, tc, cColStart);
-
-          currentTileIdx = (currentTileIdx + 1) % numTilesPerThread;
-        }
-
-        procThreadDone[procThreadIdx].store(1, std::memory_order_relaxed);
-        numProcThreadsDone.fetch_add(1, std::memory_order_relaxed);
-      }
-
-      // make sure communication is done
-      SPLA_OMP_PRAGMA("omp barrier")
-
-      // multiply remaining tiles
-      if (omp_get_thread_num() != 0 && omp_get_thread_num() < numProcessingThreads) {
-        for (IntType i = 0; i < numTilesPerThread; ++i) {
-          auto &t = threadTiles[omp_get_thread_num() - 1][i];
-          const auto state = t.state();
-          if (state == StripeState::Exchanged) {
-            t.multiply();
-          }
-        }
-      }
+    currentTileIdx = nextTileIdx;
+  }
+  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+    if (stripes[i].state() == StripeState::InExchange) {
+      stripes[i].finalize_exchange();
+      stripes[i].multiply();
     }
   }
 }

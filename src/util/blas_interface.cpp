@@ -165,6 +165,16 @@ auto set_num_threads(IntType numThreads) -> void {
 #endif
 }
 
+auto is_parallel() -> bool {
+#if defined(SPLA_BLAS_OPENBLAS)
+  return openblas_get_parallel();
+#elif defined(SPLA_BLAS_MKL)
+  return true;
+#else
+  return false;
+#endif
+}
+
 }  // namespace blas
 }  // namespace spla
 

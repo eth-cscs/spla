@@ -31,6 +31,7 @@
 #include <cassert>
 #include <cstring>
 #include "gemm_sbs/stripe_host.hpp"
+#include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "util/blas_interface.hpp"
@@ -40,28 +41,22 @@
 namespace spla {
 
 template <typename T>
-StripeHost<T>::StripeHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+StripeHost<T>::StripeHost(IntType numThreads, MPICommunicatorHandle comm,
+                          std::shared_ptr<Buffer<MPIAllocator>> buffer,
                           std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
-                          std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-                          const HostArrayConstView2D<ValueType>& A,
-                          const HostArrayConstView2D<ValueType>& B, ValueType beta,
-                          HostArrayView2D<ValueType> C, IntType numBlockCols)
-    : state_(StripeState::Empty),
-      localCounts_(comm.size()),
-      recvDispls_(comm.size()),
-      localRows_(comm.size()),
-      localCols_(comm.size()),
-      localRowOffsets_(comm.size()),
-      localColOffsets_(comm.size()),
-      matrixDist_(std::move(matrixDist)),
-      buffer_(std::move(buffer)),
-      recvBuffer_(std::move(recvBuffer)),
-      comm_(std::move(comm)),
-      numBlockCols_(numBlockCols),
-      A_(A),
-      B_(B),
-      C_(C),
-      alpha_(alpha),
+                          std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                          ValueType alpha,
+                          const HostArrayConstView2D<ValueType> &A,
+                          const HostArrayConstView2D<ValueType> &B,
+                          ValueType beta, HostArrayView2D<ValueType> C,
+                          IntType numBlockCols)
+    : state_(StripeState::Empty), localCounts_(comm.size()),
+      recvDispls_(comm.size()), localRows_(comm.size()),
+      localCols_(comm.size()), localRowOffsets_(comm.size()),
+      localColOffsets_(comm.size()), numThreads_(numThreads),
+      matrixDist_(std::move(matrixDist)), buffer_(std::move(buffer)),
+      recvBuffer_(std::move(recvBuffer)), comm_(std::move(comm)),
+      numBlockCols_(numBlockCols), A_(A), B_(B), C_(C), alpha_(alpha),
       beta_(beta) {
   assert(A_.dim_inner() == C.dim_inner());
   assert(buffer_);
@@ -121,6 +116,8 @@ auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   if (localCounts_[comm_.rank()]) {
     HostArrayView2D<T> sendBufferView(recvBuffer_->data<T>() + recvDispls_[comm_.rank()],
                                       localCols_[comm_.rank()], localRows_[comm_.rank()]);
+
+    SPLA_OMP_PRAGMA("omp parallel for schedule(static) num_threads(numThreads_)")
     for (IntType col = 0; col < localCols_[comm_.rank()]; ++col) {
       std::memcpy(
           &sendBufferView(col, 0),
@@ -175,26 +172,34 @@ auto StripeHost<T>::multiply() -> void {
   // reshuffle data into full C matrix
   HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
   const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
-  for(const auto& info : blockInfos_) {
-    assert(info.mpiRank >= 0);
+  SPLA_OMP_PRAGMA("omp parallel num_threads(numThreads_)") {
+    for (const auto &info : blockInfos_) {
+      assert(info.mpiRank >= 0);
 
-    HostArrayConstView2D<T> recvDataView(recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
-                                      localCols_[info.mpiRank], localRows_[info.mpiRank]);
+      HostArrayConstView2D<T> recvDataView(
+          recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
+          localCols_[info.mpiRank], localRows_[info.mpiRank]);
 
-    const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
-    const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
-    for (IntType col = 0; col < info.numCols; ++col) {
-      std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col, info.globalSubRowIdx),
-                  &recvDataView(startCol + col, startRow), info.numRows * sizeof(T));
+      const IntType startRow =
+          info.localRowIdx - localRowOffsets_[info.mpiRank];
+      const IntType startCol =
+          info.localColIdx - localColOffsets_[info.mpiRank];
+      SPLA_OMP_PRAGMA("omp for schedule(static)")
+      for (IntType col = 0; col < info.numCols; ++col) {
+        std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col,
+                                info.globalSubRowIdx),
+                    &recvDataView(startCol + col, startRow),
+                    info.numRows * sizeof(T));
+      }
     }
   }
 
-
   // multiply full C matrix
-  blas::gemm(blas::Order::COL_MAJOR, blas::Operation::NONE, blas::Operation::NONE, A_.dim_inner(),
-             n, A_.dim_outer(), alpha_, A_.data(), A_.ld_inner(), fullStripe.data(),
-             fullStripe.ld_inner(), beta_, &C_(blockInfos_.front().globalSubColIdx, 0),
-             C_.ld_inner());
+  gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE,
+               SplaOperation::SPLA_OP_NONE, A_.dim_inner(), n, A_.dim_outer(),
+               alpha_, A_.data(), A_.ld_inner(), fullStripe.data(),
+               fullStripe.ld_inner(), beta_,
+               &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
 
   // set state atomically
   this->state_.set(StripeState::Empty);

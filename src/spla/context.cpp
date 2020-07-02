@@ -37,8 +37,8 @@ int Context::num_threads() const {
  return ctxInternal_->num_threads();
 }
 
-int Context::num_tiles_per_thread() const {
- return ctxInternal_->num_tiles_per_thread();
+int Context::num_tiles() const {
+ return ctxInternal_->num_tiles();
 }
 
 int Context::num_gpu_streams() const {
@@ -57,8 +57,8 @@ void Context::set_num_threads(int numThreads) {
  ctxInternal_->set_num_threads(numThreads);
 }
 
-void Context::set_num_tiles_per_thread(int numTilesPerThread) {
- ctxInternal_->set_num_tiles_per_thread(numTilesPerThread);
+void Context::set_num_tiles(int numTilesPerThread) {
+ ctxInternal_->set_num_tiles(numTilesPerThread);
 }
 
 void Context::set_num_gpu_streams(int numGPUStreams) {
