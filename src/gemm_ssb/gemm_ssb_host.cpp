@@ -72,11 +72,11 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
     return;
   }
 
-  if (descC.comm().size() == 1) {
-    return gemm_host<T>(ctx.num_threads(), SPLA_OP_CONJ_TRANSPOSE, SPLA_OP_NONE, m, n, kLocal,
-                        alpha, A, lda, B, ldb, beta,
-                        C + cRowStart + cColStart * ldc, ldc);
-  }
+  // if (descC.comm().size() == 1) {
+  //   return gemm_host<T>(ctx.num_threads(), SPLA_OP_CONJ_TRANSPOSE, SPLA_OP_NONE, m, n, kLocal,
+  //                       alpha, A, lda, B, ldb, beta,
+  //                       C + cRowStart + cColStart * ldc, ldc);
+  // }
 
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
@@ -111,50 +111,48 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < ctx.num_tiles();
          ++tileIdx, ++idx) {
-      tiles.emplace_back(ctx.num_threads(), comms[idx], buffers[idx],
-                         matrixDist, alpha, viewA, viewB, beta, viewC,
-                         numBlockRowsInTile, numBlockColsInTile);
+      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, alpha, viewA,
+                         viewB, beta, viewC, numBlockRowsInTile,
+                         numBlockColsInTile);
     }
   }
 
   SCOPED_TIMING("inner_host_thread_multiple");
 
-  IntType currentTileIdx = 0;
 
-  for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
-       blockRowIdx += numBlockRowsInTile) {
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-         blockColIdx += numBlockColsInTile) {
+  BlasThreadsGuard threadGuard(1);
+  SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
+    IntType currentTileIdx = 0;
+    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
+         blockRowIdx += numBlockRowsInTile) {
+      for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+           blockColIdx += numBlockColsInTile) {
 
-      IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
+        IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
-      if (tiles[nextTileIdx].state() == TileState::InExchange) {
-        START_TIMING("finalize_exchange");
-        tiles[nextTileIdx].finalize_exchange();
-        STOP_TIMING("finalize_exchange");
-        START_TIMING("extract");
-        tiles[nextTileIdx].extract();
-        STOP_TIMING("extract");
+
+        SPLA_OMP_PRAGMA("omp master") {
+          if (tiles[nextTileIdx].state() == TileState::Multiplied)
+            tiles[nextTileIdx].exchange();
+        }
+
+        tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
+
+        if (tiles[nextTileIdx].state() == TileState::Exchanged)
+          tiles[nextTileIdx].extract();
+
+        currentTileIdx = nextTileIdx;
+      }
+    }
+    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+      if (tiles[i].state() == TileState::Multiplied) {
+        SPLA_OMP_PRAGMA("omp master") { tiles[i].exchange(); }
       }
 
-      START_TIMING("blas_multiply");
-      tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
-      STOP_TIMING("blas_multiply");
-      START_TIMING("start_exchange");
-      tiles[currentTileIdx].start_exchange();
-      STOP_TIMING("start_exchange");
-
-      currentTileIdx = nextTileIdx;
-    }
-  }
-  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    if (tiles[i].state() == TileState::InExchange) {
-      START_TIMING("finalize_exchange");
-      tiles[i].finalize_exchange();
-      STOP_TIMING("finalize_exchange");
-      START_TIMING("extract");
-      tiles[i].extract();
-      STOP_TIMING("extract");
+      SPLA_OMP_PRAGMA("omp barrier")
+      if (tiles[i].state() == TileState::Exchanged) {
+        tiles[i].extract();
+      }
     }
   }
 }

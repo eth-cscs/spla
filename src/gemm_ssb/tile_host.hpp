@@ -49,7 +49,7 @@ class TileHost {
 public:
   using ValueType = T;
 
-  TileHost(IntType numThreads, MPICommunicatorHandle comm,
+  TileHost(MPICommunicatorHandle comm,
            std::shared_ptr<Buffer<MPIAllocator>> buffer,
            std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
            const HostArrayConstView2D<ValueType> &A,
@@ -57,27 +57,25 @@ public:
            HostArrayView2D<ValueType> C, IntType numBlockRows,
            IntType numBlockCols);
 
+  // Multiply tile starting from given indices. All threads in parallel region
+  // must call this function.
   auto multiply(IntType blockRowIdx, IntType blockColIdx) -> void;
 
-  auto start_exchange() -> void;
+  // Exchange data with MPI. NOT thread-safe.
+  auto exchange() -> void;
 
-  auto finalize_exchange() -> void;
-
+  // Add tile to C. All threads in parallel region must call this function.
   auto extract() -> void;
 
   inline auto state() -> TileState { return state_.get(); }
-
-  inline auto exchange_is_ready_and_active() -> bool { return request_.is_ready_and_active(); }
 
 protected:
   // state dependent
   AtomicTileState state_;
   HostArrayView2D<ValueType> tile_;
-  MPIRequestHandle request_;
   std::vector<BlockInfo> blockInfos_;
 
   // fixed
-  IntType numThreads_;
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   MPICommunicatorHandle comm_;

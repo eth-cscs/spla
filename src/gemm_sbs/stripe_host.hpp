@@ -49,7 +49,7 @@ class StripeHost {
 public:
   using ValueType = T;
 
-  StripeHost(IntType numThreads, MPICommunicatorHandle comm,
+  StripeHost(MPICommunicatorHandle comm,
              std::shared_ptr<Buffer<MPIAllocator>> buffer,
              std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
              std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
@@ -57,23 +57,21 @@ public:
              const HostArrayConstView2D<ValueType> &B, ValueType beta,
              HostArrayView2D<ValueType> C, IntType numBlockCols);
 
+  // Assemble send buffer for MPI exchange. NOT thread-safe.
   auto collect(IntType blockColIdx) -> void;
 
-  auto start_exchange() -> void;
+  // Exchange data with MPI. NOT thread-safe.
+  auto exchange() -> void;
 
-  auto finalize_exchange() -> void;
-
+  // Multiply stripe. All threads in parallel region must call this function.
   auto multiply() -> void;
 
   inline auto state() -> StripeState { return state_.get(); }
-
-  inline auto exchange_is_ready_and_active() -> bool { return request_.is_ready_and_active(); }
 
 protected:
   // state dependent
   AtomicStripeState state_;
   HostArrayView2D<ValueType> tile_;
-  MPIRequestHandle request_;
   std::vector<BlockInfo> blockInfos_;
   std::vector<int> localCounts_;
   std::vector<int> recvDispls_;
@@ -81,9 +79,9 @@ protected:
   std::vector<IntType> localCols_; // number of cols of B each rank has stored
   std::vector<IntType> localRowOffsets_; // Row offset of sub-matrix of B on each rank
   std::vector<IntType> localColOffsets_; // Col offset of sub-matrix of B on each rank
+  std::unique_ptr<std::atomic<unsigned int>> extractedBlockCount_;
 
   // fixed
-  IntType numThreads_;
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   std::shared_ptr<Buffer<MPIAllocator>> recvBuffer_;

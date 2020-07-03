@@ -58,7 +58,7 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const auto opBlasB = map_op_to_host_blas(opB);
 
   // if blas library is parallelized, call it directly
-  if(blas::is_parallel()) {
+  if(blas::is_parallel() && !omp_in_parallel()) {
     BlasThreadsGuard threadGuard(numThreads);
     blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda,
                B, ldb, beta, C, ldc);
@@ -81,20 +81,39 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
   const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
 
-  SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(numThreads)")
-  for (IntType col = 0; col < n; col += colBlockSize) {
-    for (IntType row = 0; row < m; row += rowBlockSize) {
-      const IntType currentCols =
-          std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-      const IntType currentRows =
-          std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
-      const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
-      const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
-      const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
-      const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
-                 currentCols, k, alpha, &viewA(colA, rowA), lda,
-                 &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+  if (omp_in_parallel()) {
+    SPLA_OMP_PRAGMA("omp for schedule(dynamic) collapse(2)")
+    for (IntType col = 0; col < n; col += colBlockSize) {
+      for (IntType row = 0; row < m; row += rowBlockSize) {
+        const IntType currentCols =
+            std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
+        const IntType currentRows =
+            std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
+        const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
+        const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
+        const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
+        const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
+                   currentCols, k, alpha, &viewA(colA, rowA), lda,
+                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+      }
+    }
+  } else {
+    SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(numThreads)")
+    for (IntType col = 0; col < n; col += colBlockSize) {
+      for (IntType row = 0; row < m; row += rowBlockSize) {
+        const IntType currentCols =
+            std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
+        const IntType currentRows =
+            std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
+        const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
+        const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
+        const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
+        const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
+                   currentCols, k, alpha, &viewA(colA, rowA), lda,
+                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+      }
     }
   }
 }

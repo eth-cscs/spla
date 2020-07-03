@@ -108,32 +108,38 @@ void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < ctx.num_tiles();
          ++tileIdx, ++idx) {
-      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx],
-                           buffers[2 * idx + 1], matrixDist, alpha, viewA,
-                           viewB, beta, viewC, numBlockColsInTile);
+      stripes.emplace_back(comms[idx], buffers[2 * idx], buffers[2 * idx + 1],
+                           matrixDist, alpha, viewA, viewB, beta, viewC,
+                           numBlockColsInTile);
     }
   }
 
-  IntType currentTileIdx = 0;
-  for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-       blockColIdx += numBlockColsInTile) {
+  SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
+    IntType currentTileIdx = 0;
+    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+         blockColIdx += numBlockColsInTile) {
 
-    IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
+      IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
-    if (stripes[nextTileIdx].state() == StripeState::InExchange) {
-      stripes[nextTileIdx].finalize_exchange();
-      stripes[nextTileIdx].multiply();
+      SPLA_OMP_PRAGMA("omp master") {
+        while(stripes[nextTileIdx].state() != StripeState::Empty) {}
+        stripes[nextTileIdx].collect(blockColIdx);
+        stripes[nextTileIdx].exchange();
+      }
+
+      if (blockColIdx != 0) {
+        while (stripes[currentTileIdx].state() != StripeState::Exchanged) {
+        }
+        stripes[currentTileIdx].multiply();
+      }
+
+      currentTileIdx = nextTileIdx;
     }
-
-    stripes[currentTileIdx].collect(blockColIdx);
-    stripes[currentTileIdx].start_exchange();
-
-    currentTileIdx = nextTileIdx;
-  }
-  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    if (stripes[i].state() == StripeState::InExchange) {
-      stripes[i].finalize_exchange();
-      stripes[i].multiply();
+    SPLA_OMP_PRAGMA("omp barrier")
+    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+      if (stripes[i].state() == StripeState::Exchanged) {
+        stripes[i].multiply();
+      }
     }
   }
 }

@@ -31,7 +31,13 @@
 #include <atomic>
 #include "spla/config.h"
 namespace spla {
-enum class TileState : int { Empty, Multiplied, InExchange, Exchanged };
+enum class TileState : int {
+  Empty,
+  Prepared,
+  Multiplied,
+  InExchange,
+  Exchanged
+};
 
 class AtomicTileState {
 public:

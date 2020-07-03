@@ -57,7 +57,7 @@ public:
   explicit ContextInternal(SplaProcessingUnit pu)
       : pu_(pu),
         numThreads_(omp_get_max_threads()),
-        numTilesPerThread_(4),
+        numTilesPerThread_(2),
         numGPUStreams_(4),
         tileLengthTarget_(pu == SplaProcessingUnit::SPLA_PU_HOST ? 256 : 256), gpuMemoryLimit_(1024 * 1024 * 1024) {}
 

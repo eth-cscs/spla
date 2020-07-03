@@ -27,6 +27,7 @@
  */
 #include <algorithm>
 #include <cassert>
+#include <atomic>
 #include <complex>
 #include <cassert>
 #include <cstring>
@@ -41,7 +42,7 @@
 namespace spla {
 
 template <typename T>
-StripeHost<T>::StripeHost(IntType numThreads, MPICommunicatorHandle comm,
+StripeHost<T>::StripeHost(MPICommunicatorHandle comm,
                           std::shared_ptr<Buffer<MPIAllocator>> buffer,
                           std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
                           std::shared_ptr<MatrixBlockGenerator> matrixDist,
@@ -53,7 +54,8 @@ StripeHost<T>::StripeHost(IntType numThreads, MPICommunicatorHandle comm,
     : state_(StripeState::Empty), localCounts_(comm.size()),
       recvDispls_(comm.size()), localRows_(comm.size()),
       localCols_(comm.size()), localRowOffsets_(comm.size()),
-      localColOffsets_(comm.size()), numThreads_(numThreads),
+      localColOffsets_(comm.size()),
+      extractedBlockCount_(new std::atomic<unsigned int>(0)),
       matrixDist_(std::move(matrixDist)), buffer_(std::move(buffer)),
       recvBuffer_(std::move(recvBuffer)), comm_(std::move(comm)),
       numBlockCols_(numBlockCols), A_(A), B_(B), C_(C), alpha_(alpha),
@@ -64,18 +66,18 @@ StripeHost<T>::StripeHost(IntType numThreads, MPICommunicatorHandle comm,
   recvBuffer_->resize<ValueType>(A.dim_outer() * numBlockCols * matrixDist_->max_cols_in_block());
 }
 
-template <typename T>
-auto StripeHost<T>::collect(IntType blockColIdx) -> void {
-  assert(state_.get() == StripeState::Empty);
+template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   assert(blockColIdx < matrixDist_->num_block_cols());
-  if(state_.get() != StripeState::Empty){
+  if (state_.get() != StripeState::Empty) {
     throw InternalError();
   }
   // get block informations
   blockInfos_.clear(); // leaves capacity unchanged
   blockInfos_.reserve(matrixDist_->num_block_rows() * numBlockCols_);
   for (IntType c = blockColIdx;
-       c < std::min<IntType>(blockColIdx + numBlockCols_, matrixDist_->num_block_cols()); ++c) {
+       c < std::min<IntType>(blockColIdx + numBlockCols_,
+                             matrixDist_->num_block_cols());
+       ++c) {
     for (IntType r = 0; r < matrixDist_->num_block_rows(); ++r) {
       blockInfos_.emplace_back(matrixDist_->get_block_info(r, c));
     }
@@ -84,25 +86,28 @@ auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   // calculate number of elements stored on each rank
   localRowOffsets_.assign(comm_.size(), -1);
   localColOffsets_.assign(comm_.size(), -1);
-  for (const auto& info : blockInfos_) {
+  for (const auto &info : blockInfos_) {
     assert(info.mpiRank >= 0);
 
     // find row of first block in stripe
-    if(localRowOffsets_[info.mpiRank] < 0) {
+    if (localRowOffsets_[info.mpiRank] < 0) {
       localRowOffsets_[info.mpiRank] = info.localRowIdx;
     }
     // find col of first block in stripe
-    if(localColOffsets_[info.mpiRank] < 0) {
+    if (localColOffsets_[info.mpiRank] < 0) {
       localColOffsets_[info.mpiRank] = info.localColIdx;
     }
 
-    // calculate local rows / cols by difference between first and last block per rank
-    localRows_[info.mpiRank] = info.localRowIdx -localRowOffsets_[info.mpiRank] + info.numRows;
-    localCols_[info.mpiRank] = info.localColIdx - localColOffsets_[info.mpiRank] + info.numCols;
+    // calculate local rows / cols by difference between first and last block
+    // per rank
+    localRows_[info.mpiRank] =
+        info.localRowIdx - localRowOffsets_[info.mpiRank] + info.numRows;
+    localCols_[info.mpiRank] =
+        info.localColIdx - localColOffsets_[info.mpiRank] + info.numCols;
   }
 
   // compute send / recv counts
-  for(IntType r = 0; r < comm_.size(); ++r) {
+  for (IntType r = 0; r < comm_.size(); ++r) {
     localCounts_[r] = localRows_[r] * localCols_[r];
   }
 
@@ -114,15 +119,15 @@ auto StripeHost<T>::collect(IntType blockColIdx) -> void {
 
   // copy into sendbuffer
   if (localCounts_[comm_.rank()]) {
-    HostArrayView2D<T> sendBufferView(recvBuffer_->data<T>() + recvDispls_[comm_.rank()],
-                                      localCols_[comm_.rank()], localRows_[comm_.rank()]);
+    HostArrayView2D<T> sendBufferView(
+        recvBuffer_->data<T>() + recvDispls_[comm_.rank()],
+        localCols_[comm_.rank()], localRows_[comm_.rank()]);
 
-    SPLA_OMP_PRAGMA("omp parallel for schedule(static) num_threads(numThreads_)")
     for (IntType col = 0; col < localCols_[comm_.rank()]; ++col) {
-      std::memcpy(
-          &sendBufferView(col, 0),
-          &B_(localColOffsets_[comm_.rank()] + col, localRowOffsets_[comm_.rank()]),
-          sendBufferView.dim_inner() * sizeof(T));
+      std::memcpy(&sendBufferView(col, 0),
+                  &B_(localColOffsets_[comm_.rank()] + col,
+                      localRowOffsets_[comm_.rank()]),
+                  sendBufferView.dim_inner() * sizeof(T));
     }
   }
 
@@ -131,78 +136,71 @@ auto StripeHost<T>::collect(IntType blockColIdx) -> void {
 }
 
 template <typename T>
-auto StripeHost<T>::start_exchange() -> void {
+auto StripeHost<T>::exchange() -> void {
   assert(this->state_.get() == StripeState::Collected);
   if (this->state_.get() != StripeState::Collected) {
     throw InternalError();
   }
 
   // Exchange matrix
-  mpi_check_status(MPI_Iallgatherv(
-      MPI_IN_PLACE,
-      localCounts_[comm_.rank()], MPIMatchElementaryType<T>::get(),
-      recvBuffer_->data<T>(), localCounts_.data(), recvDispls_.data(),
-      MPIMatchElementaryType<T>::get(), comm_.get(), request_.get_and_activate()));
+  mpi_check_status(
+      MPI_Allgatherv(MPI_IN_PLACE, localCounts_[comm_.rank()],
+                     MPIMatchElementaryType<T>::get(), recvBuffer_->data<T>(),
+                     localCounts_.data(), recvDispls_.data(),
+                     MPIMatchElementaryType<T>::get(), comm_.get()));
 
   // set state atomically
-  this->state_.set(StripeState::InExchange);
+  extractedBlockCount_->store(0, std::memory_order_release);
+  this->state_.set(StripeState::Exchanged);
 }
 
-
-template <typename T>
-auto StripeHost<T>::finalize_exchange() -> void {
-  assert(state_.get() == StripeState::InExchange);
-  if (state_.get() != StripeState::InExchange) {
-    throw InternalError();
-  }
-  request_.wait_if_active();
-
-  // set state atomically
-  state_.set(StripeState::Exchanged);
-}
 
 template <typename T>
 auto StripeHost<T>::multiply() -> void {
-  assert(this->state_.get() == StripeState::Exchanged);
-  if (this->state_.get() != StripeState::Exchanged) {
-    throw InternalError();
+  SPLA_OMP_PRAGMA("omp single nowait") {
+    assert(this->state_.get() == StripeState::Exchanged);
+    if (this->state_.get() != StripeState::Exchanged) {
+      throw InternalError();
+    }
   }
   const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx + blockInfos_.back().numCols;
 
   // reshuffle data into full C matrix
   HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
   const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
-  SPLA_OMP_PRAGMA("omp parallel num_threads(numThreads_)") {
-    for (const auto &info : blockInfos_) {
-      assert(info.mpiRank >= 0);
+  SPLA_OMP_PRAGMA("omp for schedule(dynamic) nowait")
+  for (std::size_t i = 0; i < blockInfos_.size(); ++i) {
+    const auto &info = blockInfos_[i];
 
-      HostArrayConstView2D<T> recvDataView(
-          recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
-          localCols_[info.mpiRank], localRows_[info.mpiRank]);
+    assert(info.mpiRank >= 0);
 
-      const IntType startRow =
-          info.localRowIdx - localRowOffsets_[info.mpiRank];
-      const IntType startCol =
-          info.localColIdx - localColOffsets_[info.mpiRank];
-      SPLA_OMP_PRAGMA("omp for schedule(static)")
-      for (IntType col = 0; col < info.numCols; ++col) {
-        std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col,
-                                info.globalSubRowIdx),
-                    &recvDataView(startCol + col, startRow),
-                    info.numRows * sizeof(T));
-      }
+    HostArrayConstView2D<T> recvDataView(
+        recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
+        localCols_[info.mpiRank], localRows_[info.mpiRank]);
+
+    const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
+    const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
+    for (IntType col = 0; col < info.numCols; ++col) {
+      std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col,
+                              info.globalSubRowIdx),
+                  &recvDataView(startCol + col, startRow),
+                  info.numRows * sizeof(T));
     }
+    extractedBlockCount_->fetch_add(1, std::memory_order_release);
   }
 
-  // multiply full C matrix
-  gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE,
-               SplaOperation::SPLA_OP_NONE, A_.dim_inner(), n, A_.dim_outer(),
-               alpha_, A_.data(), A_.ld_inner(), fullStripe.data(),
-               fullStripe.ld_inner(), beta_,
+  // wait for all blocks to be extraced
+  while(extractedBlockCount_->load(std::memory_order_acquire) != blockInfos_.size()) {}
+
+  // multiply full C matrix. Contains omp barrier
+  gemm_host<T>(1, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
+               A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(),
+               A_.ld_inner(), fullStripe.data(), fullStripe.ld_inner(), beta_,
                &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
 
-  // set state atomically
-  this->state_.set(StripeState::Empty);
+  SPLA_OMP_PRAGMA("omp single") {
+    this->state_.set(StripeState::Empty);
+  } // implicit barrier
 }
 
 
