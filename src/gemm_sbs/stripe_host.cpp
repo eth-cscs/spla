@@ -86,6 +86,8 @@ template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   // calculate number of elements stored on each rank
   localRowOffsets_.assign(comm_.size(), -1);
   localColOffsets_.assign(comm_.size(), -1);
+  localRows_.assign(comm_.size(), 0);
+  localCols_.assign(comm_.size(), 0);
   for (const auto &info : blockInfos_) {
     assert(info.mpiRank >= 0);
 
