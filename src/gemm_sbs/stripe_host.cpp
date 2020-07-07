@@ -111,12 +111,15 @@ template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   // compute send / recv counts
   for (IntType r = 0; r < comm_.size(); ++r) {
     localCounts_[r] = localRows_[r] * localCols_[r];
+    assert(localCounts_[r] >= 0);
   }
 
   // Calculate displacements in receiving buffer
   recvDispls_.assign(comm_.size(), 0);
   for (IntType rank = 1; rank < comm_.size(); ++rank) {
     recvDispls_[rank] = recvDispls_[rank - 1] + localCounts_[rank - 1];
+    assert(recvDispls_[rank] >= 0);
+    assert(recvDispls_[rank] + localCounts_[rank] <= recvBuffer_->size<T>());
   }
 
   // copy into sendbuffer

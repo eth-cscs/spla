@@ -139,8 +139,8 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm)
     : type_(SplaDistributionType::SPLA_DIST_MIRROR),
       procGridRows_(1),
       procGridCols_(1),
-      rowBlockSize_(64),
-      colBlockSize_(64) {
+      rowBlockSize_(256),
+      colBlockSize_(256) {
   const MPI_Comm selfComm = MPI_COMM_SELF;
   if (!std::memcmp(&comm, &selfComm, sizeof(MPI_Comm))) {
     // don't duplicate self communicator
