@@ -169,7 +169,7 @@ auto is_parallel() -> bool {
 #if defined(SPLA_BLAS_OPENBLAS)
   return openblas_get_parallel();
 #elif defined(SPLA_BLAS_MKL)
-  return true;
+  return false;
 #else
   return false;
 #endif
