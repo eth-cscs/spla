@@ -113,19 +113,19 @@ void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const 
   // calcualte maximum multiply buffer size per target
   const IntType resultBufferSize = numBlockColsInTile * matrixDist->max_cols_in_block() *
                                    numBlockRowsInTile * matrixDist->max_rows_in_block();
-  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (ctx.num_gpu_streams() * sizeof(T)) - resultBufferSize;
+  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (ctx.num_tiles() * sizeof(T)) - resultBufferSize;
   maxGPUMultiplyBufferSize /= 2; // two multiply buffers per tile
   maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
 
   std::vector<TileGPU<T>> tiles;
-  tiles.reserve(ctx.num_gpu_streams());
+  tiles.reserve(ctx.num_tiles());
 
-  auto& gpuBuffers = ctx.gpu_buffers(ctx.num_gpu_streams() * 3);
-  auto& pinnedBuffers = ctx.pinned_buffers(ctx.num_gpu_streams());
-  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_gpu_streams());
+  auto& gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
+  auto& pinnedBuffers = ctx.pinned_buffers(ctx.num_tiles());
+  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
 
-  for (IntType i = 0; i < ctx.num_gpu_streams(); ++i) {
+  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
     auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                               GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
                         : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
@@ -157,7 +157,7 @@ void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const 
       for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
         for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
              blockColIdx += numBlockColsInTile, ++counter) {
-          auto &t = tiles[counter % ctx.num_gpu_streams()];
+          auto &t = tiles[counter % ctx.num_tiles()];
           if (omp_get_thread_num() == 0) {
             // wait for tile to be multiplied
             while (t.state() != TileState::Multiplied) {
@@ -165,7 +165,7 @@ void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const 
             t.exchange();
           } else {
             // wait for tile once encountering the same tile more than once
-            if (counter >= ctx.num_gpu_streams()) {
+            if (counter >= ctx.num_tiles()) {
               while(t.state() != TileState::Exchanged) {
               }
               t.extract();
@@ -182,7 +182,7 @@ void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const 
     for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
       for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
            blockColIdx += numBlockColsInTile, ++counter) {
-        auto &t = tiles[counter % ctx.num_gpu_streams()];
+        auto &t = tiles[counter % ctx.num_tiles()];
         if (t.state() == TileState::Multiplied) {
           t.exchange();
           t.extract();

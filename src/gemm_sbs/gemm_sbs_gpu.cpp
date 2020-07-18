@@ -98,15 +98,15 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
 
   // calcualte memory target
   IntType maxGPUMultiplyBufferSize =
-      ctx.gpu_memory_limit() / (ctx.num_gpu_streams() * sizeof(T) * 3);  // 3 buffers per stripe
+      ctx.gpu_memory_limit() / (ctx.num_tiles() * sizeof(T) * 3);  // 3 buffers per stripe
   maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
 
   std::vector<StripeGPU<T>> stripes;
-  stripes.reserve(ctx.num_gpu_streams());
+  stripes.reserve(ctx.num_tiles());
 
-  auto& gpuBuffers = ctx.gpu_buffers(ctx.num_gpu_streams() * 3);
-  auto &pinnedBuffers = ctx.pinned_buffers(2 * ctx.num_gpu_streams());
-  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_gpu_streams());
+  auto& gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
+  auto &pinnedBuffers = ctx.pinned_buffers(2 * ctx.num_tiles());
+  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
   const T* hostPtrA;
   const T* gpuPtrA;
@@ -119,7 +119,7 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
   std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
 
-  for (IntType i = 0; i < ctx.num_gpu_streams(); ++i) {
+  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
     auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                               GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
                         : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
@@ -153,8 +153,8 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
       IntType counter = 0;
       for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
            blockColIdx += numBlockColsInTile, ++counter) {
-        auto &t = stripes[counter % ctx.num_gpu_streams()];
-        auto &tNext = stripes[(counter + 1) % ctx.num_gpu_streams()];
+        auto &t = stripes[counter % ctx.num_tiles()];
+        auto &tNext = stripes[(counter + 1) % ctx.num_tiles()];
         if (omp_get_thread_num() == 0) {
           // wait for tile to be multiplied
           while (t.state() != StripeState::Collected) {
@@ -163,7 +163,7 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
           t.finalize_exchange();
         } else {
           // wait for tile once encountering the same tile more than once
-          if (counter >= ctx.num_gpu_streams() - 1) {
+          if (counter >= ctx.num_tiles() - 1) {
             while (tNext.state() != StripeState::Exchanged) {
             }
             tNext.multiply();
@@ -177,8 +177,8 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
     IntType counter = 0;
     for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
          blockColIdx += numBlockColsInTile, ++counter) {
-      auto &t = stripes[counter % ctx.num_gpu_streams()];
-      auto &tNext = stripes[(counter + 1) % ctx.num_gpu_streams()];
+      auto &t = stripes[counter % ctx.num_tiles()];
+      auto &tNext = stripes[(counter + 1) % ctx.num_tiles()];
 
       if (tNext.state() == StripeState::InExchange) {
         tNext.finalize_exchange();

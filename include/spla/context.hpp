@@ -94,12 +94,6 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Number of streams on GPU used for pipelining.
-   */
-  int num_gpu_streams() const;
-
-  /**
-   * Access a Context parameter.
    * @return Target size of tiles.
    */
   int tile_length_target() const;

@@ -33,6 +33,7 @@
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
+#include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
@@ -44,7 +45,6 @@
 #include "util/blas_threads_guard.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
-#include "gemm/gemm_host.hpp"
 
 namespace spla {
 /*
@@ -67,7 +67,7 @@ template <typename T>
 void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
                    T beta, T *C, int ldc, int cRowStart, int cColStart,
                    MatrixDistributionInternal &descC, ContextInternal &ctx) {
-
+  SCOPED_TIMING("inner_host");
   if (m == 0 || n == 0) {
     return;
   }
@@ -101,50 +101,44 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
       (ctx.tile_length_target() + matrixDist->max_cols_in_block() - 1) /
       matrixDist->max_cols_in_block();
 
+  // Thread barrier when multiplying tiles -> 2 tiles allow for maximum overlap
+  constexpr IntType numTiles = 2;
+
   std::vector<TileHost<T>> tiles;
-  tiles.reserve(ctx.num_tiles());
+  tiles.reserve(numTiles);
 
   // create tiles
   {
-    auto &buffers = ctx.mpi_buffers(ctx.num_tiles());
-    auto &comms = descC.get_comms(ctx.num_tiles());
+    auto &buffers = ctx.mpi_buffers(numTiles);
+    auto &comms = descC.get_comms(numTiles);
     IntType idx = 0;
-    for (IntType tileIdx = 0; tileIdx < ctx.num_tiles();
-         ++tileIdx, ++idx) {
-      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, alpha, viewA,
-                         viewB, beta, viewC, numBlockRowsInTile,
-                         numBlockColsInTile);
+    for (IntType tileIdx = 0; tileIdx < numTiles; ++tileIdx, ++idx) {
+      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, alpha, viewA, viewB, beta, viewC,
+                         numBlockRowsInTile, numBlockColsInTile);
     }
   }
 
-  SCOPED_TIMING("inner_host_thread_multiple");
-
 
   BlasThreadsGuard threadGuard(1);
+
   SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
     IntType currentTileIdx = 0;
-    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
-         blockRowIdx += numBlockRowsInTile) {
-      for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-           blockColIdx += numBlockColsInTile) {
-
-        IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
-
+    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
+      for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
+        const IntType nextTileIdx = (currentTileIdx + 1) % numTiles;
 
         SPLA_OMP_PRAGMA("omp master") {
-          if (tiles[nextTileIdx].state() == TileState::Multiplied)
-            tiles[nextTileIdx].exchange();
+          if (tiles[nextTileIdx].state() == TileState::Multiplied) tiles[nextTileIdx].exchange();
         }
 
         tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
 
-        if (tiles[nextTileIdx].state() == TileState::Exchanged)
-          tiles[nextTileIdx].extract();
+        if (tiles[nextTileIdx].state() == TileState::Exchanged) tiles[nextTileIdx].extract();
 
         currentTileIdx = nextTileIdx;
       }
     }
-    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+    for (IntType i = 0; i < numTiles; ++i) {
       if (tiles[i].state() == TileState::Multiplied) {
         SPLA_OMP_PRAGMA("omp master") { tiles[i].exchange(); }
       }
@@ -157,11 +151,9 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
   }
 }
 
-template void gemm_ssb_host<float>(int m, int n, int kLocal, float alpha,
-                                   const float *A, int lda, const float *B,
-                                   int ldb, float beta, float *C, int ldc,
-                                   int cRowStart, int cColStart,
-                                   MatrixDistributionInternal &descC,
+template void gemm_ssb_host<float>(int m, int n, int kLocal, float alpha, const float *A, int lda,
+                                   const float *B, int ldb, float beta, float *C, int ldc,
+                                   int cRowStart, int cColStart, MatrixDistributionInternal &descC,
                                    ContextInternal &ctx);
 
 template void gemm_ssb_host<double>(int m, int n, int kLocal, double alpha, const double *A,

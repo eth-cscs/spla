@@ -112,12 +112,10 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 
     const ValueType beta = 0.0;
 
-    gemm_host<T>(1, SplaOperation::SPLA_OP_CONJ_TRANSPOSE,
-                 SplaOperation::SPLA_OP_NONE, tile_.dim_inner(),
-                 tile_.dim_outer(), k, alpha_,
+    gemm_host<T>(omp_get_num_threads(), SplaOperation::SPLA_OP_CONJ_TRANSPOSE,
+                 SplaOperation::SPLA_OP_NONE, tile_.dim_inner(), tile_.dim_outer(), k, alpha_,
                  &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
-                 &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta,
-                 tile_.data(), ldc);
+                 &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta, tile_.data(), ldc);
   }
 
   // set state atomically

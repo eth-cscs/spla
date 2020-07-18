@@ -71,15 +71,15 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
 
-  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (ctx.num_gpu_streams() * 3 * sizeof(T));
+  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (ctx.num_tiles() * 3 * sizeof(T));
   maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
 
-  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_gpu_streams());
-  auto& gpuBuffers = ctx.gpu_buffers(3 * ctx.num_gpu_streams());
+  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
+  auto& gpuBuffers = ctx.gpu_buffers(3 * ctx.num_tiles());
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsA;
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsB;
   std::vector<GPUMatrixAccessor<GPUArrayView2D<T>>> matAccessorsC;
-  for(IntType i = 0; i < ctx.num_gpu_streams(); ++i) {
+  for(IntType i = 0; i < ctx.num_tiles(); ++i) {
     matAccessorsA.emplace_back(
         gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                       GPUArrayConstView2D<T>(gpuPtrA, numColsA, numRowsA, lda))
@@ -136,7 +136,7 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
       const IntType numColsA =
           opA == SplaOperation::SPLA_OP_NONE ? k : currentRows;
 
-      const IntType streamIdx = counter % ctx.num_gpu_streams();
+      const IntType streamIdx = counter % ctx.num_tiles();
       auto viewC = matAccessorsC[streamIdx].get_tile(
           row, col, currentRows, currentCols,
           blasHandles[streamIdx].stream_handle().get());

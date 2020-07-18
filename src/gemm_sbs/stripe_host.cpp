@@ -168,7 +168,8 @@ auto StripeHost<T>::multiply() -> void {
       throw InternalError();
     }
   }
-  const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx + blockInfos_.back().numCols;
+  const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx +
+                    blockInfos_.back().numCols;
 
   // reshuffle data into full C matrix
   HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
@@ -198,9 +199,9 @@ auto StripeHost<T>::multiply() -> void {
   while(extractedBlockCount_->load(std::memory_order_acquire) != blockInfos_.size()) {}
 
   // multiply full C matrix. Contains omp barrier
-  gemm_host<T>(1, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-               A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(),
-               A_.ld_inner(), fullStripe.data(), fullStripe.ld_inner(), beta_,
+  gemm_host<T>(omp_get_num_threads(), SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
+               A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(), A_.ld_inner(),
+               fullStripe.data(), fullStripe.ld_inner(), beta_,
                &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
 
   SPLA_OMP_PRAGMA("omp single") {

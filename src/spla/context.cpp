@@ -41,10 +41,6 @@ int Context::num_tiles() const {
  return ctxInternal_->num_tiles();
 }
 
-int Context::num_gpu_streams() const {
- return ctxInternal_->num_gpu_streams();
-}
-
 int Context::tile_length_target() const {
  return ctxInternal_->tile_length_target();
 }
@@ -59,10 +55,6 @@ void Context::set_num_threads(int numThreads) {
 
 void Context::set_num_tiles(int numTilesPerThread) {
  ctxInternal_->set_num_tiles(numTilesPerThread);
-}
-
-void Context::set_num_gpu_streams(int numGPUStreams) {
- ctxInternal_->set_num_gpu_streams(numGPUStreams);
 }
 
 void Context::set_tile_length_target(int tileLengthTarget) {

@@ -57,9 +57,9 @@ public:
   explicit ContextInternal(SplaProcessingUnit pu)
       : pu_(pu),
         numThreads_(omp_get_max_threads()),
-        numTilesPerThread_(2),
-        numGPUStreams_(4),
-        tileLengthTarget_(pu == SplaProcessingUnit::SPLA_PU_HOST ? 256 : 256), gpuMemoryLimit_(1024 * 1024 * 1024) {}
+        numTiles_(4),
+        tileLengthTarget_(256),
+        gpuMemoryLimit_(512 * 1024 * 1024) {}
 
   inline auto mpi_buffers(IntType numBuffers)
       -> std::deque<std::shared_ptr<Buffer<MPIAllocator>>> & {
@@ -104,9 +104,7 @@ public:
 
   inline auto num_threads() const -> IntType { return numThreads_; }
 
-  inline auto num_tiles() const -> IntType { return numTilesPerThread_; }
-
-  inline auto num_gpu_streams() const -> IntType { return numGPUStreams_; }
+  inline auto num_tiles() const -> IntType { return numTiles_; }
 
   inline auto tile_length_target() const -> IntType { return tileLengthTarget_; }
 
@@ -122,11 +120,7 @@ public:
   }
 
   inline auto set_num_tiles(IntType numTilesPerThread) -> void {
-    numTilesPerThread_ = numTilesPerThread;
-  }
-
-  inline auto set_num_gpu_streams(IntType numGPUStreams) -> void {
-    numGPUStreams_ = numGPUStreams;
+    numTiles_ = numTilesPerThread;
   }
 
   inline auto set_tile_length_target(IntType tileLengthTarget) -> void {
@@ -140,8 +134,7 @@ public:
 private:
   SplaProcessingUnit pu_;
   IntType numThreads_;
-  IntType numTilesPerThread_;
-  IntType numGPUStreams_;
+  IntType numTiles_;
   IntType tileLengthTarget_;
   std::size_t gpuMemoryLimit_;
 
