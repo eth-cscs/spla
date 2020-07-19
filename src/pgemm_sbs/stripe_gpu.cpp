@@ -29,7 +29,7 @@
 #include <cassert>
 #include <complex>
 #include <cstring>
-#include "gemm_sbs/stripe_gpu.hpp"
+#include "pgemm_sbs/stripe_gpu.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "util/common_types.hpp"

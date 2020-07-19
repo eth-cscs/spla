@@ -64,9 +64,9 @@ namespace spla {
  *      A            B
  */
 template <typename T>
-void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                   T beta, T *C, int ldc, int cRowStart, int cColStart,
-                   MatrixDistributionInternal &descC, ContextInternal &ctx) {
+void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
+                    T beta, T *C, int ldc, int cRowStart, int cColStart,
+                    MatrixDistributionInternal &descC, ContextInternal &ctx) {
   SCOPED_TIMING("inner_host");
   if (m == 0 || n == 0) {
     return;
@@ -118,7 +118,6 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
     }
   }
 
-
   BlasThreadsGuard threadGuard(1);
 
   SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
@@ -151,22 +150,22 @@ void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const
   }
 }
 
-template void gemm_ssb_host<float>(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                                   const float *B, int ldb, float beta, float *C, int ldc,
-                                   int cRowStart, int cColStart, MatrixDistributionInternal &descC,
-                                   ContextInternal &ctx);
+template void pgemm_ssb_host<float>(int m, int n, int kLocal, float alpha, const float *A, int lda,
+                                    const float *B, int ldb, float beta, float *C, int ldc,
+                                    int cRowStart, int cColStart, MatrixDistributionInternal &descC,
+                                    ContextInternal &ctx);
 
-template void gemm_ssb_host<double>(int m, int n, int kLocal, double alpha, const double *A,
-                                    int lda, const double *B, int ldb, double beta, double *C,
-                                    int ldc, int cRowStart, int cColStart,
-                                    MatrixDistributionInternal &descC, ContextInternal &ctx);
+template void pgemm_ssb_host<double>(int m, int n, int kLocal, double alpha, const double *A,
+                                     int lda, const double *B, int ldb, double beta, double *C,
+                                     int ldc, int cRowStart, int cColStart,
+                                     MatrixDistributionInternal &descC, ContextInternal &ctx);
 
-template void gemm_ssb_host<std::complex<float>>(
+template void pgemm_ssb_host<std::complex<float>>(
     int m, int n, int kLocal, std::complex<float> alpha, const std::complex<float> *A, int lda,
     const std::complex<float> *B, int ldb, std::complex<float> beta, std::complex<float> *C,
     int ldc, int cRowStart, int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
 
-template void gemm_ssb_host<std::complex<double>>(
+template void pgemm_ssb_host<std::complex<double>>(
     int m, int n, int kLocal, std::complex<double> alpha, const std::complex<double> *A, int lda,
     const std::complex<double> *B, int ldb, std::complex<double> beta, std::complex<double> *C,
     int ldc, int cRowStart, int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);

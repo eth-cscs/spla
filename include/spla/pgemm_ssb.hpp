@@ -25,10 +25,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_GEMM_SSB_HPP
-#define SPLA_GEMM_SSB_HPP
+#ifndef SPLA_PGEMM_SSB_HPP
+#define SPLA_PGEMM_SSB_HPP
 
-/*! \file gemm_ssb.hpp
+/*! \file pgemm_ssb.hpp
    \brief General matrix multiplication functions for computing \f$ C \leftarrow \alpha A^H B +
    \beta C \f$ with stripe-stripe-block distribution.
    \verbatim
@@ -36,12 +36,12 @@
      |    |       |    |
      |    |       |    |
      ------       ------
-     |    |       |    |        -------
-     |    |       |    |        |  |  |
-     ------   *   ------    +   -------
-     |    |       |    |        |  |  |
-     |    |       |    |        -------
-     ------       ------           C
+     |    |       |    |        -------         -------
+     |    |       |    |        |  |  |         |  |  |
+     ------   *   ------    +   -------   -->   -------
+     |    |       |    |        |  |  |         |  |  |
+     |    |       |    |        -------         -------
+     ------       ------           C               C
      |    |       |    |
      |    |       |    |
      ------       ------
@@ -78,40 +78,40 @@ namespace spla {
  * number of locally stored rows of \f$C\f$.
  * @param[in] cRowOffset Row offset in the global matrix \f$C\f$, identifying the first row of the
  * submatrix \f$C\f$.
- * @param[in] cColOffset Column offset in the global matrix \f$C\f$, identifying the first coloumn of
- * the submatrix \f$C\f$.
+ * @param[in] cColOffset Column offset in the global matrix \f$C\f$, identifying the first coloumn
+ * of the submatrix \f$C\f$.
  * @param[in] distC Matrix distribution of global matrix \f$C\f$.
  * @param[in] ctx Context, which provides configuration settings and reusable resources.
  */
-SPLA_EXPORT void gemm_ssb(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                          const float *B, int ldb, float beta, float *C, int ldc, int cRowOffset,
-                          int cColOffset, MatrixDistribution &distC, Context &ctx);
+SPLA_EXPORT void pgemm_ssb(int m, int n, int kLocal, float alpha, const float *A, int lda,
+                           const float *B, int ldb, float beta, float *C, int ldc, int cRowOffset,
+                           int cColOffset, MatrixDistribution &distC, Context &ctx);
 
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A^H B +
  * \beta C \f$ in double precision. See documentation above.
  */
-SPLA_EXPORT void gemm_ssb(int m, int n, int kLocal, double alpha, const double *A, int lda,
-                          const double *B, int ldb, double beta, double *C, int ldc, int cRowOffset,
-                          int cColOffset, MatrixDistribution &distC, Context &ctx);
+SPLA_EXPORT void pgemm_ssb(int m, int n, int kLocal, double alpha, const double *A, int lda,
+                           const double *B, int ldb, double beta, double *C, int ldc,
+                           int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
 
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A^H B +
  * \beta C \f$ in single precision for complex types. See documentation above.
  */
-SPLA_EXPORT void gemm_ssb(int m, int n, int kLocal, std::complex<float> alpha,
-                          const std::complex<float> *A, int lda, const std::complex<float> *B,
-                          int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
-                          int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
+SPLA_EXPORT void pgemm_ssb(int m, int n, int kLocal, std::complex<float> alpha,
+                           const std::complex<float> *A, int lda, const std::complex<float> *B,
+                           int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
+                           int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
 
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A^H B +
  * \beta C \f$ in double precision for complex types. See documentation above.
  */
-SPLA_EXPORT void gemm_ssb(int m, int n, int kLocal, std::complex<double> alpha,
-                          const std::complex<double> *A, int lda, const std::complex<double> *B,
-                          int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
-                          int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
+SPLA_EXPORT void pgemm_ssb(int m, int n, int kLocal, std::complex<double> alpha,
+                           const std::complex<double> *A, int lda, const std::complex<double> *B,
+                           int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
+                           int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
 
 #ifndef SPLA_DOXYGEN_SKIP
 }  // namespace spla

@@ -42,7 +42,7 @@
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 #include "gpu_util/multiply_gpu.hpp"
-#include "gemm_ssb/tile_gpu.hpp"
+#include "pgemm_ssb/tile_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {

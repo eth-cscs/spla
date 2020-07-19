@@ -34,8 +34,8 @@
 
 #include "spla/config.h"
 #include "spla/context.hpp"
-#include "spla/gemm_sbs.hpp"
-#include "spla/gemm_ssb.hpp"
+#include "spla/pgemm_sbs.hpp"
+#include "spla/pgemm_ssb.hpp"
 #include "spla/matrix_distribution.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/types.h"

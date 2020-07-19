@@ -28,7 +28,7 @@
 #ifndef SPLA_GEMM_HPP
 #define SPLA_GEMM_HPP
 
-/*! \file gemm_ssb.hpp
+/*! \file gemm.hpp
    \brief General matrix multiplication functions for locally computing \f$ C
    \leftarrow \alpha OP(A) OP(B) + \beta C \f$.
 */

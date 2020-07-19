@@ -16,8 +16,8 @@ SpFFT Documentation
 
    context
    matrix_distribution
-   gemm_ssb
-   gemm_sbs
+   pgemm_ssb
+   pgemm_sbs
 
 
 

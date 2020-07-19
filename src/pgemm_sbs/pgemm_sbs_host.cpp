@@ -34,11 +34,11 @@
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
-#include "gemm_sbs/stripe_host.hpp"
 #include "gemm/gemm_host.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
+#include "pgemm_sbs/stripe_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -67,17 +67,16 @@ namespace spla {
  *      A                         B
  */
 template <typename T>
-void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
-                   int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
-                   int ldc, ContextInternal &ctx) {
+void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+                    int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
+                    int ldc, ContextInternal &ctx) {
   if (k == 0 || n == 0) {
     return;
   }
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_host<T>(ctx.num_threads(), SPLA_OP_NONE, SPLA_OP_NONE, mLocal,
-                        n, k, alpha, A, lda, B + bRowOffset + bColOffset * ldb,
-                        ldb, beta, C, ldc);
+    return gemm_host<T>(ctx.num_threads(), SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k, alpha, A, lda,
+                        B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc);
   }
 
   HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
@@ -106,23 +105,20 @@ void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     auto &buffers = ctx.mpi_buffers(2 * ctx.num_tiles());
     auto &comms = descB.get_comms(ctx.num_tiles());
     IntType idx = 0;
-    for (IntType tileIdx = 0; tileIdx < ctx.num_tiles();
-         ++tileIdx, ++idx) {
-      stripes.emplace_back(comms[idx], buffers[2 * idx], buffers[2 * idx + 1],
-                           matrixDist, alpha, viewA, viewB, beta, viewC,
-                           numBlockColsInTile);
+    for (IntType tileIdx = 0; tileIdx < ctx.num_tiles(); ++tileIdx, ++idx) {
+      stripes.emplace_back(comms[idx], buffers[2 * idx], buffers[2 * idx + 1], matrixDist, alpha,
+                           viewA, viewB, beta, viewC, numBlockColsInTile);
     }
   }
 
   SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
     IntType currentTileIdx = 0;
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-         blockColIdx += numBlockColsInTile) {
-
+    for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
       IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
       SPLA_OMP_PRAGMA("omp master") {
-        while(stripes[nextTileIdx].state() != StripeState::Empty) {}
+        while (stripes[nextTileIdx].state() != StripeState::Empty) {
+        }
         stripes[nextTileIdx].collect(blockColIdx);
         stripes[nextTileIdx].exchange();
       }
@@ -144,26 +140,26 @@ void gemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   }
 }
 
-template void gemm_sbs_host(int mLocal, int n, int k, float alpha, const float *A, int lda,
-                            const float *B, int ldb, int bRowOffset, int bColOffset,
-                            MatrixDistributionInternal &descB, float beta, float *C, int ldc,
-                            ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, float alpha, const float *A, int lda,
+                             const float *B, int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, float beta, float *C, int ldc,
+                             ContextInternal &ctx);
 
-template void gemm_sbs_host(int mLocal, int n, int k, double alpha, const double *A, int lda,
-                            const double *B, int ldb, int bRowOffset, int bColOffset,
-                            MatrixDistributionInternal &descB, double beta, double *C, int ldc,
-                            ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, double alpha, const double *A, int lda,
+                             const double *B, int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, double beta, double *C, int ldc,
+                             ContextInternal &ctx);
 
-template void gemm_sbs_host(int mLocal, int n, int k, std::complex<float> alpha,
-                            const std::complex<float> *A, int lda, const std::complex<float> *B,
-                            int ldb, int bRowOffset, int bColOffset,
-                            MatrixDistributionInternal &descB, std::complex<float> beta,
-                            std::complex<float> *C, int ldc, ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, std::complex<float> alpha,
+                             const std::complex<float> *A, int lda, const std::complex<float> *B,
+                             int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, std::complex<float> beta,
+                             std::complex<float> *C, int ldc, ContextInternal &ctx);
 
-template void gemm_sbs_host(int mLocal, int n, int k, std::complex<double> alpha,
-                            const std::complex<double> *A, int lda, const std::complex<double> *B,
-                            int ldb, int bRowOffset, int bColOffset,
-                            MatrixDistributionInternal &descB, std::complex<double> beta,
-                            std::complex<double> *C, int ldc, ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, std::complex<double> alpha,
+                             const std::complex<double> *A, int lda, const std::complex<double> *B,
+                             int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, std::complex<double> beta,
+                             std::complex<double> *C, int ldc, ContextInternal &ctx);
 
 }  // namespace spla

@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_GEMM_SSB_GPU_HPP
-#define SPLA_GEMM_SSB_GPU_HPP
+#ifndef SPLA_PGEMM_SBS_GPU_HPP
+#define SPLA_PGEMM_SBS_GPU_HPP
 
 #include "spla/config.h"
 #include "spla/matrix_distribution_internal.hpp"
@@ -49,9 +49,9 @@ namespace spla {
  *      A            B
  */
 template <typename T>
-void gemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                  T beta, T *C, int ldc, int cRowStart, int cColStart,
-                  MatrixDistributionInternal &descC, ContextInternal &ctx);
+void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+                   int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
+                   int ldc, ContextInternal &ctx);
 
 }  // namespace spla
 #endif

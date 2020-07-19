@@ -1,6 +1,6 @@
 GEMM - SBS
 ==========
 
-.. doxygenfile:: spla/gemm_sbs.hpp
+.. doxygenfile:: spla/pgemm_sbs.hpp
    :project: SPLA
 

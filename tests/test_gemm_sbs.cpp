@@ -210,9 +210,9 @@ protected:
       MPI_Bcast(vecB_.data(), vecB_.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
     }
 
-    spla::gemm_sbs(numLocalRows, subMatrixCols, subMatrixRows, T(1.0), vecA_.data(), maxMLocal_, vecB_.data(), k_,
-                subMatrixRowOffset, subMatrixColOffset, desc, T(0.0), vecC_.data(), maxMLocal_,
-                ctx_);
+    spla::pgemm_sbs(numLocalRows, subMatrixCols, subMatrixRows, T(1.0), vecA_.data(), maxMLocal_,
+                    vecB_.data(), k_, subMatrixRowOffset, subMatrixColOffset, desc, T(0.0),
+                    vecC_.data(), maxMLocal_, ctx_);
 
     std::array<int, 9> descA;
     std::array<int, 9> descRedistA;

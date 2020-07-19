@@ -31,7 +31,7 @@
 #include <complex>
 #include <cassert>
 #include <cstring>
-#include "gemm_sbs/stripe_host.hpp"
+#include "pgemm_sbs/stripe_host.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"

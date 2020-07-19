@@ -25,35 +25,34 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_GEMM_SSB_HOST_HPP
-#define SPLA_GEMM_SSB_HOST_HPP
+#ifndef SPLA_PGEMM_SBS_HOST_HPP
+#define SPLA_PGEMM_SBS_HOST_HPP
 
 #include "spla/config.h"
-#include "spla/gemm_ssb.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
+#include "spla/spla.hpp"
 
 namespace spla {
 /*
- *    ------ H     ------
- *    |    |       |    |
- *    |    |       |    |
- *    ------       ------        -------
- *    |    |       |    |        |  |  |
- *    |    |   *   |    |    =   -------
- *    ------       ------        |  |  |
- *    |    |       |    |        -------
- *    |    |       |    |           C
- *    ------       -     
- *    |    |       |    |
- *    |    |       |    |
- *    ------       -     
- *      A            B
+ *    ------                    ------
+ *    |    |                    |    |
+ *    |    |                    |    |
+ *    ------      -------       ------
+ *    |    |      |  |  |       |    |
+ *    |    |   *  -------   =   |    |
+ *    ------      |  |  |       ------
+ *    |    |      -------       |    |
+ *    |    |         C          |    |
+ *    ------                    -
+ *    |    |                    |    |
+ *    |    |                    |    |
+ *    ------                    -
+ *      A                         B
  */
 template <typename T>
-void gemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                   T beta, T *C, int ldc, int cRowStart, int cColStart,
-                   MatrixDistributionInternal &descC, ContextInternal &ctx);
-
+void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+                    int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
+                    int ldc, ContextInternal &ctx);
 }  // namespace spla
 #endif

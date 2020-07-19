@@ -42,16 +42,16 @@ void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int n
   ctx.set_num_threads(numThreads);
 
   // run once to warm up
-  spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                 B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0,
-                 arrayDesc, ctx);
+  spla::pgemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
+                  B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0,
+                  arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                   B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0,
-                   arrayDesc, ctx);
+    spla::pgemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(),
+                    localNumRows, B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(),
+                    maxRowsC, 0, 0, arrayDesc, ctx);
   }
   STOP_TIMING("spla");
   if (worldRank == 0) std::cout << spla::timing::GlobalTimer.process().print() << std::endl;

@@ -25,29 +25,29 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#include "pgemm_sbs/pgemm_sbs_gpu.hpp"
 #include <algorithm>
-#include <vector>
 #include <memory>
-#include "gemm_sbs/gemm_sbs_gpu.hpp"
-#include "gpu_util/gpu_runtime_api.hpp"
-#include "memory/host_array_view.hpp"
-#include "spla/context.hpp"
-#include "util/common_types.hpp"
-#include "util/omp_definitions.hpp"
-#include "spla/spla.hpp"
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
-#include "memory/host_array_const_view.hpp"
-#include "gpu_util/gpu_transfer.hpp"
-#include "gpu_util/gpu_blas_api.hpp"
-#include "spla/context_internal.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_pointer_translation.hpp"
-#include "gemm_sbs/stripe_gpu.hpp"
-#include "gemm/gemm_gpu.hpp"
+#include <vector>
+#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
-#include "block_generation/block_cyclic_generator.hpp"
+#include "gemm/gemm_gpu.hpp"
+#include "gpu_util/gpu_blas_api.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
+#include "gpu_util/gpu_pointer_translation.hpp"
+#include "gpu_util/gpu_runtime_api.hpp"
+#include "gpu_util/gpu_transfer.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "memory/host_array_view.hpp"
+#include "pgemm_sbs/stripe_gpu.hpp"
+#include "spla/context.hpp"
+#include "spla/context_internal.hpp"
+#include "spla/spla.hpp"
+#include "util/common_types.hpp"
+#include "util/omp_definitions.hpp"
 
 namespace spla {
 /*
@@ -67,57 +67,56 @@ namespace spla {
  *      A            B
  */
 template <typename T>
-void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B,
-                  int ldb, int bRowOffset, int bColOffset, MatrixDistributionInternal &descB,
-                  T beta, T *C, int ldc, ContextInternal &ctx) {
-  if(n == 0 || k == 0) {
+void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+                   int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
+                   int ldc, ContextInternal &ctx) {
+  if (n == 0 || k == 0) {
     return;
   }
 
-  if(descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-                       mLocal, n, k, alpha, A, lda,
-                       B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc,
-                       ctx);
+  if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
+    return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
+                       alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
   }
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
     matrixDist.reset(new BlockCyclicGenerator(descB.row_block_size(), descB.col_block_size(),
-                                                 descB.proc_grid_rows(), descB.proc_grid_cols(),
-                                                 k, n, bRowOffset, bColOffset));
+                                              descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
+                                              bRowOffset, bColOffset));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k,
-                                              n, bRowOffset, bColOffset));
+    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k, n,
+                                         bRowOffset, bColOffset));
   }
   const IntType numBlockRows = matrixDist->num_block_rows();
   const IntType numBlockCols = matrixDist->num_block_cols();
 
-  const IntType numBlockColsInTile =
-      std::max<IntType>((ctx.tile_length_target() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
+  const IntType numBlockColsInTile = std::max<IntType>(
+      (ctx.tile_length_target() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
 
   // calcualte memory target
   IntType maxGPUMultiplyBufferSize =
       ctx.gpu_memory_limit() / (ctx.num_tiles() * sizeof(T) * 3);  // 3 buffers per stripe
-  maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
+  maxGPUMultiplyBufferSize =
+      std::max<IntType>(maxGPUMultiplyBufferSize, 512 * 512);  // miminum of 512^2
 
   std::vector<StripeGPU<T>> stripes;
   stripes.reserve(ctx.num_tiles());
 
-  auto& gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
+  auto &gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
   auto &pinnedBuffers = ctx.pinned_buffers(2 * ctx.num_tiles());
-  auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
+  auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
-  const T* hostPtrA;
-  const T* gpuPtrA;
-  const T* hostPtrB;
-  const T* gpuPtrB;
-  T* hostPtrC;
-  T* gpuPtrC;
+  const T *hostPtrA;
+  const T *gpuPtrA;
+  const T *hostPtrB;
+  const T *gpuPtrB;
+  T *hostPtrC;
+  T *gpuPtrC;
 
-  std::tie(hostPtrA, gpuPtrA) =  translate_gpu_pointer(A);
-  std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
-  std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
+  std::tie(hostPtrA, gpuPtrA) = translate_gpu_pointer(A);
+  std::tie(hostPtrB, gpuPtrB) = translate_gpu_pointer(B);
+  std::tie(hostPtrC, gpuPtrC) = translate_gpu_pointer(C);
 
   for (IntType i = 0; i < ctx.num_tiles(); ++i) {
     auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
@@ -126,14 +125,13 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
                               HostArrayConstView2D<T>(A, k, mLocal, lda), maxGPUMultiplyBufferSize,
                               gpuBuffers[i * 3]);
 
-    auto matC = gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(
-                              GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
-                        : GPUMatrixAccessor<GPUArrayView2D<T>>(
-                              HostArrayView2D<T>(C, n, mLocal, ldc), maxGPUMultiplyBufferSize,
-                              gpuBuffers[i * 3 + 1]);
+    auto matC =
+        gpuPtrC
+            ? GPUMatrixAccessor<GPUArrayView2D<T>>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
+            : GPUMatrixAccessor<GPUArrayView2D<T>>(HostArrayView2D<T>(C, n, mLocal, ldc),
+                                                   maxGPUMultiplyBufferSize, gpuBuffers[i * 3 + 1]);
 
-    auto hostMatC =
-        gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n, mLocal, ldc);
+    auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n, mLocal, ldc);
 
     auto hostMatB =
         gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb);
@@ -191,7 +189,7 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
   }
 
   // finalize remaining stripes
-  for(auto& t: stripes) {
+  for (auto &t : stripes) {
     if (t.state() == StripeState::InExchange) {
       t.finalize_exchange();
     }
@@ -199,29 +197,29 @@ void gemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const 
       t.multiply();
     }
   }
-  for(auto& t: stripes) {
+  for (auto &t : stripes) {
     t.synchronize();
   }
 }
 
-template void gemm_sbs_gpu<float>(int mLocal, int n, int k, float alpha, const float *A, int lda,
-                                  const float *B, int ldb, int bRowOffset, int bColOffset,
-                                  MatrixDistributionInternal &descB, float beta, float *C, int ldc,
-                                  ContextInternal &ctx);
+template void pgemm_sbs_gpu<float>(int mLocal, int n, int k, float alpha, const float *A, int lda,
+                                   const float *B, int ldb, int bRowOffset, int bColOffset,
+                                   MatrixDistributionInternal &descB, float beta, float *C, int ldc,
+                                   ContextInternal &ctx);
 
-template void gemm_sbs_gpu<double>(int mLocal, int n, int k, double alpha, const double *A, int lda,
-                                  const double *B, int ldb, int bRowOffset, int bColOffset,
-                                  MatrixDistributionInternal &descB, double beta, double *C, int ldc,
-                                  ContextInternal &ctx);
+template void pgemm_sbs_gpu<double>(int mLocal, int n, int k, double alpha, const double *A,
+                                    int lda, const double *B, int ldb, int bRowOffset,
+                                    int bColOffset, MatrixDistributionInternal &descB, double beta,
+                                    double *C, int ldc, ContextInternal &ctx);
 
-template void gemm_sbs_gpu<gpu::blas::ComplexFloatType>(
+template void pgemm_sbs_gpu<gpu::blas::ComplexFloatType>(
     int mLocal, int n, int k, gpu::blas::ComplexFloatType alpha,
     const gpu::blas::ComplexFloatType *A, int lda, const gpu::blas::ComplexFloatType *B, int ldb,
     int bRowOffset, int bColOffset, MatrixDistributionInternal &descB,
     gpu::blas::ComplexFloatType beta, gpu::blas::ComplexFloatType *C, int ldc,
     ContextInternal &ctx);
 
-template void gemm_sbs_gpu<gpu::blas::ComplexDoubleType>(
+template void pgemm_sbs_gpu<gpu::blas::ComplexDoubleType>(
     int mLocal, int n, int k, gpu::blas::ComplexDoubleType alpha,
     const gpu::blas::ComplexDoubleType *A, int lda, const gpu::blas::ComplexDoubleType *B, int ldb,
     int bRowOffset, int bColOffset, MatrixDistributionInternal &descB,

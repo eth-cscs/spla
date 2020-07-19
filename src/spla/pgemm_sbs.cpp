@@ -26,65 +26,65 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "spla/gemm_sbs.hpp"
+#include "spla/pgemm_sbs.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <memory>
 #include <vector>
 
-#include "gemm_sbs/gemm_sbs_host.hpp"
+#include "pgemm_sbs/pgemm_sbs_host.hpp"
 #include "spla/exceptions.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "gemm_sbs/gemm_sbs_gpu.hpp"
 #include "gpu_util/gpu_blas_api.hpp"
+#include "pgemm_sbs/pgemm_sbs_gpu.hpp"
 #endif
 
 namespace spla {
 
-void gemm_sbs(int mLocal, int n, int k, float alpha, const float *A, int lda, const float *B,
-              int ldb, int bRowOffset, int bColOffset, MatrixDistribution &distB, float beta, float *C,
-              int ldc, Context &ctx) {
+void pgemm_sbs(int mLocal, int n, int k, float alpha, const float *A, int lda, const float *B,
+               int ldb, int bRowOffset, int bColOffset, MatrixDistribution &distB, float beta,
+               float *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                   *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_sbs_gpu(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                 *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_gpu(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-void gemm_sbs(int mLocal, int n, int k, double alpha, const double *A, int lda, const double *B,
-              int ldb, int bRowOffset, int bColOffset, MatrixDistribution &distB, double beta,
-              double *C, int ldc, Context &ctx) {
+void pgemm_sbs(int mLocal, int n, int k, double alpha, const double *A, int lda, const double *B,
+               int ldb, int bRowOffset, int bColOffset, MatrixDistribution &distB, double beta,
+               double *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                   *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_sbs_gpu(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                 *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_gpu(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-void gemm_sbs(int mLocal, int n, int k, std::complex<float> alpha, const std::complex<float> *A,
-              int lda, const std::complex<float> *B, int ldb, int bRowOffset, int bColOffset,
-              MatrixDistribution &distB, std::complex<float> beta, std::complex<float> *C, int ldc,
-              Context &ctx) {
+void pgemm_sbs(int mLocal, int n, int k, std::complex<float> alpha, const std::complex<float> *A,
+               int lda, const std::complex<float> *B, int ldb, int bRowOffset, int bColOffset,
+               MatrixDistribution &distB, std::complex<float> beta, std::complex<float> *C, int ldc,
+               Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                   *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_sbs_gpu<gpu::blas::ComplexFloatType>(
+    pgemm_sbs_gpu<gpu::blas::ComplexFloatType>(
         mLocal, n, k, gpu::blas::ComplexFloatType{alpha.real(), alpha.imag()},
         reinterpret_cast<const gpu::blas::ComplexFloatType *>(A), lda,
         reinterpret_cast<const gpu::blas::ComplexFloatType *>(B), ldb, bRowOffset, bColOffset,
@@ -96,16 +96,16 @@ void gemm_sbs(int mLocal, int n, int k, std::complex<float> alpha, const std::co
   }
 }
 
-void gemm_sbs(int mLocal, int n, int k, std::complex<double> alpha, const std::complex<double> *A,
-              int lda, const std::complex<double> *B, int ldb, int bRowOffset, int bColOffset,
-              MatrixDistribution &distB, std::complex<double> beta, std::complex<double> *C, int ldc,
-              Context &ctx) {
+void pgemm_sbs(int mLocal, int n, int k, std::complex<double> alpha, const std::complex<double> *A,
+               int lda, const std::complex<double> *B, int ldb, int bRowOffset, int bColOffset,
+               MatrixDistribution &distB, std::complex<double> beta, std::complex<double> *C,
+               int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
-                  *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
+    pgemm_sbs_host(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                   *(distB.descInternal_), beta, C, ldc, *(ctx.ctxInternal_));
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_sbs_gpu<gpu::blas::ComplexDoubleType>(
+    pgemm_sbs_gpu<gpu::blas::ComplexDoubleType>(
         mLocal, n, k, gpu::blas::ComplexDoubleType{alpha.real(), alpha.imag()},
         reinterpret_cast<const gpu::blas::ComplexDoubleType *>(A), lda,
         reinterpret_cast<const gpu::blas::ComplexDoubleType *>(B), ldb, bRowOffset, bColOffset,
