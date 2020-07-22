@@ -11,7 +11,7 @@ These specific configurations cannot be directly expressed with the commonly use
 
 ### Stripe-Stripe-Block
 The `gemm_ssb(...)` function computes the following:  
-![ethz](docs/images/ssb_formula.png)
+![ethz](docs/images/ssb_formula.svg)
 
 The matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution.
 See documentation for details. 
@@ -36,7 +36,7 @@ See documentation for details.
 
 ### Stripe-Block-Stripe
 The `gemm_sbs(...)` function computes the following:  
-![ethz](docs/images/sbs_formula.png)
+![ethz](docs/images/sbs_formula.svg)
 
 The matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution.
 See documentation for details. 
