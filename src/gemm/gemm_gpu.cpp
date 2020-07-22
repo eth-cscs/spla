@@ -27,6 +27,8 @@
  */
 
 #include "gemm/gemm_gpu.hpp"
+#include <cmath>
+#include <vector>
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
@@ -34,8 +36,7 @@
 #include "gpu_util/multiply_gpu.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
-#include <cmath>
-#include <vector>
+#include "util/check_gemm_param.hpp"
 
 namespace spla {
 
@@ -50,6 +51,10 @@ static auto map_op_to_gpu_blas(SplaOperation op) -> gpu::blas::OperationType {
 template <typename T>
 void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntType k,
               T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
+  if(m == 0 || n == 0) {
+    return;
+  }
+  check_gemm_param(opA, opB, m, n, k, A, lda, B, ldb, C, ldc);
               IntType ldc, ContextInternal &ctx) {
 
   const IntType numColsA = opA == SplaOperation::SPLA_OP_NONE ? k : m;

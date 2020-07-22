@@ -48,6 +48,7 @@
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
+#include "util/check_gemm_param.hpp"
 
 namespace spla {
 /*
@@ -73,6 +74,8 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   if (n == 0 || k == 0) {
     return;
   }
+  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k, A, lda,
+                   B, ldb, C, ldc);
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
     return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,

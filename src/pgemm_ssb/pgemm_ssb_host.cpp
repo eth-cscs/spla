@@ -39,12 +39,14 @@
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/spla.hpp"
+#include "spla/types.h"
 #include "tile_host.hpp"
 #include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
+#include "util/check_gemm_param.hpp"
 
 namespace spla {
 /*
@@ -71,6 +73,8 @@ void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, cons
   if (m == 0 || n == 0) {
     return;
   }
+  check_gemm_param(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n, kLocal,
+                   A, lda, B, ldb, C, ldc);
 
   // if (descC.comm().size() == 1) {
   //   return gemm_host<T>(ctx.num_threads(), SPLA_OP_CONJ_TRANSPOSE, SPLA_OP_NONE, m, n, kLocal,

@@ -27,6 +27,7 @@
  */
 
 #include "gemm/gemm_host.hpp"
+#include <complex>
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "spla/config.h"
@@ -34,7 +35,7 @@
 #include "spla/types.h"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
-#include <complex>
+#include "util/check_gemm_param.hpp"
 
 namespace spla {
 
@@ -54,6 +55,11 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
                IntType m, IntType n, IntType k, T alpha, const T *A,
                IntType lda, const T *B, IntType ldb, T beta, T *C,
                IntType ldc) {
+  if(m == 0 || n == 0) {
+    return;
+  }
+  check_gemm_param(opA, opB, m, n, k, A, lda, B, ldb, C, ldc);
+
   const auto opBlasA = map_op_to_host_blas(opA);
   const auto opBlasB = map_op_to_host_blas(opB);
 

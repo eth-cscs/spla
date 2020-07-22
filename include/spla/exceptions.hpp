@@ -50,6 +50,22 @@ public:
 };
 
 /**
+ * Invalid parameter error.
+ */
+class SPLA_EXPORT InvalidParameterError : public GenericError {
+public:
+  auto what() const noexcept -> const char* override { return "SPLA: Invalid parameter error"; }
+};
+
+/**
+ * Invalid pointer error.
+ */
+class SPLA_EXPORT InvalidPointerError : public GenericError {
+public:
+  auto what() const noexcept -> const char* override { return "SPLA: Invalid pointer error"; }
+};
+
+/**
  * Generic MPI Error
  */
 class SPLA_EXPORT MPIError : public GenericError {
