@@ -106,6 +106,13 @@ public:
   std::size_t gpu_memory_limit() const;
 
   /**
+   * Access a Context parameter.
+   * @return Id of GPU used for computations. This is set as fixed parameter by query of device id
+   * at context creation.
+   */
+  int gpu_device_id() const;
+
+  /**
    * Set the number of threads to be used.
    *
    * @param[in] numThreads Number of threads.

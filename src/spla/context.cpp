@@ -49,6 +49,10 @@ std::size_t Context::gpu_memory_limit() const {
  return ctxInternal_->gpu_memory_limit();
 }
 
+int Context::gpu_device_id() const {
+ return ctxInternal_->gpu_device_id();
+}
+
 void Context::set_num_threads(int numThreads) {
  ctxInternal_->set_num_threads(numThreads);
 }

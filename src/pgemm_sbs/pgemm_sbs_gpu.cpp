@@ -38,6 +38,7 @@
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_transfer.hpp"
+#include "gpu_util/gpu_device_guard.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
@@ -81,6 +82,12 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
   }
+
+
+  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+
+  // always synchronize with stream 0 as part of API requirement
+  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -150,7 +157,7 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   if (ctx.num_threads() > 1) {
     // comm + worker thread
     SPLA_OMP_PRAGMA("omp parallel num_threads(2)") {
-      // TODO set device per thread
+      GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
       IntType counter = 0;
       for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
            blockColIdx += numBlockColsInTile, ++counter) {

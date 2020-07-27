@@ -37,6 +37,7 @@
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_transfer.hpp"
+#include "gpu_util/gpu_device_guard.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
@@ -85,6 +86,12 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const
                        kLocal, alpha, A, lda, B, ldb, beta, C + cRowStart + cColStart * ldc, ldc,
                        ctx);
   }
+
+
+  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+
+  // always synchronize with stream 0 as part of API requirement
+  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   const T *hostPtrA;
   const T *gpuPtrA;
@@ -156,7 +163,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const
   if (ctx.num_threads() > 1) {
     // comm + worker thread
     SPLA_OMP_PRAGMA("omp parallel num_threads(2)") {
-      // TODO set device per thread
+      GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
       IntType counter = 0;
       for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
         for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
@@ -204,6 +211,10 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const
     if (t.state() == TileState::Exchanged) {
       t.extract();
     }
+  }
+
+  // synchronize all streams
+  for (auto &t : tiles) {
     t.synchronize();
   }
 }

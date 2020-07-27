@@ -34,6 +34,7 @@
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gpu_util/multiply_gpu.hpp"
+#include "gpu_util/gpu_device_guard.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "util/check_gemm_param.hpp"
@@ -51,11 +52,18 @@ static auto map_op_to_gpu_blas(SplaOperation op) -> gpu::blas::OperationType {
 template <typename T>
 void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntType k,
               T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
+              IntType ldc, ContextInternal &ctx) {
+
   if(m == 0 || n == 0) {
     return;
   }
+
   check_gemm_param(opA, opB, m, n, k, A, lda, B, ldb, C, ldc);
-              IntType ldc, ContextInternal &ctx) {
+
+  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+
+  // always synchronize with stream 0 as part of API requirement
+  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   const IntType numColsA = opA == SplaOperation::SPLA_OP_NONE ? k : m;
   const IntType numRowsA = opA == SplaOperation::SPLA_OP_NONE ? m : k;
@@ -84,6 +92,7 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsA;
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsB;
   std::vector<GPUMatrixAccessor<GPUArrayView2D<T>>> matAccessorsC;
+
   for(IntType i = 0; i < ctx.num_tiles(); ++i) {
     matAccessorsA.emplace_back(
         gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
