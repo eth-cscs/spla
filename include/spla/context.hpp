@@ -127,13 +127,6 @@ public:
   void set_num_tiles(int numTilesPerThread);
 
   /**
-   * Set the number of streams on GPU.
-   *
-   * @param[in] numGPUStreams Number of streams on GPU.
-   */
-  void set_num_gpu_streams(int numGPUStreams);
-
-  /**
    * Set the target tile length used for computations.
    *
    * @param[in] tileLengthTarget Target tile length.

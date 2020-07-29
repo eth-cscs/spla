@@ -27,6 +27,7 @@
  */
 
 #include "spla/pgemm_sbs.hpp"
+#include "spla/pgemm_sbs.h"
 
 #include <algorithm>
 #include <atomic>
@@ -118,3 +119,77 @@ void pgemm_sbs(int mLocal, int n, int k, std::complex<double> alpha, const std::
 }
 
 }  // namespace spla
+
+extern "C" {
+SplaError spla_psgemm_sbs(int mLocal, int n, int k, float alpha, const float *A, int lda,
+                          const float *B, int ldb, int bRowOffset, int bColOffset,
+                          SplaMatrixDistribution distB, float beta, float *C, int ldc,
+                          SplaContext ctx) {
+  try {
+    spla::pgemm_sbs(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                    *reinterpret_cast<spla::MatrixDistribution *>(distB), beta, C, ldc,
+                    *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_pdgemm_sbs(int mLocal, int n, int k, double alpha, const double *A, int lda,
+                          const double *B, int ldb, int bRowOffset, int bColOffset,
+                          SplaMatrixDistribution distB, double beta, double *C, int ldc,
+                          SplaContext ctx) {
+  try {
+    spla::pgemm_sbs(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset,
+                    *reinterpret_cast<spla::MatrixDistribution *>(distB), beta, C, ldc,
+                    *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_pcgemm_sbs(int mLocal, int n, int k, const void *alpha, const void *A, int lda,
+                          const void *B, int ldb, int bRowOffset, int bColOffset,
+                          SplaMatrixDistribution distB, const void *beta, void *C, int ldc,
+                          SplaContext ctx) {
+  try {
+    spla::pgemm_sbs(mLocal, n, k, *reinterpret_cast<const std::complex<float> *>(alpha),
+                    reinterpret_cast<const std::complex<float> *>(A), lda,
+                    reinterpret_cast<const std::complex<float> *>(B), ldb, bRowOffset, bColOffset,
+                    *reinterpret_cast<spla::MatrixDistribution *>(distB),
+                    *reinterpret_cast<const std::complex<float> *>(beta),
+                    reinterpret_cast<std::complex<float> *>(C), ldc,
+                    *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_pzgemm_sbs(int mLocal, int n, int k, const void *alpha, const void *A, int lda,
+                          const void *B, int ldb, int bRowOffset, int bColOffset,
+                          SplaMatrixDistribution distB, const void *beta, void *C, int ldc,
+                          SplaContext ctx) {
+  try {
+    spla::pgemm_sbs(mLocal, n, k, *reinterpret_cast<const std::complex<double> *>(alpha),
+                    reinterpret_cast<const std::complex<double> *>(A), lda,
+                    reinterpret_cast<const std::complex<double> *>(B), ldb, bRowOffset, bColOffset,
+                    *reinterpret_cast<spla::MatrixDistribution *>(distB),
+                    *reinterpret_cast<const std::complex<double> *>(beta),
+                    reinterpret_cast<std::complex<double> *>(C), ldc,
+                    *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+}
