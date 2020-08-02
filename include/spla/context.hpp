@@ -201,8 +201,8 @@ private:
   /*! \endcond */
 };
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 }  // namespace spla
-#endif
+/*! \endcond */
 
 #endif

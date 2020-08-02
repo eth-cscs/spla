@@ -116,8 +116,8 @@ SPLA_EXPORT void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::com
                            int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
                            int cRowOffset, int cColOffset, MatrixDistribution &distC, Context &ctx);
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 }  // namespace spla
-#endif
+/*! \endcond */
 
 #endif

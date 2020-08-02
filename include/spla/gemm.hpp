@@ -98,8 +98,8 @@ SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
                       std::complex<double> beta, std::complex<double> *C,
                       int ldc, Context &ctx);
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 }  // namespace spla
-#endif
+/*! \endcond */
 
 #endif

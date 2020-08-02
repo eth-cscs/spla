@@ -50,13 +50,12 @@
 
 #include "spla/config.h"
 #include "spla/context.h"
-#include "spla/matrix_distribution.h"
 #include "spla/errors.h"
+#include "spla/matrix_distribution.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A B +
@@ -114,8 +113,8 @@ SPLA_EXPORT SplaError spla_pzgemm_sbs(int mLocal, int n, int k, const void *alph
                                       int lda, const void *B, int ldb, int bRowOffset,
                                       int bColOffset, SplaMatrixDistribution distB,
                                       const void *beta, void *C, int ldc, SplaContext ctx);
-#ifdef __cplusplus
-}
-#endif
+/*! \cond PRIVATE */
+}  // namespace spla
+/*! \endcond */
 
 #endif

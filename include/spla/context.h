@@ -70,7 +70,7 @@ SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @return Number of tiles used to overlap computation and communication.
+ * @param[out] numTiles Number of tiles used to overlap computation and communication.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
@@ -78,7 +78,7 @@ SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] Target size of tiles.
+ * @param[out] tileLengthTarget Target length of tiles.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_tile_length_target(SplaContext ctx, int* tileLengthTarget);
@@ -86,7 +86,7 @@ SplaError spla_ctx_tile_length_target(SplaContext ctx, int* tileLengthTarget);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] Amount of memory, allowed to be allocated for computations. A small mimimum is always
+ * @param[out] limit Amount of memory, allowed to be allocated for computations. A small mimimum is always
  * required, therefore this is not a hard limit.
  * @return Error code or SPLA_SUCCESS.
  */
@@ -95,8 +95,8 @@ SplaError spla_ctx_gpu_memory_limit(SplaContext ctx, size_t* limit);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] Id of GPU used for computations. This is set as fixed parameter by query of device id
- * at context creation.
+ * @param[out] deviceId Id of GPU used for computations. This is set as fixed parameter by query of
+ * device id at context creation.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId);
