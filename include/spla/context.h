@@ -52,6 +52,14 @@ extern "C" {
 SplaError spla_ctx_create(SplaContext* ctx, SplaProcessingUnit pu);
 
 /**
+ * Destroy context.
+ *
+ * @param[in] ctx Context handle.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SplaError spla_ctx_destroy(SplaContext* ctx);
+
+/**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
  * @param[out] pu Procesing unit used for computations.

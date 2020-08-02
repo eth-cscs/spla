@@ -75,6 +75,21 @@ SplaError spla_ctx_create(SplaContext* ctx, SplaProcessingUnit pu) {
   return SplaError::SPLA_SUCCESS;
 }
 
+SplaError spla_ctx_destroy(SplaContext* ctx) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    delete reinterpret_cast<spla::Context*>(*ctx);
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  *ctx = nullptr;
+  return SplaError::SPLA_SUCCESS;
+}
+
 SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
