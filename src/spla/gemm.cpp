@@ -26,9 +26,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "spla/exceptions.hpp"
 #include "spla/gemm.hpp"
 #include "gemm/gemm_host.hpp"
+#include "spla/exceptions.hpp"
+#include "spla/gemm.h"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gemm/gemm_gpu.hpp"
@@ -36,83 +37,140 @@
 #endif
 
 namespace spla {
-void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-          float alpha, const float *A, int lda, const float *B, int ldb,
-          float beta, float *C, int ldc, Context &ctx) {
+void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha, const float *A,
+          int lda, const float *B, int ldb, float beta, float *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<float>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha,
-                     A, lda, B, ldb, beta, C, ldc);
+    gemm_host<float>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A, lda, B, ldb,
+                     beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_gpu<float>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                    *(ctx.ctxInternal_));
+    gemm_gpu<float>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-          double alpha, const double *A, int lda, const double *B, int ldb,
-          double beta, double *C, int ldc, Context &ctx) {
+void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, double alpha, const double *A,
+          int lda, const double *B, int ldb, double beta, double *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<double>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha,
-                      A, lda, B, ldb, beta, C, ldc);
+    gemm_host<double>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A, lda, B, ldb,
+                      beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    gemm_gpu<double>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                     *(ctx.ctxInternal_));
+    gemm_gpu<double>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-          std::complex<float> alpha, const std::complex<float> *A, int lda,
-          const std::complex<float> *B, int ldb, std::complex<float> beta,
-          std::complex<float> *C, int ldc, Context &ctx) {
+void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, std::complex<float> alpha,
+          const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
+          std::complex<float> beta, std::complex<float> *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<std::complex<float>>(ctx.ctxInternal_->num_threads(), opA, opB, m,
-                                   n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+    gemm_host<std::complex<float>>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A,
+                                   lda, B, ldb, beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     gemm_gpu<gpu::blas::ComplexFloatType>(
-        opA, opB, m, n, k,
-        gpu::blas::ComplexFloatType{alpha.real(), alpha.imag()},
+        opA, opB, m, n, k, gpu::blas::ComplexFloatType{alpha.real(), alpha.imag()},
         reinterpret_cast<const gpu::blas::ComplexFloatType *>(A), lda,
         reinterpret_cast<const gpu::blas::ComplexFloatType *>(B), ldb,
         gpu::blas::ComplexFloatType{beta.real(), beta.imag()},
-        reinterpret_cast<gpu::blas::ComplexFloatType *>(C), ldc,
-        *(ctx.ctxInternal_));
+        reinterpret_cast<gpu::blas::ComplexFloatType *>(C), ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-          std::complex<double> alpha, const std::complex<double> *A, int lda,
-          const std::complex<double> *B, int ldb, std::complex<double> beta,
-          std::complex<double> *C, int ldc, Context &ctx) {
+void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, std::complex<double> alpha,
+          const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
+          std::complex<double> beta, std::complex<double> *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<std::complex<double>>(ctx.ctxInternal_->num_threads(), opA, opB,
-                                    m, n, k, alpha, A, lda, B, ldb, beta, C,
-                                    ldc);
+    gemm_host<std::complex<double>>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A,
+                                    lda, B, ldb, beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     gemm_gpu<gpu::blas::ComplexDoubleType>(
-        opA, opB, m, n, k,
-        gpu::blas::ComplexDoubleType{alpha.real(), alpha.imag()},
+        opA, opB, m, n, k, gpu::blas::ComplexDoubleType{alpha.real(), alpha.imag()},
         reinterpret_cast<const gpu::blas::ComplexDoubleType *>(A), lda,
         reinterpret_cast<const gpu::blas::ComplexDoubleType *>(B), ldb,
         gpu::blas::ComplexDoubleType{beta.real(), beta.imag()},
-        reinterpret_cast<gpu::blas::ComplexDoubleType *>(C), ldc,
-        *(ctx.ctxInternal_));
+        reinterpret_cast<gpu::blas::ComplexDoubleType *>(C), ldc, *(ctx.ctxInternal_));
 #else
     throw GPUSupportError();
 #endif
   }
 }
 
-} // namespace spla
+}  // namespace spla
+
+extern "C" {
+
+SplaError spla_sgemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha,
+                     const float *A, int lda, const float *B, int ldb, float beta, float *C,
+                     int ldc, SplaContext ctx) {
+  try {
+    spla::gemm(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
+               *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_dgemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, double alpha,
+                     const double *A, int lda, const double *B, int ldb, double beta, double *C,
+                     int ldc, SplaContext ctx) {
+  try {
+    spla::gemm(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
+               *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_cgemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, const void *alpha,
+                     const void *A, int lda, const void *B, int ldb, const void *beta, void *C,
+                     int ldc, SplaContext ctx) {
+  try {
+    spla::gemm(opA, opB, m, n, k, *reinterpret_cast<const std::complex<float> *>(alpha),
+               reinterpret_cast<const std::complex<float> *>(A), lda,
+               reinterpret_cast<const std::complex<float> *>(B), ldb,
+               *reinterpret_cast<const std::complex<float> *>(beta),
+               reinterpret_cast<std::complex<float> *>(C), ldc,
+               *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_zgemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, const void *alpha,
+                     const void *A, int lda, const void *B, int ldb, const void *beta, void *C,
+                     int ldc, SplaContext ctx) {
+  try {
+    spla::gemm(opA, opB, m, n, k, *reinterpret_cast<const std::complex<double> *>(alpha),
+               reinterpret_cast<const std::complex<double> *>(A), lda,
+               reinterpret_cast<const std::complex<double> *>(B), ldb,
+               *reinterpret_cast<const std::complex<double> *>(beta),
+               reinterpret_cast<std::complex<double> *>(C), ldc,
+               *reinterpret_cast<spla::Context *>(ctx));
+  } catch (const spla::GenericError &e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+}
+

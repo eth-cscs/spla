@@ -119,5 +119,7 @@ SPLA_EXPORT SplaError spla_pzgemm_ssb(int m, int n, int kLocal, SplaOperation op
                                       int ldb, const void *beta, void *C, int ldc, int cRowOffset,
                                       int cColOffset, SplaMatrixDistribution distC,
                                       SplaContext ctx);
+#ifdef __cplusplus
 }
+#endif
 #endif
