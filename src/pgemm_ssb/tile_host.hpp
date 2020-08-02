@@ -31,16 +31,17 @@
 #include <atomic>
 #include <memory>
 #include <vector>
+#include "block_generation/matrix_block_generator.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/buffer.hpp"
 #include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "spla/config.h"
 #include "spla/spla.hpp"
+#include "spla/types.h"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 #include "util/tile_state.hpp"
 
 namespace spla {
@@ -49,12 +50,10 @@ class TileHost {
 public:
   using ValueType = T;
 
-  TileHost(MPICommunicatorHandle comm,
-           std::shared_ptr<Buffer<MPIAllocator>> buffer,
-           std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-           const HostArrayConstView2D<ValueType> &A,
-           const HostArrayConstView2D<ValueType> &B, ValueType beta,
-           HostArrayView2D<ValueType> C, IntType numBlockRows,
+  TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+           std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA, ValueType alpha,
+           const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
+           ValueType beta, HostArrayView2D<ValueType> C, IntType numBlockRows,
            IntType numBlockCols);
 
   // Multiply tile starting from given indices. All threads in parallel region
@@ -84,6 +83,7 @@ protected:
   HostArrayConstView2D<ValueType> B_;
   HostArrayView2D<ValueType> C_;
   const ValueType alpha_, beta_;
+  const SplaOperation opA_;
 };
 
 }  // namespace spla

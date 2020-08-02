@@ -39,19 +39,26 @@
 namespace spla {
 
 template <typename T>
-TileHost<T>::TileHost(MPICommunicatorHandle comm,
-                      std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                      std::shared_ptr<MatrixBlockGenerator> matrixDist,
-                      ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
-                      HostArrayView2D<ValueType> C, IntType numBlockRows,
-                      IntType numBlockCols)
-    : state_(TileState::Empty), matrixDist_(std::move(matrixDist)),
-      buffer_(std::move(buffer)), comm_(std::move(comm)),
-      numBlockRows_(numBlockRows), numBlockCols_(numBlockCols), A_(A), B_(B),
-      C_(C), alpha_(alpha), beta_(beta) {
+TileHost<T>::TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                      std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
+                      ValueType alpha, const HostArrayConstView2D<ValueType>& A,
+                      const HostArrayConstView2D<ValueType>& B, ValueType beta,
+                      HostArrayView2D<ValueType> C, IntType numBlockRows, IntType numBlockCols)
+    : state_(TileState::Empty),
+      matrixDist_(std::move(matrixDist)),
+      buffer_(std::move(buffer)),
+      comm_(std::move(comm)),
+      numBlockRows_(numBlockRows),
+      numBlockCols_(numBlockCols),
+      A_(A),
+      B_(B),
+      C_(C),
+      alpha_(alpha),
+      beta_(beta),
+      opA_(opA) {
   assert(A_.dim_inner() == B_.dim_inner());
   assert(buffer_);
+  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
   buffer_->resize<ValueType>(numBlockRows * numBlockCols * matrixDist_->max_rows_in_block() *
                              matrixDist_->max_cols_in_block());
 }
@@ -112,9 +119,8 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 
     const ValueType beta = 0.0;
 
-    gemm_host<T>(omp_get_num_threads(), SplaOperation::SPLA_OP_CONJ_TRANSPOSE,
-                 SplaOperation::SPLA_OP_NONE, tile_.dim_inner(), tile_.dim_outer(), k, alpha_,
-                 &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
+    gemm_host<T>(omp_get_num_threads(), opA_, SplaOperation::SPLA_OP_NONE, tile_.dim_inner(),
+                 tile_.dim_outer(), k, alpha_, &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
                  &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta, tile_.data(), ldc);
   }
 

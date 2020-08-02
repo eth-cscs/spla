@@ -201,9 +201,9 @@ protected:
       colBlockSize_ = n_;
     }
 
-    spla::pgemm_ssb(subMatrixRows, subMatrixCols, numLocalRows, T(1.0), vecA_.data(), mLocal_,
-                    vecB_.data(), numLocalRows, T(0.0), vecC_.data(), k_, subMatrixRowOffset,
-                    subMatrixColOffset, desc, ctx_);
+    spla::pgemm_ssb(subMatrixRows, subMatrixCols, numLocalRows, SPLA_OP_CONJ_TRANSPOSE, T(1.0),
+                    vecA_.data(), mLocal_, vecB_.data(), numLocalRows, T(0.0), vecC_.data(), k_,
+                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
 
     std::array<int, 9> descA;
     std::array<int, 9> descRedistA;

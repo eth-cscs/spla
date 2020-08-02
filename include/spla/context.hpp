@@ -143,20 +143,20 @@ public:
 
 private:
   /*! \cond PRIVATE */
-  friend void pgemm_ssb(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                        const float *B, int ldb, float beta, float *C, int ldc, int cRowStart,
-                        int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, float alpha, const float *A,
+                        int lda, const float *B, int ldb, float beta, float *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void pgemm_ssb(int m, int n, int kLocal, double alpha, const double *A, int lda,
-                        const double *B, int ldb, double beta, double *C, int ldc, int cRowStart,
-                        int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, double alpha, const double *A,
+                        int lda, const double *B, int ldb, double beta, double *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void pgemm_ssb(int m, int n, int kLocal, std::complex<float> alpha,
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
                         const std::complex<float> *A, int lda, const std::complex<float> *B,
                         int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
                         int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void pgemm_ssb(int m, int n, int kLocal, std::complex<double> alpha,
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
                         const std::complex<double> *A, int lda, const std::complex<double> *B,
                         int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
                         int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);

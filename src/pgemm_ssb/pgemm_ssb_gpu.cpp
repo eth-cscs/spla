@@ -69,22 +69,22 @@ namespace spla {
  *      A            B
  */
 template <typename T>
-void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                   T beta, T *C, int ldc, int cRowStart, int cColStart,
+void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
+                   const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
                    MatrixDistributionInternal &descC, ContextInternal &ctx) {
   if (m == 0 || n == 0) {
     return;
   }
+  if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
+    throw InvalidParameterError();
+  }
+
   check_gemm_param(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n, kLocal,
                    A, lda, B, ldb, C, ldc);
 
   if (descC.comm().size() == 1) {
-    // return pgemm_ssb_gpu_single_rank<T>(m, n, kLocal, alpha, A, lda, B, ldb, beta, C, ldc,
-    // cRowStart,
-    //                                    cColStart, descC, ctx);
-    return gemm_gpu<T>(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n,
-                       kLocal, alpha, A, lda, B, ldb, beta, C + cRowStart + cColStart * ldc, ldc,
-                       ctx);
+    return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
+                       C + cRowStart + cColStart * ldc, ldc, ctx);
   }
 
 
@@ -156,8 +156,8 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const
         gpuPtrC ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc) : GPUArrayView2D<T>();
 
     tiles.emplace_back(descC.comm(), blasHandles[i], pinnedBuffers[i], gpuBuffers[i * 3 + 2],
-                       matrixDist, alpha, matA, matB, beta, hostMatC, gpuMatC, numBlockRowsInTile,
-                       numBlockColsInTile);
+                       matrixDist, opA, alpha, matA, matB, beta, hostMatC, gpuMatC,
+                       numBlockRowsInTile, numBlockColsInTile);
   }
 
   if (ctx.num_threads() > 1) {
@@ -219,24 +219,24 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, T alpha, const T *A, int lda, const
   }
 }
 
-template void pgemm_ssb_gpu<float>(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                                   const float *B, int ldb, float beta, float *C, int ldc,
-                                   int cRowStart, int cColStart, MatrixDistributionInternal &descC,
-                                   ContextInternal &ctx);
+template void pgemm_ssb_gpu<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
+                                   const float *A, int lda, const float *B, int ldb, float beta,
+                                   float *C, int ldc, int cRowStart, int cColStart,
+                                   MatrixDistributionInternal &descC, ContextInternal &ctx);
 
-template void pgemm_ssb_gpu<double>(int m, int n, int kLocal, double alpha, const double *A,
-                                    int lda, const double *B, int ldb, double beta, double *C,
-                                    int ldc, int cRowStart, int cColStart,
+template void pgemm_ssb_gpu<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
+                                    const double *A, int lda, const double *B, int ldb, double beta,
+                                    double *C, int ldc, int cRowStart, int cColStart,
                                     MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<gpu::blas::ComplexFloatType>(
-    int m, int n, int kLocal, gpu::blas::ComplexFloatType alpha,
+    int m, int n, int kLocal, SplaOperation opA, gpu::blas::ComplexFloatType alpha,
     const gpu::blas::ComplexFloatType *A, int lda, const gpu::blas::ComplexFloatType *B, int ldb,
     gpu::blas::ComplexFloatType beta, gpu::blas::ComplexFloatType *C, int ldc, int cRowStart,
     int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<gpu::blas::ComplexDoubleType>(
-    int m, int n, int kLocal, gpu::blas::ComplexDoubleType alpha,
+    int m, int n, int kLocal, SplaOperation opA, gpu::blas::ComplexDoubleType alpha,
     const gpu::blas::ComplexDoubleType *A, int lda, const gpu::blas::ComplexDoubleType *B, int ldb,
     gpu::blas::ComplexDoubleType beta, gpu::blas::ComplexDoubleType *C, int ldc, int cRowStart,
     int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);

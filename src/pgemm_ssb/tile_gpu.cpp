@@ -86,8 +86,8 @@ template <typename T>
 TileGPU<T>::TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
                     std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
                     std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
-                    std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-                    GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
+                    std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
+                    ValueType alpha, GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
                     GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB, ValueType beta,
                     HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC,
                     IntType numBlockRows, IntType numBlockCols)
@@ -104,10 +104,12 @@ TileGPU<T>::TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
       HostMatC_(HostMatC),
       GPUMatC_(GPUMatC),
       alpha_(alpha),
-      beta_(beta) {
+      beta_(beta),
+      opA_(opA) {
   assert(matA_.rows() == matB_.rows());
   assert(bufferHost_);
   assert(bufferGPU_);
+  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
   const auto bufferSize = numBlockRows * numBlockCols * matrixDist_->max_rows_in_block() * matrixDist_->max_cols_in_block();
   bufferHost_->resize<ValueType>(bufferSize);
   bufferGPU_->resize<ValueType>(bufferSize);
@@ -145,10 +147,14 @@ auto TileGPU<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
     std::memset(tileHost_.data(), 0, tileHost_.size() * sizeof(T));
   } else {
     ValueType beta = RealValueGPU<T>::create(0.0);
+    auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
+                      ? gpu::blas::operation::Transpose
+                      : gpu::blas::operation::ConjugateTranspose;
     multiply_gpu<ValueType>(
-        blasHandle_.get(), gpu::blas::operation::ConjugateTranspose, gpu::blas::operation::None, alpha_,
+        blasHandle_.get(), opAGPU, gpu::blas::operation::None, alpha_,
         matA_.sub_accessor(0, blockInfos_.front().globalSubRowIdx, matA_.rows(), numTileRows),
-        matB_.sub_accessor(0, blockInfos_.front().globalSubColIdx, matB_.rows(), numTileCols), beta, tileGPU_);
+        matB_.sub_accessor(0, blockInfos_.front().globalSubColIdx, matB_.rows(), numTileCols), beta,
+        tileGPU_);
     copy_from_gpu_async(blasHandle_.stream_handle().get(), GPUArrayConstView2D<T>(tileGPU_),
                         tileHost_);
   }

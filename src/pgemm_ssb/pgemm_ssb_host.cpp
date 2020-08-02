@@ -49,38 +49,24 @@
 #include "util/check_gemm_param.hpp"
 
 namespace spla {
-/*
- *    ------ H     ------
- *    |    |       |    |
- *    |    |       |    |
- *    ------       ------        -------
- *    |    |       |    |        |  |  |
- *    |    |   *   |    |    =   -------
- *    ------       ------        |  |  |
- *    |    |       |    |        -------
- *    |    |       |    |           C
- *    ------       -
- *    |    |       |    |
- *    |    |       |    |
- *    ------       -
- *      A            B
- */
+
 template <typename T>
-void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                    T beta, T *C, int ldc, int cRowStart, int cColStart,
+void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
+                    const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
                     MatrixDistributionInternal &descC, ContextInternal &ctx) {
   SCOPED_TIMING("inner_host");
   if (m == 0 || n == 0) {
     return;
   }
-  check_gemm_param(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n, kLocal,
-                   A, lda, B, ldb, C, ldc);
+  if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
+    throw InvalidParameterError();
+  }
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, A, lda, B, ldb, C, ldc);
 
-  // if (descC.comm().size() == 1) {
-  //   return gemm_host<T>(ctx.num_threads(), SPLA_OP_CONJ_TRANSPOSE, SPLA_OP_NONE, m, n, kLocal,
-  //                       alpha, A, lda, B, ldb, beta,
-  //                       C + cRowStart + cColStart * ldc, ldc);
-  // }
+  if (descC.comm().size() == 1) {
+    return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
+                        beta, C + cRowStart + cColStart * ldc, ldc);
+  }
 
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
@@ -117,8 +103,8 @@ void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, cons
     auto &comms = descC.get_comms(numTiles);
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < numTiles; ++tileIdx, ++idx) {
-      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, alpha, viewA, viewB, beta, viewC,
-                         numBlockRowsInTile, numBlockColsInTile);
+      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, opA, alpha, viewA, viewB, beta,
+                         viewC, numBlockRowsInTile, numBlockColsInTile);
     }
   }
 
@@ -154,23 +140,25 @@ void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, cons
   }
 }
 
-template void pgemm_ssb_host<float>(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                                    const float *B, int ldb, float beta, float *C, int ldc,
-                                    int cRowStart, int cColStart, MatrixDistributionInternal &descC,
-                                    ContextInternal &ctx);
+template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
+                                    const float *A, int lda, const float *B, int ldb, float beta,
+                                    float *C, int ldc, int cRowStart, int cColStart,
+                                    MatrixDistributionInternal &descC, ContextInternal &ctx);
 
-template void pgemm_ssb_host<double>(int m, int n, int kLocal, double alpha, const double *A,
-                                     int lda, const double *B, int ldb, double beta, double *C,
-                                     int ldc, int cRowStart, int cColStart,
+template void pgemm_ssb_host<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
+                                     const double *A, int lda, const double *B, int ldb,
+                                     double beta, double *C, int ldc, int cRowStart, int cColStart,
                                      MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<float>>(
-    int m, int n, int kLocal, std::complex<float> alpha, const std::complex<float> *A, int lda,
-    const std::complex<float> *B, int ldb, std::complex<float> beta, std::complex<float> *C,
-    int ldc, int cRowStart, int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
+    int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
+    const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
+    std::complex<float> beta, std::complex<float> *C, int ldc, int cRowStart, int cColStart,
+    MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<double>>(
-    int m, int n, int kLocal, std::complex<double> alpha, const std::complex<double> *A, int lda,
-    const std::complex<double> *B, int ldb, std::complex<double> beta, std::complex<double> *C,
-    int ldc, int cRowStart, int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
+    int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
+    const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
+    std::complex<double> beta, std::complex<double> *C, int ldc, int cRowStart, int cColStart,
+    MatrixDistributionInternal &descC, ContextInternal &ctx);
 }  // namespace spla

@@ -29,13 +29,14 @@
 #define SPLA_PGEMM_SSB_HOST_HPP
 
 #include "spla/config.h"
+#include "spla/types.h"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/pgemm_ssb.hpp"
 
 namespace spla {
 /*
- *    ------ H     ------
+ *    ------ T     ------
  *    |    |       |    |
  *    |    |       |    |
  *    ------       ------        -------
@@ -51,8 +52,8 @@ namespace spla {
  *      A            B
  */
 template <typename T>
-void pgemm_ssb_host(int m, int n, int kLocal, T alpha, const T *A, int lda, const T *B, int ldb,
-                    T beta, T *C, int ldc, int cRowStart, int cColStart,
+void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
+                    const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
                     MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 }  // namespace spla

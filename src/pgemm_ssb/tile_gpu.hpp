@@ -55,7 +55,7 @@ public:
   TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
           std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
           std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
-          std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
+          std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA, ValueType alpha,
           GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
           GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB, ValueType beta,
           HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC,
@@ -92,6 +92,7 @@ protected:
   HostArrayView2D<ValueType> HostMatC_;
   GPUArrayView2D<ValueType> GPUMatC_;
   const ValueType alpha_, beta_;
+  const SplaOperation opA_;
 };
 
 }  // namespace spla
