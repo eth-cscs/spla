@@ -37,5 +37,6 @@
 #include "spla/pgemm_ssb.h"
 #include "spla/errors.h"
 #include "spla/types.h"
+#include "spla/gemm.h"
 
 #endif
