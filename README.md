@@ -7,13 +7,13 @@ SPLA provides specialized functions for linear algebra computations with a C++ a
 Currently, SPLA provides functions for distributed matrix multiplications with specific matrix distributions, which cannot be used directly with a ScaLAPACK interface.
 All computations can optionally utilize GPUs through CUDA or ROCm, where matrices can be located either in host or device memory.
 
-<!-- The implementations is written in C++ and parallization is based on MPI and optinally utilized OpenMP and GPU acceleration through CUDA or ROCm. -->
-
 ## GEMM
-The function 'gemm(...)' computes a local general matrix product, that works similar to cuBLASXt. If GPU support is enabled, the function may take any any combination of host and device pointer. In addition, it may use custom multi-threading for host computations, if the provied BLAS library does not support multi-threading.
+The function `gemm(...)` computes a local general matrix product, that works similar to cuBLASXt. If GPU support is enabled, the function may take any combination of host and device pointer. In addition, it may use custom multi-threading for host computations, if the provided BLAS library does not support multi-threading.
 
 ### Stripe-Stripe-Block
-The `pgemm_ssb(...)` function computes ![ethz](docs/images/ssb_formula.svg), where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
+The `pgemm_ssb(...)` function computes
+![ethz](docs/images/ssb_formula.svg)
+where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
 
 
                      ------ T     ------
@@ -34,7 +34,9 @@ The `pgemm_ssb(...)` function computes ![ethz](docs/images/ssb_formula.svg), whe
 
 
 ### Stripe-Block-Stripe
-The `pgemm_sbs(...)` function computes ![ethz](docs/images/sbs_formula.svg), where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
+The `pgemm_sbs(...)` function computes
+![ethz](docs/images/sbs_formula.svg)
+where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
 
      ------         ------                     ------
      |    |         |    |                     |    |
