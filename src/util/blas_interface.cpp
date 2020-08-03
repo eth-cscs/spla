@@ -148,9 +148,9 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
 }
 
 auto get_num_threads() -> IntType {
-#if defined(SPLA_BLAS_OPENBLAS)
+#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
   return openblas_get_num_threads();
-#elif defined(SPLA_BLAS_MKL)
+#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads();
 #else
   return 1;
@@ -158,18 +158,18 @@ auto get_num_threads() -> IntType {
 }
 
 auto set_num_threads(IntType numThreads) -> void {
-#if defined(SPLA_BLAS_OPENBLAS)
+#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
   openblas_set_num_threads(numThreads);
-#elif defined(SPLA_BLAS_MKL)
+#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   mkl_set_num_threads(numThreads);
 #endif
 }
 
 auto is_parallel() -> bool {
-#if defined(SPLA_BLAS_OPENBLAS)
+#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
   return openblas_get_parallel();
-#elif defined(SPLA_BLAS_MKL)
-  return false;
+#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
+  return mkl_get_max_threads() == 1;
 #else
   return false;
 #endif
