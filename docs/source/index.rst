@@ -4,7 +4,7 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-SpFFT Documentation
+SPLA Documentation
 ===================
 | SPLA - Specialized Parallel Linear Algebra
 
