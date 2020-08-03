@@ -12,7 +12,9 @@ The function `gemm(...)` computes a local general matrix product, that works sim
 
 ### Stripe-Stripe-Block
 The `pgemm_ssb(...)` function computes
+
 ![ethz](docs/images/ssb_formula.svg)
+
 where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
 
 
@@ -35,7 +37,9 @@ where matrices A and B are stored in a "stripe" distribution with variable block
 
 ### Stripe-Block-Stripe
 The `pgemm_sbs(...)` function computes
+
 ![ethz](docs/images/sbs_formula.svg)
+
 where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
 
      ------         ------                     ------

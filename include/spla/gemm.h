@@ -44,7 +44,7 @@ extern "C" {
 #endif
 /**
  * Computes a local general matrix multiplication of the form \f$ C
- * \leftarrow \alpha OP(A) OP(B) + \beta C \f$ in single precision. If context
+ * \leftarrow \alpha op(A) op(B) + \beta C \f$ in single precision. If context
  * with processing unit set to GPU, pointers to matrices can be any combination
  * of host and device pointers.
  *
@@ -59,7 +59,7 @@ extern "C" {
  * @param[in] B Pointer to matrix \f$B\f$.
  * @param[in] ldb Leading dimension of \f$B\f$.
  * @param[in] beta Scaling of \f$C\f$ before summation.
- * @param[out] C Pointer to global matrix \f$C\f$.
+ * @param[out] C Pointer to matrix \f$C\f$.
  * @param[in] ldc Leading dimension of \f$C\f$.
  * @param[in] ctx Context handle, which provides configuration settings and reusable
  * resources.
