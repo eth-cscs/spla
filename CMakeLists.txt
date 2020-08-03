@@ -180,8 +180,3 @@ add_subdirectory(src)
 if(SPLA_BUILD_TESTS)
 	add_subdirectory(tests)
 endif()
-
-# reset cmake library suffixes
-if(SPLA_STATIC)
-	set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_SAVE})
-endif()
