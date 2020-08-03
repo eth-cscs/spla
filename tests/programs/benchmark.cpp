@@ -1,16 +1,16 @@
-#include <iostream>
-#include <vector>
-#include <sstream>
-#include <iomanip>
-#include <complex>
-#include <string>
 #include <mpi.h>
+#include <complex>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include "CLI/CLI.hpp"
+#include "mpi_util/mpi_init_handle.hpp"
 #include "spla/context.hpp"
 #include "spla/matrix_distribution.hpp"
 #include "spla/spla.hpp"
-#include "mpi_util/mpi_init_handle.hpp"
 #include "timing/rt_graph.hpp"
-#include "CLI/CLI.hpp"
 #include "timing/timing.hpp"
 
 void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int numThreads, int blacsBlockSize, int numRepeats) {
@@ -20,12 +20,12 @@ void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int n
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
   const int maxRowsPerRank = (globalRows + worldSize - 1) / worldSize;
-  // const int globalRows = worldSize * localNumRows;
   const int localNumRows = std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank);
+  const int maxRowsC = (colsA / (blacsBlockSize * worldSize) + 1) * blacsBlockSize;
 
-  std::vector<float> A(maxRowsPerRank * colsA);
-  std::vector<float> B(maxRowsPerRank * colsB);
-  std::vector<float> C(colsA * colsB);
+  std::vector<double> A(maxRowsPerRank * colsA);
+  std::vector<double> B(maxRowsPerRank * colsB);
+  std::vector<double> C(maxRowsC * colsB);
 
   for(std::size_t i = 0; i < A.size(); ++i) {
     A[i] = i;
@@ -42,16 +42,16 @@ void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int n
   ctx.set_num_threads(numThreads);
 
   // run once to warm up
-  spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                 B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), colsA, 0, 0,
-                 arrayDesc, ctx);
+  spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, decltype(A)::value_type(1.0),
+                  A.data(), localNumRows, B.data(), localNumRows, decltype(C)::value_type(0.0),
+                  C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    spla::gemm_ssb(colsA, colsB, localNumRows, decltype(A)::value_type(1.0), A.data(), localNumRows,
-                   B.data(), localNumRows, decltype(C)::value_type(0.0), C.data(), colsA, 0, 0,
-                   arrayDesc, ctx);
+    spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE,
+                    decltype(A)::value_type(1.0), A.data(), localNumRows, B.data(), localNumRows,
+                    decltype(C)::value_type(0.0), C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
   }
   STOP_TIMING("spla");
   if (worldRank == 0) std::cout << spla::timing::GlobalTimer.process().print() << std::endl;

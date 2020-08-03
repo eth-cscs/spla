@@ -52,11 +52,27 @@ enum SplaProcessingUnit {
   SPLA_PU_GPU
 };
 
+enum SplaOperation {
+  /**
+   * None
+   */
+  SPLA_OP_NONE,
+  /**
+   * Transpose
+   */
+  SPLA_OP_TRANSPOSE,
+  /**
+   * Conjugate transpose
+   */
+  SPLA_OP_CONJ_TRANSPOSE
+};
+
 #ifndef __cplusplus
 /*! \cond PRIVATE */
 // C only
 typedef enum SplaDistributionType SplaDistributionType;
 typedef enum SplaProcessingUnit SplaProcessingUnit;
+typedef enum SplaOperation SplaOperation;
 /*! \endcond */
 #endif  // cpp
 

@@ -25,11 +25,12 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_EXCEPTIONS_H
-#define SPLA_EXCEPTIONS_H
+#ifndef SPLA_EXCEPTIONS_HPP
+#define SPLA_EXCEPTIONS_HPP
 
 #include <stdexcept>
 #include "spla/config.h"
+#include "spla/errors.h"
 
 namespace spla {
 
@@ -38,7 +39,9 @@ namespace spla {
  */
 class SPLA_EXPORT GenericError : public std::exception {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: Generic error"; }
+  const char* what() const noexcept override { return "SPLA: Generic error"; }
+
+  virtual SplaError error_code() const noexcept { return SplaError::SPLA_UNKNOWN_ERROR; }
 };
 
 /**
@@ -46,7 +49,29 @@ public:
  */
 class SPLA_EXPORT InternalError : public GenericError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: Internal error"; }
+  const char* what() const noexcept override { return "SPLA: Internal error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_INTERNAL_ERROR; }
+};
+
+/**
+ * Invalid parameter error.
+ */
+class SPLA_EXPORT InvalidParameterError : public GenericError {
+public:
+  const char* what() const noexcept override { return "SPLA: Invalid parameter error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_INVALID_PARAMETER_ERROR; }
+};
+
+/**
+ * Invalid pointer error.
+ */
+class SPLA_EXPORT InvalidPointerError : public GenericError {
+public:
+  const char* what() const noexcept override { return "SPLA: Invalid pointer error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_INVALID_POINTER_ERROR; }
 };
 
 /**
@@ -54,61 +79,87 @@ public:
  */
 class SPLA_EXPORT MPIError : public GenericError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: MPI error"; }
+  const char* what() const noexcept override { return "SPLA: MPI error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_MPI_ERROR; }
 };
 
 class SPLA_EXPORT MPIAllocError : public MPIError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: MPI memory allocation error"; }
+  const char* what() const noexcept override { return "SPLA: MPI memory allocation error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_MPI_ALLOCATION_ERROR; }
 };
 
 class SPLA_EXPORT MPIThreadSupportError : public MPIError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: MPI multi-threading support not sufficient"; }
+  const char* what() const noexcept override {
+    return "SPLA: MPI multi-threading support not sufficient";
+  }
+
+  SplaError error_code() const noexcept override {
+    return SplaError::SPLA_MPI_THREAD_SUPPORT_ERROR;
+  }
 };
 
 class SPLA_EXPORT GPUError : public GenericError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU error"; }
+  const char* what() const noexcept override { return "SPLA: GPU error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_ERROR; }
 };
 
 class SPLA_EXPORT GPUSupportError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: Not compiled with GPU support"; }
+  const char* what() const noexcept override { return "SPLA: Not compiled with GPU support"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_SUPPORT_ERROR; }
 };
 
 class SPLA_EXPORT GPUAllocationError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU allocation error"; }
+  const char* what() const noexcept override { return "SPLA: GPU allocation error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_ALLOCATION_ERROR; }
 };
 
 class SPLA_EXPORT GPULaunchError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU launch error"; }
+  const char* what() const noexcept override { return "SPLA: GPU launch error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_LAUNCH_ERROR; }
 };
 
 class SPLA_EXPORT GPUNoDeviceError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU no device error"; }
+  const char* what() const noexcept override { return "SPLA: GPU no device error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_NO_DEVICE_ERROR; }
 };
 
 class SPLA_EXPORT GPUInvalidValueError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU invalid value error"; }
+  const char* what() const noexcept override { return "SPLA: GPU invalid value error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_INVALID_VALUE_ERROR; }
 };
 
 class SPLA_EXPORT GPUInvalidDevicePointerError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override {
-    return "SPLA: GPU invalid device pointer error";
+  const char* what() const noexcept override { return "SPLA: GPU invalid device pointer error"; }
+
+  SplaError error_code() const noexcept override {
+    return SplaError::SPLA_GPU_INVALID_DEVICE_POINTER_ERROR;
   }
 };
 
 class SPLA_EXPORT GPUBlasError : public GPUError {
 public:
-  auto what() const noexcept -> const char* override { return "SPLA: GPU BLAS error"; }
+  const char* what() const noexcept override { return "SPLA: GPU BLAS error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_GPU_BLAS_ERROR; }
 };
 
-}  // namespace spfft
+}  // namespace spla
 
 #endif

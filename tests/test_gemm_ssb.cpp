@@ -4,6 +4,8 @@
 #include <array>
 #include <sstream>
 #include <cmath>
+#include <utility>
+#include <tuple>
 #include "gtest/gtest.h"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
@@ -122,6 +124,20 @@ static auto mpi_world_rank() -> int {
 
 }
 
+static auto find_rectangle(int n) -> std::pair<int, int> {
+  const int idealSize = std::sqrt(n);
+  for (int range = 0; range < idealSize; ++range) {
+    for (int i = idealSize; i <= idealSize + range; ++i) {
+      for (int j = idealSize - range; j <= idealSize; ++j) {
+        if (i * j == n) {
+          return {i, j};
+        }
+      }
+    }
+  }
+  return {n, 1};
+}
+
 
 
 // numThreads, rowBlockSize, colBlockSize, colsA, colsB, numLocalRows
@@ -185,9 +201,9 @@ protected:
       colBlockSize_ = n_;
     }
 
-    spla::gemm_ssb(subMatrixRows, subMatrixCols, numLocalRows, T(1.0), vecA_.data(), mLocal_,
-                   vecB_.data(), numLocalRows, T(0.0), vecC_.data(), k_, subMatrixRowOffset,
-                   subMatrixColOffset, desc, ctx_);
+    spla::pgemm_ssb(subMatrixRows, subMatrixCols, numLocalRows, SPLA_OP_CONJ_TRANSPOSE, T(1.0),
+                    vecA_.data(), mLocal_, vecB_.data(), numLocalRows, T(0.0), vecC_.data(), k_,
+                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
 
     std::array<int, 9> descA;
     std::array<int, 9> descRedistA;
@@ -277,8 +293,8 @@ TEST_P(GemmSSBComplex, FlatGrid) {
 
 TEST_P(GemmSSBScalar, SquareGrid) {
   try {
-    const int gridRows = std::max<int>(1, std::sqrt(mpi_world_size()));
-    const int gridCols = std::max<int>(1, mpi_world_size() / gridRows);
+    int gridRows, gridCols;
+    std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
 
     auto desc = MatrixDistribution::create_blacs_block_cyclic(
         MPI_COMM_WORLD, 'R', gridRows, gridCols, rowBlockSize_, colBlockSize_);
@@ -291,8 +307,8 @@ TEST_P(GemmSSBScalar, SquareGrid) {
 
 TEST_P(GemmSSBComplex, SquareGrid) {
   try {
-    const int gridRows = std::max<int>(1, std::sqrt(mpi_world_size()));
-    const int gridCols = std::max<int>(1, mpi_world_size() / gridRows);
+    int gridRows, gridCols;
+    std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
 
     auto desc = MatrixDistribution::create_blacs_block_cyclic(
         MPI_COMM_WORLD, 'R', gridRows, gridCols, rowBlockSize_, colBlockSize_);
@@ -305,8 +321,8 @@ TEST_P(GemmSSBComplex, SquareGrid) {
 
 TEST_P(GemmSSBScalar, SquareGridOffset) {
   try {
-    const int gridRows = std::max<int>(1, std::sqrt(mpi_world_size()));
-    const int gridCols = std::max<int>(1, mpi_world_size() / gridRows);
+    int gridRows, gridCols;
+    std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
 
     auto desc = MatrixDistribution::create_blacs_block_cyclic(
         MPI_COMM_WORLD, 'R', gridRows, gridCols, rowBlockSize_, colBlockSize_);
@@ -319,8 +335,8 @@ TEST_P(GemmSSBScalar, SquareGridOffset) {
 
 TEST_P(GemmSSBComplex, SquareGridOffset) {
   try {
-    const int gridRows = std::max<int>(1, std::sqrt(mpi_world_size()));
-    const int gridCols = std::max<int>(1, mpi_world_size() / gridRows);
+    int gridRows, gridCols;
+    std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
 
     auto desc = MatrixDistribution::create_blacs_block_cyclic(
         MPI_COMM_WORLD, 'R', gridRows, gridCols, rowBlockSize_, colBlockSize_);

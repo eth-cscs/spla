@@ -30,8 +30,10 @@
 #include <functional>
 #include <set>
 #include <vector>
+#include <cstring>
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
+#include "spla/exceptions.hpp"
 #include "spla/matrix_distribution.hpp"
 
 namespace spla {
@@ -39,6 +41,11 @@ namespace spla {
 auto MatrixDistributionInternal::create_blacs_block_cyclic(
     MPI_Comm comm, char order, IntType procGridRows, IntType procGridCols, IntType rowBlockSize,
     IntType colBlockSize) -> MatrixDistributionInternal {
+
+  if (order != 'R' && order != 'r' && order != 'C' && order != 'c') throw InvalidParameterError();
+  if (procGridRows < 1 || procGridCols < 1 || rowBlockSize < 1 || colBlockSize < 1)
+    throw InvalidParameterError();
+
   std::vector<int> mapping(procGridCols * procGridRows);
   HostArrayView2D<int> mappingView(mapping.data(), procGridCols, procGridRows);
 
@@ -65,6 +72,9 @@ auto MatrixDistributionInternal::create_blacs_block_cyclic(
 auto MatrixDistributionInternal::create_blacs_block_cyclic_from_mapping(
     MPI_Comm comm, const int *mapping, IntType procGridRows, IntType procGridCols,
     IntType rowBlockSize, IntType colBlockSize) -> MatrixDistributionInternal {
+  if (procGridRows < 1 || procGridCols < 1 || rowBlockSize < 1 || colBlockSize < 1)
+    throw InvalidParameterError();
+  if (!mapping) throw InvalidParameterError();
   return MatrixDistributionInternal(comm, mapping, procGridRows, procGridCols, rowBlockSize,
                                     colBlockSize);
 }
@@ -81,6 +91,10 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm, const int 
       procGridCols_(procGridCols),
       rowBlockSize_(rowBlockSize),
       colBlockSize_(colBlockSize) {
+  if (procGridRows < 1 || procGridCols < 1 || rowBlockSize < 1 || colBlockSize < 1)
+    throw InvalidParameterError();
+  if (!mapping) throw InvalidParameterError();
+
   int commSizeInt = 0;
   mpi_check_status(MPI_Comm_size(comm, &commSizeInt));
   IntType commSize = static_cast<IntType>(commSizeInt);
@@ -138,11 +152,17 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm)
     : type_(SplaDistributionType::SPLA_DIST_MIRROR),
       procGridRows_(1),
       procGridCols_(1),
-      rowBlockSize_(64),
-      colBlockSize_(64) {
-  MPI_Comm newComm;
-  mpi_check_status(MPI_Comm_dup(comm, &newComm));
-  comms_.emplace_back(newComm);
+      rowBlockSize_(256),
+      colBlockSize_(256) {
+  const MPI_Comm selfComm = MPI_COMM_SELF;
+  if (!std::memcmp(&comm, &selfComm, sizeof(MPI_Comm))) {
+    // don't duplicate self communicator
+    comms_.emplace_back(comm);
+  } else {
+    MPI_Comm newComm;
+    mpi_check_status(MPI_Comm_dup(comm, &newComm));
+    comms_.emplace_back(newComm);
+  }
   procGridRows_ = comms_.front().size();
 }
 

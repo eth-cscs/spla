@@ -23,12 +23,12 @@ int main(int argc, char* argv[]) {
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-  // if(mpi_world_rank() == 1) {
+  // if (mpi_world_rank() == 1) {
   //   std::cout << "PID = " << getpid() << std::endl;
-  // }
-  // bool wait = mpi_world_rank() == 1;
-  // while(wait) {
-  //   sleep(5);
+  //   bool wait = true;
+  //   while (wait) {
+  //     sleep(5);
+  //   }
   // }
 
   // Intialize google test

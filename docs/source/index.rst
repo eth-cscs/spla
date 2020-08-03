@@ -14,11 +14,26 @@ SpFFT Documentation
    :caption: C++ API REFERENCE:
    :hidden:
 
+   types
    context
    matrix_distribution
-   gemm_ssb
-   gemm_sbs
+   gemm
+   pgemm_ssb
+   pgemm_sbs
+   exceptions
 
+.. toctree::
+   :maxdepth: 2
+   :caption: C API REFERENCE:
+   :hidden:
+
+   types
+   context_c
+   matrix_distribution_c
+   gemm_c
+   pgemm_ssb_c
+   pgemm_sbs_c
+   errors_c
 
 
 

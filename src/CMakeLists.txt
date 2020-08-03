@@ -1,23 +1,27 @@
 set(SPLA_SOURCE_FILES
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
-	gemm_ssb/tile_host.cpp
-	gemm_ssb/gemm_ssb_host.cpp
-	gemm_sbs/gemm_sbs_host.cpp
-	gemm_sbs/stripe_host.cpp
+	pgemm_ssb/tile_host.cpp
+	pgemm_ssb/pgemm_ssb_host.cpp
+	pgemm_sbs/pgemm_sbs_host.cpp
+	pgemm_sbs/stripe_host.cpp
+	gemm/gemm_host.cpp
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp
-	spla/gemm_ssb.cpp
-	spla/gemm_sbs.cpp
+	spla/pgemm_ssb.cpp
+	spla/pgemm_sbs.cpp
 	spla/context.cpp
+	spla/gemm.cpp
 	)
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				gemm_ssb/tile_gpu.cpp
-				gemm_ssb/gemm_ssb_gpu.cpp
-				gemm_sbs/stripe_gpu.cpp
-				gemm_sbs/gemm_sbs_gpu.cpp
+				pgemm_ssb/tile_gpu.cpp
+				pgemm_ssb/pgemm_ssb_gpu.cpp
+				pgemm_sbs/stripe_gpu.cpp
+				pgemm_sbs/pgemm_sbs_gpu.cpp
+				gemm/gemm_gpu.cpp
+				gpu_util/multiply_gpu.cpp
 		)
 endif()
 

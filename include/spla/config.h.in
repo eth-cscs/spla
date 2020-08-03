@@ -35,12 +35,11 @@
 
 #cmakedefine SPLA_CUDA
 #cmakedefine SPLA_ROCM
-#cmakedefine SPLA_MPI
 #cmakedefine SPLA_OMP
 #cmakedefine SPLA_TIMING
-#cmakedefine SPLA_GPU_DIRECT
 #cmakedefine SPLA_BLAS_MKL
 #cmakedefine SPLA_BLAS_OPENBLAS
+#cmakedefine SPLA_BLAS_HEADER_NAME <@SPLA_BLAS_HEADER_NAME@>
 
 #include "spla/spla_export.h"
 

@@ -28,9 +28,9 @@
 #ifndef SPLA_CONTEXT_HPP
 #define SPLA_CONTEXT_HPP
 
-#include <memory>
 #include <complex>
 #include <cstddef>
+#include <memory>
 #include "spla/config.h"
 #include "spla/types.h"
 
@@ -88,15 +88,9 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Number of tiles per thread, which allow for communication and computation overlap.
+   * @return Number of tiles used to overlap computation and communication.
    */
-  int num_tiles_per_thread() const;
-
-  /**
-   * Access a Context parameter.
-   * @return Number of streams on GPU used for pipelining.
-   */
-  int num_gpu_streams() const;
+  int num_tiles() const;
 
   /**
    * Access a Context parameter.
@@ -112,6 +106,13 @@ public:
   std::size_t gpu_memory_limit() const;
 
   /**
+   * Access a Context parameter.
+   * @return Id of GPU used for computations. This is set as fixed parameter by query of device id
+   * at context creation.
+   */
+  int gpu_device_id() const;
+
+  /**
    * Set the number of threads to be used.
    *
    * @param[in] numThreads Number of threads.
@@ -119,18 +120,11 @@ public:
   void set_num_threads(int numThreads);
 
   /**
-   * Set the number of tiles per thread.
+   * Set the number of tiles.
    *
-   * @param[in] numTilesPerThread Number of tiles per thread.
+   * @param[in] numTilesPerThread Number of tiles.
    */
-  void set_num_tiles_per_thread(int numTilesPerThread);
-
-  /**
-   * Set the number of streams on GPU.
-   *
-   * @param[in] numGPUStreams Number of streams on GPU.
-   */
-  void set_num_gpu_streams(int numGPUStreams);
+  void set_num_tiles(int numTilesPerThread);
 
   /**
    * Set the target tile length used for computations.
@@ -149,48 +143,66 @@ public:
 
 private:
   /*! \cond PRIVATE */
-  friend void gemm_ssb(int m, int n, int kLocal, float alpha, const float *A, int lda,
-                       const float *B, int ldb, float beta, float *C, int ldc, int cRowStart,
-                       int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, float alpha, const float *A,
+                        int lda, const float *B, int ldb, float beta, float *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void gemm_ssb(int m, int n, int kLocal, double alpha, const double *A, int lda,
-                       const double *B, int ldb, double beta, double *C, int ldc, int cRowStart,
-                       int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, double alpha, const double *A,
+                        int lda, const double *B, int ldb, double beta, double *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void gemm_ssb(int m, int n, int kLocal, std::complex<float> alpha,
-                       const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
-                       std::complex<float> beta, std::complex<float> *C, int ldc, int cRowStart,
-                       int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
+                        const std::complex<float> *A, int lda, const std::complex<float> *B,
+                        int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void gemm_ssb(int m, int n, int kLocal, std::complex<double> alpha,
-                       const std::complex<double> *A, int lda, const std::complex<double> *B,
-                       int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
-                       int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
+  friend void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
+                        const std::complex<double> *A, int lda, const std::complex<double> *B,
+                        int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
+                        int cRowStart, int cColStart, MatrixDistribution &descC, Context &ctx);
 
-  friend void gemm_sbs(int mLocal, int n, int k, float alpha, const float *A, int lda,
-                       const float *B, int ldb, int bRowOffset, int bColOffset,
-                       MatrixDistribution &descB, float beta, float *C, int ldc, Context &ctx);
+  friend void pgemm_sbs(int mLocal, int n, int k, float alpha, const float *A, int lda,
+                        const float *B, int ldb, int bRowOffset, int bColOffset,
+                        MatrixDistribution &descB, float beta, float *C, int ldc, Context &ctx);
 
-  friend void gemm_sbs(int mLocal, int n, int k, double alpha, const double *A, int lda,
-                       const double *B, int ldb, int bRowOffset, int bColOffset,
-                       MatrixDistribution &descB, double beta, double *C, int ldc, Context &ctx);
+  friend void pgemm_sbs(int mLocal, int n, int k, double alpha, const double *A, int lda,
+                        const double *B, int ldb, int bRowOffset, int bColOffset,
+                        MatrixDistribution &descB, double beta, double *C, int ldc, Context &ctx);
 
-  friend void gemm_sbs(int mLocal, int n, int k, std::complex<float> alpha,
-                       const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
-                       int bRowOffset, int bColOffset, MatrixDistribution &descB,
-                       std::complex<float> beta, std::complex<float> *C, int ldc, Context &ctx);
+  friend void pgemm_sbs(int mLocal, int n, int k, std::complex<float> alpha,
+                        const std::complex<float> *A, int lda, const std::complex<float> *B,
+                        int ldb, int bRowOffset, int bColOffset, MatrixDistribution &descB,
+                        std::complex<float> beta, std::complex<float> *C, int ldc, Context &ctx);
 
-  friend void gemm_sbs(int mLocal, int n, int k, std::complex<double> alpha,
-                       const std::complex<double> *A, int lda, const std::complex<double> *B,
-                       int ldb, int bRowOffset, int bColOffset, MatrixDistribution &descB,
-                       std::complex<double> beta, std::complex<double> *C, int ldc, Context &ctx);
+  friend void pgemm_sbs(int mLocal, int n, int k, std::complex<double> alpha,
+                        const std::complex<double> *A, int lda, const std::complex<double> *B,
+                        int ldb, int bRowOffset, int bColOffset, MatrixDistribution &descB,
+                        std::complex<double> beta, std::complex<double> *C, int ldc, Context &ctx);
+
+  friend void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha,
+                   const float *A, int lda, const float *B, int ldb, float beta, float *C, int ldc,
+                   Context &ctx);
+
+  friend void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, double alpha,
+                   const double *A, int lda, const double *B, int ldb, double beta, double *C,
+                   int ldc, Context &ctx);
+
+  friend void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
+                   std::complex<float> alpha, const std::complex<float> *A, int lda,
+                   const std::complex<float> *B, int ldb, std::complex<float> beta,
+                   std::complex<float> *C, int ldc, Context &ctx);
+
+  friend void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
+                   std::complex<double> alpha, const std::complex<double> *A, int lda,
+                   const std::complex<double> *B, int ldb, std::complex<double> beta,
+                   std::complex<double> *C, int ldc, Context &ctx);
 
   std::shared_ptr<ContextInternal> ctxInternal_;
   /*! \endcond */
 };
 
-#ifndef SPLA_DOXYGEN_SKIP
+/*! \cond PRIVATE */
 }  // namespace spla
-#endif
+/*! \endcond */
 
 #endif

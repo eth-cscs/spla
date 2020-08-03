@@ -1,0 +1,120 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  #########################
+  # Build and test with GCC
+  #########################
+  build-test-gcc-cpu:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-18.04
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
+        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+
+    - name: Build
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON
+        make -j2
+
+    - name: Run tests
+      run: |
+        export OMPI_MCA_btl_vader_single_copy_mechanism=none
+        ${GITHUB_WORKSPACE}/build/tests/run_tests
+
+    - name: Run tests with MPI
+      run: |
+        export OMPI_MCA_btl_vader_single_copy_mechanism=none
+        mpirun -n 2 ${GITHUB_WORKSPACE}/build/tests/run_tests
+
+  ###########################
+  # Build and test with clang
+  ###########################
+  build-test-clang-cpu:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-18.04
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make clang libopenblas-dev libscalapack-mpi-dev wget git make
+        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+
+    - name: Build
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        CXX=clang++ ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_OMP=OFF
+        make -j2
+
+    - name: Run tests
+      run: |
+        export OMPI_MCA_btl_vader_single_copy_mechanism=none
+        ${GITHUB_WORKSPACE}/build/tests/run_tests
+
+    - name: Run tests with MPI
+      run: |
+        export OMPI_MCA_btl_vader_single_copy_mechanism=none
+        mpirun -n 2 ${GITHUB_WORKSPACE}/build/tests/run_tests
+
+
+  #################
+  # Build with CUDA
+  #################
+  build-cuda:
+    runs-on: ubuntu-18.04
+    container: nvidia/cuda:9.2-devel-ubuntu18.04
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
+        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+
+    - name: Build
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
+        make -j2
+
+  #################
+  # Build with ROCm
+  #################
+  build-rocm:
+    runs-on: ubuntu-18.04
+    container: adhocman/master:ubuntu18.04_rocm
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v2
+
+    - name: Build
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        /root/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=ROCM
+        make -j2
+

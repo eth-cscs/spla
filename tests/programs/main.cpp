@@ -120,9 +120,9 @@ void run_gemm() {
   auto descC = spla::MatrixDistribution::create_blacs_block_cyclic(MPI_COMM_WORLD, 'R', worldSize, 1, 1, 1);
   // spla::MatrixDistribution descC{MPI_COMM_WORLD};
   spla::Context ctx(SPLA_PU_HOST);
-  spla::gemm_ssb(colsA - 1, colsB, localRows, decltype(A)::value_type(1.0), A.data(), localRows,
-                 B.data(), localRows, decltype(C)::value_type(2.0), C.data(), colsA, 1, 0, descC,
-                 ctx);
+  spla::pgemm_ssb(colsA - 1, colsB, localRows, SPLA_OP_CONJ_TRANSPOSE, decltype(A)::value_type(1.0), A.data(), localRows,
+                  B.data(), localRows, decltype(C)::value_type(2.0), C.data(), colsA, 1, 0, descC,
+                  ctx);
 
   print_matrix(C.data(), colsA, colsB, "C");
 }

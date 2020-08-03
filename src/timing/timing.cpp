@@ -26,14 +26,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "spla/config.h"
 #include "timing/timing.hpp"
 
+#ifdef SPLA_TIMING
 namespace spla {
 namespace timing {
-
-#ifdef SPLA_TIMING
 ::rt_graph::Timer GlobalTimer;
-#endif
-
 }  // namespace timing
 }  // namespace spla
+#endif

@@ -1,59 +1,57 @@
+[![CI status](https://github.com/eth-cscs/spla/workflows/CI/badge.svg)](https://github.com/eth-cscs/spla/actions?query=workflow%3ACI)
 [![Documentation Status](https://readthedocs.org/projects/spla/badge/?version=latest)](https://spla.readthedocs.io/en/latest/?badge=latest)
 
 # SPLA - Specialized Parallel Linear Algebra
-SPLA provides specialized functions for linear algebra computations, which are inspired by requirements in computational material science codes.
+SPLA provides specialized functions for linear algebra computations with a C++ and C interface, which are inspired by requirements in computational material science codes.
 
-The implementations is based on MPI and optinally utilized OpenMP and GPU acceleration through CUDA or ROCm.
+Currently, SPLA provides functions for distributed matrix multiplications with specific matrix distributions, which cannot be used directly with a ScaLAPACK interface.
+All computations can optionally utilize GPUs through CUDA or ROCm, where matrices can be located either in host or device memory.
+
 ## GEMM
-Currently, two general matrix multiplication functions are available, which allow for different matrix distributions as input and output.
-These specific configurations cannot be directly expressed with the commonly used p?gemm function of ScaLAPACK.
+The function `gemm(...)` computes a local general matrix product, that works similar to cuBLASXt. If GPU support is enabled, the function may take any combination of host and device pointer. In addition, it may use custom multi-threading for host computations, if the provided BLAS library does not support multi-threading.
 
 ### Stripe-Stripe-Block
-The `gemm_ssb(...)` function computes the following:  
-![ethz](docs/images/ssb_formula.png)
-
-The matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution.
-See documentation for details. 
+The `pgemm_ssb(...)` function computes
+![ethz](docs/images/ssb_formula.svg)
+where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
 
 
-     ------ H     ------
-     |    |       |    |
-     |    |       |    |
-     ------       ------
-     |    |       |    |        -------
-     |    |       |    |        |  |  |
-     ------   *   ------    +   -------
-     |    |       |    |        |  |  |
-     |    |       |    |        -------
-     ------       ------           C
-     |    |       |    |
-     |    |       |    |
-     ------       ------
-       A            B
+                     ------ T     ------
+                     |    |       |    |
+                     |    |       |    |
+                     ------       ------
+     -------         |    |       |    |        -------
+     |  |  |         |    |       |    |        |  |  |
+     -------   <--   ------   *   ------    +   -------
+     |  |  |         |    |       |    |        |  |  |
+     -------         |    |       |    |        -------
+        C            ------       ------           C
+                     |    |       |    |
+                     |    |       |    |
+                     ------       ------
+                       A            B
 
 
 
 ### Stripe-Block-Stripe
-The `gemm_sbs(...)` function computes the following:  
-![ethz](docs/images/sbs_formula.png)
+The `pgemm_sbs(...)` function computes
+![ethz](docs/images/sbs_formula.svg)
+where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
 
-The matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution.
-See documentation for details. 
-
-     ------                     ------
-     |    |                     |    |
-     |    |                     |    |
-     ------                     ------
-     |    |       -------       |    |
-     |    |       |  |  |       |    |
-     ------   *   -------   +   ------
-     |    |       |  |  |       |    |
-     |    |       -------       |    |
-     ------          B          ------
-     |    |                     |    |
-     |    |                     |    |
-     ------                     ------
-       A                          C
+     ------         ------                     ------
+     |    |         |    |                     |    |
+     |    |         |    |                     |    |
+     ------         ------                     ------
+     |    |         |    |       -------       |    |
+     |    |         |    |       |  |  |       |    |
+     ------   <--   ------   *   -------   +   ------
+     |    |         |    |       |  |  |       |    |
+     |    |         |    |       -------       |    |
+     ------         ------          B          ------
+     |    |         |    |                     |    |
+     |    |         |    |                     |    |
+     ------         ------                     ------
+       C               A                         C
 
 ## Documentation
 Documentation can be found [here](https://spla.readthedocs.io/en/latest/).
@@ -63,7 +61,7 @@ The build system follows the standard CMake workflow. Example:
 ```console
 mkdir build
 cd build
-cmake .. -DSPLA_OMP=ON -DSPLA_GPU_BACKEND=CUDA -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake .. -DSPLA_OMP=ON -DSPLA_GPU_BACKEND=CUDA -DCMAKE_INSTALL_PREFIX=${path_to_install_to}
 make -j8 install
 ```
 
@@ -76,10 +74,10 @@ make -j8 install
 | SPLA_INSTALL          | ON      | Add library to install target                    |
 
 ## Acknowledgements
-The development of SPLA would not be possible without support of the following organizations:
+This work was supported by:
 
-| Logo | Name | URL |
-|:----:|:----:|:---:|
-|![ethz](docs/images/logo_ethz.png) | Swiss Federal Institute of Technology in Zürich | https://www.ethz.ch/      |
-|![cscs](docs/images/logo_cscs.png) | Swiss National Supercomputing Centre            | https://www.cscs.ch/      |
-|![pasc](docs/images/logo_max.png)  | MAX (MAterials design at the eXascale) <br> European Centre of Excellence | http://www.max-centre.eu/   |
+
+|![ethz](docs/images/logo_ethz.png) | [**Swiss Federal Institute of Technology in Zurich**](https://www.ethz.ch/) |
+|:----:|:----:|
+|![cscs](docs/images/logo_cscs.png) | [**Swiss National Supercomputing Centre**](https://www.cscs.ch/)            |
+|![max](docs/images/logo_max.png)  | [**MAterials design at the eXascale**](http://www.max-centre.eu) <br> (Horizon2020, grant agreement MaX CoE, No. 824143) |

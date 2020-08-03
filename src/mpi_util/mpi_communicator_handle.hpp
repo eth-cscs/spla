@@ -31,6 +31,7 @@
 #include <mpi.h>
 #include <cassert>
 #include <memory>
+#include <cstring>
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
@@ -44,15 +45,22 @@ public:
   MPICommunicatorHandle() : comm_(new MPI_Comm(MPI_COMM_SELF)), size_(1), rank_(0) {}
 
   explicit MPICommunicatorHandle(const MPI_Comm& comm) {
-    // create copy of communicator
-    comm_ = std::shared_ptr<MPI_Comm>(new MPI_Comm(comm), [](MPI_Comm* ptr) {
-      int finalized = 0;
-      MPI_Finalized(&finalized);
-      if (!finalized) {
-        MPI_Comm_free(ptr);
-      }
-      delete ptr;
-    });
+    const MPI_Comm worldComm = MPI_COMM_WORLD;
+    const MPI_Comm selfComm = MPI_COMM_SELF;
+    if (!std::memcmp(&comm, &worldComm, sizeof(MPI_Comm)) ||
+        !std::memcmp(&comm, &selfComm, sizeof(MPI_Comm))) {
+      // don't free predifned communicators
+      comm_ = std::shared_ptr<MPI_Comm>(new MPI_Comm(comm));
+    } else {
+      comm_ = std::shared_ptr<MPI_Comm>(new MPI_Comm(comm), [](MPI_Comm* ptr) {
+        int finalized = 0;
+        MPI_Finalized(&finalized);
+        if (!finalized) {
+          MPI_Comm_free(ptr);
+        }
+        delete ptr;
+      });
+    }
 
     int sizeInt, rankInt;
     mpi_check_status(MPI_Comm_size(*comm_, &sizeInt));

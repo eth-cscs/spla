@@ -38,6 +38,8 @@ namespace blas {
 enum class Order { ROW_MAJOR = 101, COL_MAJOR = 102 };
 enum class Operation { NONE = 111, TRANS = 112, CONJ_TRANS = 113 };
 
+auto is_parallel() -> bool;
+
 auto get_num_threads() -> IntType;
 
 auto set_num_threads(IntType numThreads) -> void;
