@@ -26,8 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPFFT_HOST_ARRAY_VIEW_HPP
-#define SPFFT_HOST_ARRAY_VIEW_HPP
+#ifndef SPLA_HOST_ARRAY_VIEW_HPP
+#define SPLA_HOST_ARRAY_VIEW_HPP
 
 #include <array>
 #include <cassert>

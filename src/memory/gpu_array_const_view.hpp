@@ -26,8 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPFFT_GPU_ARRAY_CONST_VIEW_HPP
-#define SPFFT_GPU_ARRAY_CONST_VIEW_HPP
+#ifndef SPLA_GPU_ARRAY_CONST_VIEW_HPP
+#define SPLA_GPU_ARRAY_CONST_VIEW_HPP
 
 #include <cassert>
 #include <limits>
