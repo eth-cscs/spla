@@ -13,8 +13,8 @@
 #include "timing/rt_graph.hpp"
 #include "timing/timing.hpp"
 
-void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int numThreads, int blacsBlockSize, int numRepeats) {
-
+void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int blacsBlockSize,
+              int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -38,8 +38,6 @@ void run_gemm(SplaProcessingUnit pu, int globalRows, int colsA, int colsB, int n
 
   auto arrayDesc = spla::MatrixDistribution::create_blacs_block_cyclic(
       MPI_COMM_WORLD, 'R', worldSize, 1, blacsBlockSize, blacsBlockSize);
-  spla::Context ctx(pu);
-  ctx.set_num_threads(numThreads);
 
   // run once to warm up
   spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, decltype(A)::value_type(1.0),
@@ -67,10 +65,12 @@ int main(int argc, char** argv) {
   int rows = 5;
   int numThreads = 6;
   int blacsBlockSize = 64;
+  int lengthTarget = 256;
   std::string procName;
 
   CLI::App app{"spla benchmark"};
   app.add_option("-r", repeats, "Number of repeats")->default_val("100");
+  app.add_option("-l", lengthTarget, "Length target")->default_val("256");
   app.add_option("-n", colsB, "Number of columns in C")->required();
   app.add_option("-m", colsA, "Number of rows in C")->required();
   app.add_option("-k", rows, "Number of rows in A and B")->required();
@@ -85,8 +85,11 @@ int main(int argc, char** argv) {
   }
   SplaProcessingUnit pu = procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
 
+  spla::Context ctx(pu);
+  ctx.set_tile_length_target(lengthTarget);
+  ctx.set_num_threads(numThreads);
 
-  run_gemm(pu, rows, colsA, colsB, numThreads, blacsBlockSize, repeats);
+  run_gemm(ctx, rows, colsA, colsB, blacsBlockSize, repeats);
 
   return 0;
 }

@@ -59,7 +59,7 @@ public:
       : pu_(pu),
         numThreads_(omp_get_max_threads()),
         numTiles_(4),
-        tileLengthTarget_(256),
+        tileLengthTarget_(1024),
         gpuMemoryLimit_(512 * 1024 * 1024),
         gpuDeviceId_(0) {
     if (pu == SplaProcessingUnit::SPLA_PU_GPU) {
