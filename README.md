@@ -2,59 +2,54 @@
 [![Documentation Status](https://readthedocs.org/projects/spla/badge/?version=latest)](https://spla.readthedocs.io/en/latest/?badge=latest)
 
 # SPLA - Specialized Parallel Linear Algebra
-SPLA provides specialized functions for linear algebra computations, which are inspired by requirements in computational material science codes.
+SPLA provides specialized functions for linear algebra computations with a C++ and C interface, which are inspired by requirements in computational material science codes.
 
-The implementations is based on MPI and optinally utilized OpenMP and GPU acceleration through CUDA or ROCm.
+Currently, SPLA provides functions for distributed matrix multiplications with specific matrix distributions, which cannot be used directly with a ScaLAPACK interface.
+All computations can optionally utilize GPUs through CUDA or ROCm, where matrices can be located either in host or device memory.
+
+<!-- The implementations is written in C++ and parallization is based on MPI and optinally utilized OpenMP and GPU acceleration through CUDA or ROCm. -->
+
 ## GEMM
-Currently, two general matrix multiplication functions are available, which allow for different matrix distributions as input and output.
-These specific configurations cannot be directly expressed with the commonly used p?gemm function of ScaLAPACK.
+The function 'gemm(...)' computes a local general matrix product, that works similar to cuBLASXt. If GPU support is enabled, the function may take any any combination of host and device pointer. In addition, it may use custom multi-threading for host computations, if the provied BLAS library does not support multi-threading.
 
 ### Stripe-Stripe-Block
-The `gemm_ssb(...)` function computes the following:  
-![ethz](docs/images/ssb_formula.svg)
-
-The matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution.
-See documentation for details. 
+The `pgemm_ssb(...)` function computes ![ethz](docs/images/ssb_formula.svg), where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
 
 
-     ------ H     ------
-     |    |       |    |
-     |    |       |    |
-     ------       ------
-     |    |       |    |        -------
-     |    |       |    |        |  |  |
-     ------   *   ------    +   -------
-     |    |       |    |        |  |  |
-     |    |       |    |        -------
-     ------       ------           C
-     |    |       |    |
-     |    |       |    |
-     ------       ------
-       A            B
+                     ------ T     ------
+                     |    |       |    |
+                     |    |       |    |
+                     ------       ------
+     -------         |    |       |    |        -------
+     |  |  |         |    |       |    |        |  |  |
+     -------   <--   ------   *   ------    +   -------
+     |  |  |         |    |       |    |        |  |  |
+     -------         |    |       |    |        -------
+        C            ------       ------           C
+                     |    |       |    |
+                     |    |       |    |
+                     ------       ------
+                       A            B
 
 
 
 ### Stripe-Block-Stripe
-The `gemm_sbs(...)` function computes the following:  
-![ethz](docs/images/sbs_formula.svg)
+The `pgemm_sbs(...)` function computes ![ethz](docs/images/sbs_formula.svg), where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
 
-The matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution.
-See documentation for details. 
-
-     ------                     ------
-     |    |                     |    |
-     |    |                     |    |
-     ------                     ------
-     |    |       -------       |    |
-     |    |       |  |  |       |    |
-     ------   *   -------   +   ------
-     |    |       |  |  |       |    |
-     |    |       -------       |    |
-     ------          B          ------
-     |    |                     |    |
-     |    |                     |    |
-     ------                     ------
-       A                          C
+     ------         ------                     ------
+     |    |         |    |                     |    |
+     |    |         |    |                     |    |
+     ------         ------                     ------
+     |    |         |    |       -------       |    |
+     |    |         |    |       |  |  |       |    |
+     ------   <--   ------   *   -------   +   ------
+     |    |         |    |       |  |  |       |    |
+     |    |         |    |       -------       |    |
+     ------         ------          B          ------
+     |    |         |    |                     |    |
+     |    |         |    |                     |    |
+     ------         ------                     ------
+       C               A                         C
 
 ## Documentation
 Documentation can be found [here](https://spla.readthedocs.io/en/latest/).
@@ -64,7 +59,7 @@ The build system follows the standard CMake workflow. Example:
 ```console
 mkdir build
 cd build
-cmake .. -DSPLA_OMP=ON -DSPLA_GPU_BACKEND=CUDA -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake .. -DSPLA_OMP=ON -DSPLA_GPU_BACKEND=CUDA -DCMAKE_INSTALL_PREFIX=${path_to_install_to}
 make -j8 install
 ```
 
