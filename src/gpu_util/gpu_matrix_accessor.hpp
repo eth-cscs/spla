@@ -76,6 +76,8 @@ public:
 
   auto cols() const -> IntType { return cols_; }
 
+  auto size() const -> IntType { return rows_ * cols_; }
+
   auto get_tile(IntType rowOffset, IntType colOffset, IntType rows, IntType cols,
                 const gpu::StreamType &stream) const -> GPU_VIEW_TYPE {
     assert(rowOffset + rows <= rows_);

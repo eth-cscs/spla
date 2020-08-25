@@ -80,7 +80,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
   }
 
   check_gemm_param(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n, kLocal,
-                   A, lda, B, ldb, C, ldc);
+                   A, lda, B, ldb, C, m);
 
   if (descC.comm().size() == 1) {
     return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,

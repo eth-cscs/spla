@@ -61,7 +61,7 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
   if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
     throw InvalidParameterError();
   }
-  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, A, lda, B, ldb, C, ldc);
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, A, lda, B, ldb, C, m);
 
   if (descC.comm().size() == 1) {
     return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,

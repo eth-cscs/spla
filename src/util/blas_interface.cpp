@@ -169,7 +169,7 @@ auto is_parallel() -> bool {
 #if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
   return openblas_get_parallel();
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
-  return mkl_get_max_threads() == 1;
+  return mkl_get_max_threads() != 1;
 #else
   return false;
 #endif
