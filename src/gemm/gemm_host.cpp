@@ -85,9 +85,9 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
                                 ldb);
   HostArrayView2D<T> viewC(C, n, m, ldc);
 
-  const IntType numThreadCols = static_cast<IntType>(std::sqrt(numThreads));
-  const IntType numThreadRows =
-      (numThreads + numThreadCols - 1) / numThreadCols;
+  // If there are multiple threads, use 2 times as many tiles to take advantage of dynamic scheduling
+  const IntType numThreadCols = numThreads;
+  const IntType numThreadRows = numThreads > 1 ? 2 : 1;
 
   const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
   const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
@@ -110,7 +110,7 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
       }
     }
   } else {
-    SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(numThreads)")
+    SPLA_OMP_PRAGMA("omp parallel for schedule(dynamic) collapse(2) num_threads(numThreads)")
     for (IntType col = 0; col < n; col += colBlockSize) {
       for (IntType row = 0; row < m; row += rowBlockSize) {
         const IntType currentCols =
