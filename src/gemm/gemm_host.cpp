@@ -63,6 +63,11 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const auto opBlasA = map_op_to_host_blas(opA);
   const auto opBlasB = map_op_to_host_blas(opB);
 
+  // Some blas libraries like MKL do not accept 0 as ld, even if m, n or k is 0
+  if(lda < 1) lda =1;
+  if(ldb < 1) ldb =1;
+  if(ldc < 1) ldc =1;
+
   // if blas library is parallelized, call it directly
   if(blas::is_parallel() && !omp_in_parallel()) {
     BlasThreadsGuard threadGuard(numThreads);
