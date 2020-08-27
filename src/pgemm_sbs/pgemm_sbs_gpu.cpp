@@ -75,19 +75,15 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   if (n == 0 || k == 0) {
     return;
   }
-  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k, A, lda,
-                   B, k, C, ldc);
+
+  if (n < 0 || k < 0 || bRowOffset < 0 || bColOffset < 0) {
+    throw InvalidParameterError();
+  }
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
     return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
   }
-
-
-  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
-
-  // always synchronize with stream 0 as part of API requirement
-  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -98,6 +94,16 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k, n,
                                          bRowOffset, bColOffset));
   }
+
+  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
+                   matrixDist->local_cols(descB.comm().rank()),
+                   matrixDist->local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
+
+  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+
+  // always synchronize with stream 0 as part of API requirement
+  gpu::check_status(gpu::stream_synchronize(nullptr));
+
   const IntType numBlockRows = matrixDist->num_block_rows();
   const IntType numBlockCols = matrixDist->num_block_cols();
 
