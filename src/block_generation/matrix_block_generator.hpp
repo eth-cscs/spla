@@ -57,6 +57,10 @@ class MatrixBlockGenerator {
 
   virtual auto max_cols_in_block() -> IntType = 0;
 
+  virtual auto local_rows(IntType rank) -> IntType = 0;
+
+  virtual auto local_cols(IntType rank) -> IntType = 0;
+
   virtual ~MatrixBlockGenerator() = default;
 };
 }

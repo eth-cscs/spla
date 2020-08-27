@@ -90,6 +90,10 @@ public:
 
   auto max_cols_in_block() -> IntType override { return colsInBlock_; }
 
+  auto local_rows(IntType rank) -> IntType override { return globalNumRows_; }
+
+  auto local_cols(IntType rank) -> IntType override { return globalNumCols_; }
+
 private:
   IntType rowsInBlock_, colsInBlock_;
   IntType globalNumRows_, globalNumCols_;

@@ -39,58 +39,10 @@ namespace spla {
 class BlockCyclicGenerator : public MatrixBlockGenerator {
 public:
   BlockCyclicGenerator(IntType rowsInBlock, IntType colsInBlock, IntType gridRows, IntType gridCols,
-                          IntType globalNumRows, IntType globalNumCols, IntType globalRowOffset,
-                          IntType globalColOffset)
-      : rowsInBlock_(rowsInBlock),
-        colsInBlock_(colsInBlock),
-        gridRows_(gridRows),
-        gridCols_(gridCols),
-        globalNumRows_(globalNumRows),
-        globalNumCols_(globalNumCols),
-        globalRowOffset_(globalRowOffset),
-        globalColOffset_(globalColOffset) {
-    const IntType firstBlockRowIdx= (globalRowOffset_ / rowsInBlock_) * rowsInBlock_;
-    const IntType firstBlockColIdx= (globalColOffset_ / colsInBlock_) * colsInBlock_;
+                       IntType globalNumRows, IntType globalNumCols, IntType globalRowOffset,
+                       IntType globalColOffset);
 
-    numBlockRows_ = (globalRowOffset_ - firstBlockRowIdx + globalNumRows_ + rowsInBlock_ - 1) / rowsInBlock_;
-    numBlockCols_ = (globalColOffset_ - firstBlockColIdx + globalNumCols_ + colsInBlock_ - 1) / colsInBlock_;
-  }
-
-  auto get_block_info(IntType blockIdx) -> BlockInfo override {
-    assert(blockIdx < num_blocks());
-    assert(blockIdx >= 0);
-    const IntType blockRowIdx = blockIdx % numBlockRows_;
-    const IntType globalBlockRowIdx = blockRowIdx + (globalRowOffset_ / rowsInBlock_);
-    const IntType blockColIdx = blockIdx / numBlockRows_;
-    const IntType globalBlockColIdx = blockColIdx + (globalColOffset_ / colsInBlock_);
-
-    const IntType firstBlockRowIdx = (globalRowOffset_ / rowsInBlock_) * rowsInBlock_;
-    const IntType firstBlockColIdx = (globalColOffset_ / colsInBlock_) * colsInBlock_;
-
-    const IntType globalRowIdx = std::max(globalRowOffset_, firstBlockRowIdx + blockRowIdx * rowsInBlock_); 
-    const IntType globalColIdx = std::max(globalColOffset_, firstBlockColIdx + blockColIdx * colsInBlock_); 
-
-    const IntType numRows = std::min((globalBlockRowIdx + 1) * rowsInBlock_, globalRowOffset_ + globalNumRows_) - globalRowIdx;
-    const IntType numCols = std::min((globalBlockColIdx + 1) * colsInBlock_, globalColOffset_ + globalNumCols_) - globalColIdx;
-
-    const IntType mpiRank =
-        (globalBlockRowIdx % gridRows_) + (globalBlockColIdx % gridCols_) * gridRows_;
-
-    const IntType localRowIdx =
-        (globalBlockRowIdx / gridRows_) * rowsInBlock_ + globalRowIdx % rowsInBlock_;
-    const IntType localColIdx =
-        (globalBlockColIdx / gridCols_) * colsInBlock_ + globalColIdx % colsInBlock_;
-
-    return BlockInfo{globalRowIdx,
-                     globalColIdx,
-                     globalRowIdx - globalRowOffset_,
-                     globalColIdx - globalColOffset_,
-                     localRowIdx,
-                     localColIdx,
-                     numRows,
-                     numCols,
-                     mpiRank};
-  }
+  auto get_block_info(IntType blockIdx) -> BlockInfo override;
 
   auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo override {
     assert(blockRowIdx < numBlockRows_);
@@ -110,6 +62,10 @@ public:
   auto max_rows_in_block() -> IntType override { return rowsInBlock_; }
 
   auto max_cols_in_block() -> IntType override { return colsInBlock_; }
+
+  auto local_rows(IntType rank) -> IntType override;
+
+  auto local_cols(IntType rank) -> IntType override;
 
 private:
   IntType rowsInBlock_, colsInBlock_;
