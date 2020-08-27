@@ -104,9 +104,9 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
         const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
-                   currentCols, k, alpha, &viewA(colA, rowA), lda,
-                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
+                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
+                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
       }
     }
   } else {
@@ -121,9 +121,9 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
         const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
-                   currentCols, k, alpha, &viewA(colA, rowA), lda,
-                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
+                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
+                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
       }
     }
   }
