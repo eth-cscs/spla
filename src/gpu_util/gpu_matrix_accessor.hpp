@@ -106,8 +106,11 @@ public:
     assert(rowOffset + rows <= rows_);
     assert(colOffset + cols <= cols_);
     if(matrixGPU_.empty()) {
-      return GPUMatrixAccessor<GPU_VIEW_TYPE>(HostArrayConstView2D<ValueType>(&(matrixHost_(colOffset, rowOffset)), cols,
-                                                          rows, matrixHost_.ld_inner()), maxTileSize_, buffer_);
+      return GPUMatrixAccessor<GPU_VIEW_TYPE>(
+          HostArrayConstView2D<ValueType>(
+              (matrixHost_.data() + matrixHost_.index(colOffset, rowOffset)), cols, rows,
+              matrixHost_.ld_inner()),
+          maxTileSize_, buffer_);
     } else {
       return GPUMatrixAccessor<GPU_VIEW_TYPE>(GPU_VIEW_TYPE(
           const_cast<ValueType *>(matrixGPU_.data()) + matrixGPU_.index(colOffset, rowOffset), cols,
