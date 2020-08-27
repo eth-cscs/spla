@@ -89,6 +89,14 @@ auto multiply_gpu(const gpu::blas::HandleType &handle,
   gpu::StreamType stream;
   gpu::blas::get_stream(handle, &stream);
 
+  if(result.size() == 0) return;
+  if(tileA.rows() * tileA.cols() == 0) {
+    // Scale C only
+    call_gpu_gemm(handle, transa, transb, result.dim_inner(), result.dim_outer(), 0, alpha,
+                  nullptr, 1, nullptr, 1, beta, result.data(), result.ld_inner());
+    return;
+  }
+
   IntType innerBlockSize = transa == gpu::blas::operation::None ? tileA.cols(): tileA.rows() ;
   if(tileA.max_tile_size() < tileA.rows() * tileA.cols()) {
     // if not fully on GPU, try square size
