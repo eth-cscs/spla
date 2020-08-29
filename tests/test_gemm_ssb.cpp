@@ -15,6 +15,12 @@
 #include "util/common_types.hpp"
 #include "memory/host_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
+#include "memory/buffer.hpp"
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+#include "memory/gpu_allocator.hpp"
+#include "gpu_util/gpu_runtime_api.hpp"
+#endif
 
 // static auto print_matrix(const double* A, const int rows, const int cols, const int ld, const std::string& label)
 //     -> void {
@@ -218,10 +224,6 @@ protected:
       colBlockSize_ = n_;
     }
 
-    spla::pgemm_ssb(subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()],
-                    SPLA_OP_CONJ_TRANSPOSE, T(1.0), localViewA.data(), localViewA.ld_inner(),
-                    localViewB.data(), localViewB.ld_inner(), T(0.0), vecC.data(), m_,
-                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
 
     std::array<int, 9> descA;
     std::array<int, 9> descB;
@@ -237,15 +239,67 @@ protected:
                vecB.data(), 1, 1, descB.data(), 0.0, vecCRef.data(), subMatrixRowOffset + 1,
                subMatrixColOffset + 1, descC.data());
 
+    // // free handler
+    Cblacs_gridexit(grid);
+    Cfree_blacs_system_handle(blacsCtx);
+    // NOTE: free must happen before ASSERT, because ASSERT may exit early
+
     // if mirror distribution, broadcast reference result to all ranks
     if (desc.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
       MPI_Bcast(vecCRef.data(), vecCRef.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
     }
 
-    // // free handler
-    Cblacs_gridexit(grid);
-    Cfree_blacs_system_handle(blacsCtx);
-    // NOTE: free must happen before ASSERT, because ASSERT may exit early
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    std::vector<T> vecCFromGPU;
+    // compare starting from device buffers if GPU enabled
+    if(ctx_.processing_unit() == SPLA_PU_GPU) {
+      Buffer<GPUAllocator> gpuBufferA;
+      gpuBufferA.resize<T>(vecA.size());
+      Buffer<GPUAllocator> gpuBufferB;
+      gpuBufferB.resize<T>(vecB.size());
+      Buffer<GPUAllocator> gpuBufferC;
+      gpuBufferC.resize<T>(vecC.size());
+
+      if (vecA.size())
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data<T>()),
+                                      static_cast<const void*>(vecA.data()),
+                                      vecA.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
+      if (vecB.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+                                    static_cast<const void*>(vecB.data()), vecB.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+      if (vecC.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+                                    static_cast<const void*>(vecC.data()), vecC.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+
+      spla::pgemm_ssb(
+          subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()], SPLA_OP_CONJ_TRANSPOSE,
+          T(1.0), gpuBufferA.empty() ? nullptr : gpuBufferA.data<T>() + localRowOffset,
+          localViewA.ld_inner(),
+          gpuBufferB.empty() ? nullptr : gpuBufferB.data<T>() + localRowOffset,
+          localViewB.ld_inner(), T(0.0), gpuBufferC.empty() ? nullptr : gpuBufferC.data<T>(), m_,
+          subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
+
+      vecCFromGPU.resize(vecC.size());
+
+
+      if (vecC.size())
+        gpu::check_status(gpu::memcpy(
+            static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data<T>()),
+            vecCFromGPU.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
+    }
+#endif
+
+
+    // compute from host memory
+    spla::pgemm_ssb(subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()],
+                    SPLA_OP_CONJ_TRANSPOSE, T(1.0), localViewA.data(), localViewA.ld_inner(),
+                    localViewB.data(), localViewB.ld_inner(), T(0.0), vecC.data(), m_,
+                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
+
+    // Assertions must only be used after all MPI calls, deadlock otherwise
 
     // compare results
     for (std::size_t i = 0; i < vecC.size(); ++i) {
@@ -253,6 +307,12 @@ protected:
       ASSERT_NEAR(std::imag(vecC[i]), std::imag(vecCRef[i]), 1e-6);
     }
 
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    for (std::size_t i = 0; i < vecCFromGPU.size(); ++i) {
+      ASSERT_NEAR(std::real(vecCFromGPU[i]), std::real(vecCRef[i]), 1e-6);
+      ASSERT_NEAR(std::imag(vecCFromGPU[i]), std::imag(vecCRef[i]), 1e-6);
+    }
+#endif
   }
 
   int rowBlockSize_, colBlockSize_, m_, n_, k_;

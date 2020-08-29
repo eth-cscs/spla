@@ -59,7 +59,7 @@ if(UNIX AND NOT APPLE)
 	list(APPEND SPLA_TEST_LIBRARIES ${SPLA_DL_LIBRARY})
 endif()
 
-add_executable(run_tests programs/run_tests.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp)
+add_executable(run_tests programs/run_tests.cpp test_gemm.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp)
 target_link_libraries(run_tests PUBLIC spla ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LIBRARIES})
 target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
 

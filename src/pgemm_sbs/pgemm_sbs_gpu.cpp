@@ -152,7 +152,7 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     auto hostMatB =
         gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb);
     auto gpuMatB =
-        gpuPtrB ? GPUArrayConstView2D<T>() : GPUArrayConstView2D<T>(B, n + bColOffset, ldb);
+        gpuPtrB ? GPUArrayConstView2D<T>(B, n + bColOffset, ldb) : GPUArrayConstView2D<T>();
 
     stripes.emplace_back(descB.comm(), blasHandles[i], pinnedBuffers[2 * i],
                          pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], maxGPUMultiplyBufferSize,

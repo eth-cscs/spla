@@ -14,7 +14,12 @@
 #include "memory/host_array_view.hpp"
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
+#include "memory/buffer.hpp"
 
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+#include "memory/gpu_allocator.hpp"
+#include "gpu_util/gpu_runtime_api.hpp"
+#endif
 
 // #include <sstream>
 // #include <iostream>
@@ -220,9 +225,6 @@ protected:
       colBlockSize_ = n_;
     }
 
-    spla::pgemm_sbs(mLocalPerRank_[mpi_world_rank()], subMatrixCols, subMatrixRows, T(1.0),
-                    localViewA.data(), localViewA.ld_inner(), vecB.data(), k_, subMatrixRowOffset,
-                    subMatrixColOffset, desc, T(0.0), localViewC.data(), localViewC.ld_inner(), ctx_);
 
     std::array<int, 9> descA;
     std::array<int, 9> descB;
@@ -245,6 +247,52 @@ protected:
     Cfree_blacs_system_handle(blacsCtx);
     // NOTE: free must happen before ASSERT, because ASSERT may exit early
 
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    std::vector<T> vecCFromGPU;
+    // compare starting from device buffers if GPU enabled
+    if(ctx_.processing_unit() == SPLA_PU_GPU) {
+      Buffer<GPUAllocator> gpuBufferA;
+      gpuBufferA.resize<T>(vecA.size());
+      Buffer<GPUAllocator> gpuBufferB;
+      gpuBufferB.resize<T>(vecB.size());
+      Buffer<GPUAllocator> gpuBufferC;
+      gpuBufferC.resize<T>(vecC.size());
+
+      if (vecA.size())
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data<T>()),
+                                      static_cast<const void*>(vecA.data()),
+                                      vecA.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
+      if (vecB.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+                                    static_cast<const void*>(vecB.data()), vecB.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+      if (vecC.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+                                    static_cast<const void*>(vecC.data()), vecC.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+
+      spla::pgemm_sbs(mLocalPerRank_[mpi_world_rank()], subMatrixCols, subMatrixRows, T(1.0),
+                      gpuBufferA.empty() ? nullptr : gpuBufferA.data<T>() + localRowOffset,
+                      localViewA.ld_inner(), gpuBufferB.empty() ? nullptr : gpuBufferB.data<T>(),
+                      k_, subMatrixRowOffset, subMatrixColOffset, desc, T(0.0),
+                      gpuBufferC.empty() ? nullptr : gpuBufferC.data<T>() + localRowOffset,
+                      localViewC.ld_inner(), ctx_);
+
+      vecCFromGPU.resize(vecC.size());
+      if (vecC.size())
+        gpu::check_status(gpu::memcpy(
+            static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data<T>()),
+            vecCFromGPU.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
+
+    }
+#endif
+
+    spla::pgemm_sbs(mLocalPerRank_[mpi_world_rank()], subMatrixCols, subMatrixRows, T(1.0),
+                    localViewA.data(), localViewA.ld_inner(), vecB.data(), k_, subMatrixRowOffset,
+                    subMatrixColOffset, desc, T(0.0), localViewC.data(), localViewC.ld_inner(), ctx_);
+
+
     // compare results
     for (spla::IntType col = 0; col < localViewC.dim_outer(); ++col) {
       for (spla::IntType row = 0; row < localViewC.dim_inner(); ++row) {
@@ -253,6 +301,21 @@ protected:
       }
     }
 
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    if(!vecCFromGPU.empty()) {
+      spla::HostArrayView2D<T> localViewCFromGPU(vecCFromGPU.data() + localRowOffset, n_,
+                                                 mLocalPerRank_[mpi_world_rank()], m_);
+      for (spla::IntType col = 0; col < localViewC.dim_outer(); ++col) {
+        for (spla::IntType row = 0; row < localViewC.dim_inner(); ++row) {
+          ASSERT_NEAR(std::real(localViewCFromGPU(col, row)), std::real(localViewCRef(col, row)),
+                      1e-6);
+          ASSERT_NEAR(std::imag(localViewCFromGPU(col, row)), std::imag(localViewCRef(col, row)),
+                      1e-6);
+        }
+      }
+    }
+#endif
   }
 
   int rowBlockSize_, colBlockSize_, m_, n_, k_;
