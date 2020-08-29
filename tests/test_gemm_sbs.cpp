@@ -7,12 +7,12 @@
 #include <utility>
 #include <tuple>
 #include <algorithm>
+#include "spla/spla.hpp"
 #include "gtest/gtest.h"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "spla/spla.hpp"
 #include "util/common_types.hpp"
 #include "memory/buffer.hpp"
 

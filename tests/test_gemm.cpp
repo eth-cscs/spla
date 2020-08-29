@@ -4,13 +4,14 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include "spla/config.h"
+#include "spla/spla.hpp"
 #include "gtest/gtest.h"
 #include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
-#include "spla/spla.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
