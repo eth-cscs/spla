@@ -64,11 +64,6 @@ target_link_libraries(run_tests PUBLIC spla ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LI
 target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
 target_compile_options(run_tests PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
 
-add_executable(main programs/main.cpp)
-target_link_libraries(main PUBLIC spla ${SPLA_EXTERNAL_LIBS})
-target_include_directories(main PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
-target_compile_options(main PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
-
 add_executable(benchmark programs/benchmark.cpp)
 target_link_libraries(benchmark PUBLIC spla ${SPLA_EXTERNAL_LIBS})
 target_include_directories(benchmark PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
