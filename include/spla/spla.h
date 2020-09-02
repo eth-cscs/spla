@@ -35,8 +35,8 @@
 #include "spla/matrix_distribution.h"
 #include "spla/pgemm_sbs.h"
 #include "spla/pgemm_ssb.h"
+#include "spla/gemm.h"
 #include "spla/errors.h"
 #include "spla/types.h"
-#include "spla/gemm.h"
 
 #endif
