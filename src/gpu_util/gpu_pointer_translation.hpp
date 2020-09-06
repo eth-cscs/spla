@@ -51,12 +51,14 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 #endif
   }
 
-  if(attr.devicePointer == nullptr) {
-    // not registered with cuda -> host pointer
-    const T* devicePtr = nullptr;
-    return {inputPointer, devicePtr};
+#if defined(SPLA_CUDA) && (CUDART_VERSION >= 10000)
+  if(attr.type != gpu::flag::MemoryTypeDevice) {
+#else
+  if(attr.memoryType != gpu::flag::MemoryTypeDevice) {
+#endif
+    return {static_cast<const T*>(attr.hostPointer), static_cast<const T*>(nullptr)};
   } else {
-    return {static_cast<const T*>(attr.hostPointer), static_cast<const T*>(attr.devicePointer)};
+    return {static_cast<const T*>(nullptr), static_cast<const T*>(attr.devicePointer)};
   }
 }
 

@@ -122,12 +122,9 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
     rowBlockSize = std::min<IntType>(std::sqrt(matAccessorsC.front().max_tile_size()), rowBlockSize);
   }
 
-  // const IntType colBlockSize =
-  //     std::min(matAccessorsC.front().max_tile_size() / rowBlockSize, n);
-  // rowBlockSize = std::min(matAccessorsC.front().max_tile_size() / colBlockSize, m);
-
-  const IntType colBlockSize = 10;
-  rowBlockSize = 10;
+  const IntType colBlockSize =
+      std::min(matAccessorsC.front().max_tile_size() / rowBlockSize, n);
+  rowBlockSize = std::min(matAccessorsC.front().max_tile_size() / colBlockSize, m);
 
   IntType counter = 0;
   for(IntType col =0 ; col < n; col += colBlockSize) {
