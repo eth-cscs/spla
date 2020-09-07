@@ -40,9 +40,9 @@ int Context::num_threads() const { return ctxInternal_->num_threads(); }
 
 int Context::num_tiles() const { return ctxInternal_->num_tiles(); }
 
-int Context::tile_length_target() const { return ctxInternal_->tile_length_target(); }
+int Context::tile_size_host() const { return ctxInternal_->tile_size_host(); }
 
-std::size_t Context::gpu_memory_limit() const { return ctxInternal_->gpu_memory_limit(); }
+int Context::tile_size_gpu() const { return ctxInternal_->tile_size_gpu(); }
 
 int Context::gpu_device_id() const { return ctxInternal_->gpu_device_id(); }
 
@@ -52,12 +52,12 @@ void Context::set_num_tiles(int numTilesPerThread) {
   ctxInternal_->set_num_tiles(numTilesPerThread);
 }
 
-void Context::set_tile_length_target(int tileLengthTarget) {
-  ctxInternal_->set_tile_length_target(tileLengthTarget);
+void Context::set_tile_size_host(int tileSizeHost) {
+  ctxInternal_->set_tile_size_host(tileSizeHost);
 }
 
-void Context::set_gpu_memory_limit(std::size_t gpuMemoryLimit) {
-  ctxInternal_->set_gpu_memory_limit(gpuMemoryLimit);
+void Context::set_tile_size_gpu(int tileSizeGPU) {
+  ctxInternal_->set_tile_size_gpu(tileSizeGPU);
 }
 
 }  // namespace spla
@@ -118,12 +118,12 @@ SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles) {
   return SplaError::SPLA_SUCCESS;
 }
 
-SplaError spla_ctx_tile_length_target(SplaContext ctx, int* tileLengthTarget) {
+SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
   }
   try {
-    *tileLengthTarget = reinterpret_cast<spla::Context*>(ctx)->tile_length_target();
+    *tileSizeHost = reinterpret_cast<spla::Context*>(ctx)->tile_size_host();
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -132,12 +132,12 @@ SplaError spla_ctx_tile_length_target(SplaContext ctx, int* tileLengthTarget) {
   return SplaError::SPLA_SUCCESS;
 }
 
-SplaError spla_ctx_gpu_memory_limit(SplaContext ctx, size_t* limit) {
+SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
   }
   try {
-    *limit = reinterpret_cast<spla::Context*>(ctx)->gpu_memory_limit();
+    *tileSizeGPU = reinterpret_cast<spla::Context*>(ctx)->tile_size_gpu();
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -188,12 +188,12 @@ SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles) {
   return SplaError::SPLA_SUCCESS;
 }
 
-SplaError spla_ctx_set_tile_length_target(SplaContext ctx, int tileLengthTarget) {
+SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<spla::Context*>(ctx)->set_tile_length_target(tileLengthTarget);
+    reinterpret_cast<spla::Context*>(ctx)->set_tile_size_host(tileSizeHost);
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -202,12 +202,12 @@ SplaError spla_ctx_set_tile_length_target(SplaContext ctx, int tileLengthTarget)
   return SplaError::SPLA_SUCCESS;
 }
 
-SplaError spla_ctx_set_gpu_memory_limit(SplaContext ctx, size_t gpuMemoryLimit) {
+SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<spla::Context*>(ctx)->set_gpu_memory_limit(gpuMemoryLimit);
+    reinterpret_cast<spla::Context*>(ctx)->set_tile_size_gpu(tileSizeGPU);
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

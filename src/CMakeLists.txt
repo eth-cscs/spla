@@ -1,4 +1,5 @@
 set(SPLA_SOURCE_FILES
+	block_generation/block_cyclic_generator.cpp
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
 	pgemm_ssb/tile_host.cpp

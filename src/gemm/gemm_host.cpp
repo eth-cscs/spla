@@ -28,6 +28,7 @@
 
 #include "gemm/gemm_host.hpp"
 #include <complex>
+#include <algorithm>
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "spla/config.h"
@@ -63,6 +64,11 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const auto opBlasA = map_op_to_host_blas(opA);
   const auto opBlasB = map_op_to_host_blas(opB);
 
+  // Some blas libraries like MKL do not accept 0 as ld, even if m, n or k is 0
+  if(lda < 1) lda =1;
+  if(ldb < 1) ldb =1;
+  if(ldc < 1) ldc =1;
+
   // if blas library is parallelized, call it directly
   if(blas::is_parallel() && !omp_in_parallel()) {
     BlasThreadsGuard threadGuard(numThreads);
@@ -80,12 +86,15 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
                                 ldb);
   HostArrayView2D<T> viewC(C, n, m, ldc);
 
-  const IntType numThreadCols = static_cast<IntType>(std::sqrt(numThreads));
-  const IntType numThreadRows =
-      (numThreads + numThreadCols - 1) / numThreadCols;
+  // If there are multiple threads, use 2 times as many tiles to take advantage of dynamic scheduling
+  const IntType numThreadCols = numThreads;
+  const IntType numThreadRows = numThreads > 1 ? 2 : 1;
 
-  const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
-  const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
+  const IntType minBlockSize = 5;
+
+  const IntType colBlockSize = std::min<IntType>((n + numThreadCols - 1) / numThreadCols, minBlockSize);
+  const IntType rowBlockSize = std::min<IntType>((m + numThreadRows - 1) / numThreadRows, minBlockSize);
+
 
   if (omp_in_parallel()) {
     SPLA_OMP_PRAGMA("omp for schedule(dynamic) collapse(2)")
@@ -99,13 +108,13 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
         const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
-                   currentCols, k, alpha, &viewA(colA, rowA), lda,
-                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
+                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
+                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
       }
     }
   } else {
-    SPLA_OMP_PRAGMA("omp parallel for schedule(static) collapse(2) num_threads(numThreads)")
+    SPLA_OMP_PRAGMA("omp parallel for schedule(dynamic) collapse(2) num_threads(numThreads)")
     for (IntType col = 0; col < n; col += colBlockSize) {
       for (IntType row = 0; row < m; row += rowBlockSize) {
         const IntType currentCols =
@@ -116,9 +125,9 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
         const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows,
-                   currentCols, k, alpha, &viewA(colA, rowA), lda,
-                   &viewB(colB, rowB), ldb, beta, &viewC(col, row), ldc);
+        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
+                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
+                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
       }
     }
   }

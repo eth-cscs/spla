@@ -133,6 +133,7 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 
 template <typename T>
 auto TileHost<T>::exchange() -> void {
+  assert(omp_get_thread_num() == 0); // only master thread should execute
   assert(this->state_.get() == TileState::Multiplied);
   if (this->state_.get() != TileState::Multiplied) {
     throw InternalError();
@@ -199,8 +200,6 @@ auto TileHost<T>::extract() -> void {
       }
     }
   }
-
-  // set state atomically
 
   SPLA_OMP_PRAGMA("omp barrier")
   SPLA_OMP_PRAGMA("omp single") {

@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
   SplaProcessingUnit pu = procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
 
   spla::Context ctx(pu);
-  ctx.set_tile_length_target(lengthTarget);
+  ctx.set_tile_size_host(lengthTarget);
   ctx.set_num_threads(numThreads);
 
   run_gemm(ctx, rows, colsA, colsB, blacsBlockSize, repeats);

@@ -75,19 +75,15 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   if (n == 0 || k == 0) {
     return;
   }
-  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k, A, lda,
-                   B, ldb, C, ldc);
+
+  if (n < 0 || k < 0 || bRowOffset < 0 || bColOffset < 0) {
+    throw InvalidParameterError();
+  }
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
     return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
   }
-
-
-  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
-
-  // always synchronize with stream 0 as part of API requirement
-  gpu::check_status(gpu::stream_synchronize(nullptr));
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -95,20 +91,26 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
                                               descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
                                               bRowOffset, bColOffset));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k, n,
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), k, n,
                                          bRowOffset, bColOffset));
   }
+
+  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
+                   matrixDist->local_cols(descB.comm().rank()),
+                   matrixDist->local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
+
+  GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+
+  // always synchronize with stream 0 as part of API requirement
+  gpu::check_status(gpu::stream_synchronize(nullptr));
+
   const IntType numBlockRows = matrixDist->num_block_rows();
   const IntType numBlockCols = matrixDist->num_block_cols();
 
   const IntType numBlockColsInTile = std::max<IntType>(
-      (ctx.tile_length_target() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
+      (ctx.tile_size_host() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
 
-  // calcualte memory target
-  IntType maxGPUMultiplyBufferSize =
-      ctx.gpu_memory_limit() / (ctx.num_tiles() * sizeof(T) * 3);  // 3 buffers per stripe
-  maxGPUMultiplyBufferSize =
-      std::max<IntType>(maxGPUMultiplyBufferSize, 512 * 512);  // miminum of 512^2
+  const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
 
   std::vector<StripeGPU<T>> stripes;
   stripes.reserve(ctx.num_tiles());
@@ -132,24 +134,24 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
     auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                               GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
                         : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(A, k, mLocal, lda), maxGPUMultiplyBufferSize,
+                              HostArrayConstView2D<T>(A, k, mLocal, lda), tileSizeGEMM,
                               gpuBuffers[i * 3]);
 
     auto matC =
         gpuPtrC
             ? GPUMatrixAccessor<GPUArrayView2D<T>>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
             : GPUMatrixAccessor<GPUArrayView2D<T>>(HostArrayView2D<T>(C, n, mLocal, ldc),
-                                                   maxGPUMultiplyBufferSize, gpuBuffers[i * 3 + 1]);
+                                                   tileSizeGEMM, gpuBuffers[i * 3 + 1]);
 
     auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n, mLocal, ldc);
 
     auto hostMatB =
         gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb);
     auto gpuMatB =
-        gpuPtrB ? GPUArrayConstView2D<T>() : GPUArrayConstView2D<T>(B, n + bColOffset, ldb);
+        gpuPtrB ? GPUArrayConstView2D<T>(B, n + bColOffset, ldb) : GPUArrayConstView2D<T>();
 
     stripes.emplace_back(descB.comm(), blasHandles[i], pinnedBuffers[2 * i],
-                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], maxGPUMultiplyBufferSize,
+                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], ctx.tile_size_gpu(),
                          matrixDist, alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC,
                          numBlockColsInTile);
   }

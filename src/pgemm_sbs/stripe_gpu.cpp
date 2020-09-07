@@ -188,51 +188,51 @@ auto StripeGPU<T>::multiply() -> void {
     throw InternalError();
   }
 
-  const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx + blockInfos_.back().numCols;
-  const IntType m = matA_.rows();
+  if(matA_.size()) {
+    const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx +
+                      blockInfos_.back().numCols;
+    const IntType m = matA_.rows();
 
-  // reshuffle data into full C matrix
-  HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, matA_.cols());
-  const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
-  for(const auto& info : blockInfos_) {
-    assert(info.mpiRank >= 0);
+    // reshuffle data into full C matrix
+    HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, matA_.cols());
+    const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
+    for (const auto& info : blockInfos_) {
+      assert(info.mpiRank >= 0);
 
-    HostArrayConstView2D<T> recvDataView(recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
-                                      localCols_[info.mpiRank], localRows_[info.mpiRank]);
+      HostArrayConstView2D<T> recvDataView(recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
+                                           localCols_[info.mpiRank], localRows_[info.mpiRank]);
 
-    const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
-    const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
-    for (IntType col = 0; col < info.numCols; ++col) {
-      std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col, info.globalSubRowIdx),
-                  &recvDataView(startCol + col, startRow), info.numRows * sizeof(T));
-    }
-  }
-
-
-  IntType rowBlockSize = std::min<IntType>(std::sqrt(matC_.max_tile_size()), m);
-  IntType colBlockSize = std::min<IntType>(matC_.max_tile_size() / rowBlockSize, n);
-  rowBlockSize = std::min<IntType>(matC_.max_tile_size() / colBlockSize, m);
-
-
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matB(fullStripe, maxGPUStripeSize_, bufferGPU_);
-
-  for (IntType col = 0; col < n; col += colBlockSize) {
-    const IntType currentColBlockSize = std::min<IntType>(n - col, colBlockSize);
-    for (IntType row = 0; row < m; row += rowBlockSize) {
-      const IntType currentRowBlockSize = std::min<IntType>(m - row, rowBlockSize);
-      auto viewC = matC_.get_tile(0, blockInfos_.front().globalSubColIdx, currentRowBlockSize,
-                                  currentColBlockSize, blasHandle_.stream_handle().get());
-      multiply_gpu<T>(blasHandle_.get(), gpu::blas::operation::None,
-                      gpu::blas::operation::None, alpha_, matA_, matB, beta_,
-                      viewC);
-      if(!viewCHost_.empty()) {
-        copy_from_gpu_async(
-            blasHandle_.stream_handle().get(), GPUArrayConstView2D<T>(viewC),
-            HostArrayView2D<T>(&viewCHost_(blockInfos_.front().globalSubColIdx, 0),
-                               viewC.dim_outer(), viewC.dim_inner(), viewCHost_.ld_inner()));
+      const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
+      const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
+      for (IntType col = 0; col < info.numCols; ++col) {
+        std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col, info.globalSubRowIdx),
+                    &recvDataView(startCol + col, startRow), info.numRows * sizeof(T));
       }
-
     }
+
+    IntType rowBlockSize = std::min<IntType>(std::sqrt(matC_.max_tile_size()), m);
+    IntType colBlockSize = std::min<IntType>(matC_.max_tile_size() / rowBlockSize, n);
+    rowBlockSize = std::min<IntType>(matC_.max_tile_size() / colBlockSize, m);
+
+    GPUMatrixAccessor<GPUArrayConstView2D<T>> matB(fullStripe, maxGPUStripeSize_, bufferGPU_);
+
+    for (IntType col = 0; col < n; col += colBlockSize) {
+      const IntType currentColBlockSize = std::min<IntType>(n - col, colBlockSize);
+      for (IntType row = 0; row < m; row += rowBlockSize) {
+        const IntType currentRowBlockSize = std::min<IntType>(m - row, rowBlockSize);
+        auto viewC = matC_.get_tile(0, blockInfos_.front().globalSubColIdx, currentRowBlockSize,
+                                    currentColBlockSize, blasHandle_.stream_handle().get());
+        multiply_gpu<T>(blasHandle_.get(), gpu::blas::operation::None, gpu::blas::operation::None,
+                        alpha_, matA_, matB, beta_, viewC);
+        if (!viewCHost_.empty()) {
+          copy_from_gpu_async(
+              blasHandle_.stream_handle().get(), GPUArrayConstView2D<T>(viewC),
+              HostArrayView2D<T>(&viewCHost_(blockInfos_.front().globalSubColIdx, 0),
+                                 viewC.dim_outer(), viewC.dim_inner(), viewCHost_.ld_inner()));
+        }
+      }
+    }
+
   }
 
   // set state atomically

@@ -75,18 +75,32 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
   if (m == 0 || n == 0) {
     return;
   }
+
   if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
     throw InvalidParameterError();
   }
 
-  check_gemm_param(SplaOperation::SPLA_OP_CONJ_TRANSPOSE, SplaOperation::SPLA_OP_NONE, m, n, kLocal,
-                   A, lda, B, ldb, C, ldc);
+  if (m < 0 || n < 0 || cRowStart < 0 || cColStart < 0) {
+    throw InvalidParameterError();
+  }
 
   if (descC.comm().size() == 1) {
     return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
                        C + cRowStart + cColStart * ldc, ldc, ctx);
   }
 
+  std::shared_ptr<MatrixBlockGenerator> matrixDist;
+  if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
+    matrixDist.reset(new BlockCyclicGenerator(descC.row_block_size(), descC.col_block_size(),
+                                              descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
+                                              cRowStart, cColStart));
+  } else {
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
+                                         cRowStart, cColStart));
+  }
+
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, matrixDist->local_rows(descC.comm().rank()),
+                   matrixDist->local_cols(descC.comm().rank()), kLocal, A, lda, B, ldb, C, ldc);
 
   GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
 
@@ -104,31 +118,15 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
   std::tie(hostPtrB, gpuPtrB) = translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) = translate_gpu_pointer(C);
 
-  std::shared_ptr<MatrixBlockGenerator> matrixDist;
-  if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
-    matrixDist.reset(new BlockCyclicGenerator(descC.row_block_size(), descC.col_block_size(),
-                                              descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
-                                              cRowStart, cColStart));
-  } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), m, n,
-                                         cRowStart, cColStart));
-  }
   const IntType numBlockRows = matrixDist->num_block_rows();
   const IntType numBlockCols = matrixDist->num_block_cols();
 
   const IntType numBlockRowsInTile = std::max<IntType>(
-      (ctx.tile_length_target() + descC.row_block_size() - 1) / descC.row_block_size(), 1);
+      (ctx.tile_size_host() + descC.row_block_size() - 1) / descC.row_block_size(), 1);
   const IntType numBlockColsInTile = std::max<IntType>(
-      (ctx.tile_length_target() + descC.col_block_size() - 1) / descC.col_block_size(), 1);
+      (ctx.tile_size_host() + descC.col_block_size() - 1) / descC.col_block_size(), 1);
 
-  // calcualte maximum multiply buffer size per target
-  const IntType resultBufferSize = numBlockColsInTile * matrixDist->max_cols_in_block() *
-                                   numBlockRowsInTile * matrixDist->max_rows_in_block();
-  IntType maxGPUMultiplyBufferSize =
-      ctx.gpu_memory_limit() / (ctx.num_tiles() * sizeof(T)) - resultBufferSize;
-  maxGPUMultiplyBufferSize /= 2;  // two multiply buffers per tile
-  maxGPUMultiplyBufferSize =
-      std::max<IntType>(maxGPUMultiplyBufferSize, 512 * 512);  // miminum of 512^2
+  const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
 
   std::vector<TileGPU<T>> tiles;
   tiles.reserve(ctx.num_tiles());
@@ -137,17 +135,18 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
   auto &pinnedBuffers = ctx.pinned_buffers(ctx.num_tiles());
   auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
+
   for (IntType i = 0; i < ctx.num_tiles(); ++i) {
     auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                               GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
                         : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(A, m, kLocal, lda), maxGPUMultiplyBufferSize,
+                              HostArrayConstView2D<T>(A, m, kLocal, lda), tileSizeGEMM,
                               gpuBuffers[i * 3]);
 
     auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                               GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
                         : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(B, n, kLocal, ldb), maxGPUMultiplyBufferSize,
+                              HostArrayConstView2D<T>(B, n, kLocal, ldb), tileSizeGEMM,
                               gpuBuffers[i * 3 + 1]);
 
     auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);

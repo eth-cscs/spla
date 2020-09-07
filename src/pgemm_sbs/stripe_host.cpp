@@ -67,6 +67,7 @@ StripeHost<T>::StripeHost(MPICommunicatorHandle comm,
 }
 
 template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
+  assert(omp_get_thread_num() == 0); // only master thread should execute
   assert(blockColIdx < matrixDist_->num_block_cols());
   if (state_.get() != StripeState::Empty) {
     throw InternalError();
@@ -142,6 +143,7 @@ template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
 
 template <typename T>
 auto StripeHost<T>::exchange() -> void {
+  assert(omp_get_thread_num() == 0); // only master thread should execute
   assert(this->state_.get() == StripeState::Collected);
   if (this->state_.get() != StripeState::Collected) {
     throw InternalError();
@@ -168,41 +170,46 @@ auto StripeHost<T>::multiply() -> void {
       throw InternalError();
     }
   }
-  const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx +
-                    blockInfos_.back().numCols;
 
-  // reshuffle data into full C matrix
-  HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
-  const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
-  SPLA_OMP_PRAGMA("omp for schedule(dynamic) nowait")
-  for (std::size_t i = 0; i < blockInfos_.size(); ++i) {
-    const auto &info = blockInfos_[i];
 
-    assert(info.mpiRank >= 0);
+  if (A_.size() != 0) {
+    const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx +
+                      blockInfos_.back().numCols;
 
-    HostArrayConstView2D<T> recvDataView(
-        recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
-        localCols_[info.mpiRank], localRows_[info.mpiRank]);
+    // reshuffle data into full C matrix
+    HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
+    const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
+    SPLA_OMP_PRAGMA("omp for schedule(dynamic) nowait")
+    for (std::size_t i = 0; i < blockInfos_.size(); ++i) {
+      const auto &info = blockInfos_[i];
 
-    const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
-    const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
-    for (IntType col = 0; col < info.numCols; ++col) {
-      std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col,
-                              info.globalSubRowIdx),
-                  &recvDataView(startCol + col, startRow),
-                  info.numRows * sizeof(T));
+      assert(info.mpiRank >= 0);
+
+      HostArrayConstView2D<T> recvDataView(recvBuffer_->data<T>() + recvDispls_[info.mpiRank],
+                                           localCols_[info.mpiRank], localRows_[info.mpiRank]);
+
+      const IntType startRow = info.localRowIdx - localRowOffsets_[info.mpiRank];
+      const IntType startCol = info.localColIdx - localColOffsets_[info.mpiRank];
+      for (IntType col = 0; col < info.numCols; ++col) {
+        std::memcpy(&fullStripe(info.globalSubColIdx - stripeColOffset + col, info.globalSubRowIdx),
+                    &recvDataView(startCol + col, startRow), info.numRows * sizeof(T));
+      }
+      extractedBlockCount_->fetch_add(1, std::memory_order_release);
     }
-    extractedBlockCount_->fetch_add(1, std::memory_order_release);
+
+    // wait for all blocks to be extraced
+    while (extractedBlockCount_->load(std::memory_order_acquire) != blockInfos_.size()) {
+    }
+
+    // multiply full C matrix. Contains omp barrier
+    gemm_host<T>(omp_get_num_threads(), SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
+                 A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(), A_.ld_inner(),
+                 fullStripe.data(), fullStripe.ld_inner(), beta_,
+                 &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
+  } else {
+    // gemm_host barrier is not passsed -> use explicit barrier
+    SPLA_OMP_PRAGMA("omp barrier")
   }
-
-  // wait for all blocks to be extraced
-  while(extractedBlockCount_->load(std::memory_order_acquire) != blockInfos_.size()) {}
-
-  // multiply full C matrix. Contains omp barrier
-  gemm_host<T>(omp_get_num_threads(), SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-               A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(), A_.ld_inner(),
-               fullStripe.data(), fullStripe.ld_inner(), beta_,
-               &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
 
   SPLA_OMP_PRAGMA("omp single") {
     this->state_.set(StripeState::Empty);

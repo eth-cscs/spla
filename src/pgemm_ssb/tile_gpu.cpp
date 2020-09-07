@@ -237,16 +237,24 @@ auto TileGPU<T>::extract() -> void {
     }
   } else {
     // result should be placed in gpu memory
-    copy_to_gpu_async<ValueType, ValueType>(blasHandle_.stream_handle().get(), tileHost_, tileGPU_);
+    bool copied = false;
     for (const auto& info : blockInfos_) {
-      const IntType tileRowOffset = info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
-      const IntType tileColOffset = info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
-      T* subTilePtr = tileGPU_.data() + tileGPU_.index(tileColOffset, tileRowOffset);
-      T* subMatPtr = GPUMatC_.data() + GPUMatC_.index(info.localColIdx, info.localRowIdx);
-      call_gpu_geam(blasHandle_.get(), gpu::blas::operation::None, gpu::blas::operation::None,
-                    info.numRows, info.numCols, RealValueGPU<T>::create(1.0),
-                    subTilePtr, tileGPU_.ld_inner(), beta_, subMatPtr, GPUMatC_.ld_inner(),
-                    subMatPtr, GPUMatC_.ld_inner());
+      if (info.mpiRank == comm_.rank() || info.mpiRank < 0) {
+        // copy data once if at least one block is assigned to this rank
+        if (!copied) {
+          copy_to_gpu_async<ValueType, ValueType>(blasHandle_.stream_handle().get(), tileHost_,
+                                                  tileGPU_);
+          copied = true;
+        }
+        const IntType tileRowOffset = info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
+        const IntType tileColOffset = info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
+        T* subTilePtr = tileGPU_.data() + tileGPU_.index(tileColOffset, tileRowOffset);
+        T* subMatPtr = GPUMatC_.data() + GPUMatC_.index(info.localColIdx, info.localRowIdx);
+        call_gpu_geam(blasHandle_.get(), gpu::blas::operation::None, gpu::blas::operation::None,
+                      info.numRows, info.numCols, RealValueGPU<T>::create(1.0), subTilePtr,
+                      tileGPU_.ld_inner(), beta_, subMatPtr, GPUMatC_.ld_inner(), subMatPtr,
+                      GPUMatC_.ld_inner());
+      }
     }
   }
 

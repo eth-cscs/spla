@@ -6,10 +6,21 @@
 #include <cmath>
 #include <utility>
 #include <tuple>
+#include <algorithm>
+#include "spla/spla.hpp"
 #include "gtest/gtest.h"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
-#include "spla/spla.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "util/common_types.hpp"
+#include "memory/host_array_view.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "memory/buffer.hpp"
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+#include "memory/gpu_allocator.hpp"
+#include "gpu_util/gpu_runtime_api.hpp"
+#endif
 
 // static auto print_matrix(const double* A, const int rows, const int cols, const int ld, const std::string& label)
 //     -> void {
@@ -143,127 +154,176 @@ static auto find_rectangle(int n) -> std::pair<int, int> {
 // numThreads, rowBlockSize, colBlockSize, colsA, colsB, numLocalRows
 template <typename T>
 class GemmSSBTest : public ::testing::TestWithParam<
-                        std::tuple<SplaProcessingUnit, int, int, int, int, int, int>> {
+                        std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>> {
 protected:
   GemmSSBTest()
-      : numThreads_(std::get<1>(GetParam())),
-        rowBlockSize_(std::get<2>(GetParam())),
+      : rowBlockSize_(std::get<2>(GetParam())),
         colBlockSize_(std::get<3>(GetParam())),
-        k_(std::get<4>(GetParam())),
+        m_(std::get<4>(GetParam())),
         n_(std::get<5>(GetParam())),
-        mLocal_(std::get<6>(GetParam())),
-        vecA_(k_ * mLocal_),
-        vecB_(n_ * mLocal_),
-        vecC_(k_ * n_),
-        vecCRef_(k_ * n_),
+        k_(0),
         ctx_(std::get<0>(GetParam())) {
-    ctx_.set_num_threads(numThreads_);
-    std::mt19937 randGen(mpi_world_rank() * 42);
-    std::uniform_real_distribution<double> uniformRandDis(0.0, 100.0);
+    ctx_.set_num_threads(std::get<1>(GetParam()));
 
-    for(auto& val : vecA_) {
-      val = uniformRandDis(randGen);
+    const std::pair<int, int> kRange = std::get<6>(GetParam());
+    std::uniform_int_distribution<int> kLocalDistribution(kRange.first, kRange.second);
+
+    // generate local k size within range
+    kLocalPerRank_.resize(mpi_world_size());
+    for(auto& k : kLocalPerRank_) {
+      k = kLocalDistribution(staticRandGen_);
+      k_ += k;
     }
-    for(auto& val : vecB_) {
-      val = uniformRandDis(randGen);
-    }
-    for(auto& val : vecC_) {
-      val = uniformRandDis(randGen);
-    }
-    vecCRef_.assign(vecC_.begin(), vecC_.end());
   }
 
   // void SetUp() override {
   // }
 
   auto multiply(MatrixDistribution& desc, int rowOffset, int colOffset) -> void {
+
+    std::uniform_real_distribution<double> valueDistribution(0.0, 100.0);
+
+    // initialize values in matrices
+    std::vector<T> vecA(m_ * k_);
+    for(auto& val : vecA) {
+      val = valueDistribution(staticRandGen_);
+    }
+    std::vector<T> vecB(n_ * k_);
+    for(auto& val : vecB) {
+      val = valueDistribution(staticRandGen_);
+    }
+    std::vector<T> vecC(m_ * n_);
+    for(auto& val : vecC) {
+      val = valueDistribution(staticRandGen_);
+    }
+    std::vector<T> vecCRef = vecC; // copy C to compare with ScaLAPACK
+
+    int localRowOffset = 0;
+    for(int r =0; r < mpi_world_rank(); ++r) {
+      localRowOffset += kLocalPerRank_[r];
+    }
+
+    spla::HostArrayConstView2D<T> localViewA(vecA.data() + localRowOffset, m_, kLocalPerRank_[mpi_world_rank()], k_);
+    spla::HostArrayConstView2D<T> localViewB(vecB.data() + localRowOffset, n_, kLocalPerRank_[mpi_world_rank()], k_);
+
     int blacsCtx = Csys2blacs_handle(MPI_COMM_WORLD);
     int info;
 
     int grid = 0;
     Cblacs_gridinit(&grid, "r", desc.proc_grid_rows(), desc.proc_grid_cols());
-    int gridAB = 0;
-    Cblacs_gridinit(&gridAB, "r", mpi_world_size(), 1);
 
-    const auto numLocalRows =
-        mpi_world_rank() < desc.proc_grid_cols() * desc.proc_grid_rows() ? mLocal_ : 0;
 
-    const int subMatrixRows = std::max<int>(1, k_ - rowOffset);
+    const int subMatrixRows = std::max<int>(1, m_ - rowOffset);
     const int subMatrixCols = std::max<int>(1, n_ - colOffset);
-    const int subMatrixRowOffset = std::min<int>(k_ - 1, rowOffset);
+    const int subMatrixRowOffset = std::min<int>(m_ - 1, rowOffset);
     const int subMatrixColOffset = std::min<int>(n_ - 1, colOffset);
 
-    // if mirror distribution, start from same data and let ScaLAPACK result be stored on master process
+    // use same data on all ranks if mirror distribution
     if (desc.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-      MPI_Bcast(vecC_.data(), vecC_.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
-      vecCRef_.assign(vecC_.begin(), vecC_.end());
-      rowBlockSize_ = k_;
+      rowBlockSize_ = m_;
       colBlockSize_ = n_;
     }
 
-    spla::pgemm_ssb(subMatrixRows, subMatrixCols, numLocalRows, SPLA_OP_CONJ_TRANSPOSE, T(1.0),
-                    vecA_.data(), mLocal_, vecB_.data(), numLocalRows, T(0.0), vecC_.data(), k_,
-                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
 
     std::array<int, 9> descA;
-    std::array<int, 9> descRedistA;
     std::array<int, 9> descB;
-    std::array<int, 9> descRedistB;
     std::array<int, 9> descC;
-    const auto globalRows = mpi_world_size() * mLocal_;
 
 
-    // original A, B description on 1D grid
-    call_descinit(descA.data(), globalRows, k_, mLocal_, k_, 0, 0, gridAB,
-                  mLocal_, &info);
-    call_descinit(descB.data(), globalRows, n_, mLocal_, n_, 0, 0, gridAB,
-                  mLocal_, &info);
-
-    // A, B, C description on 2D grid of C
-    call_descinit(descRedistA.data(), globalRows, k_, 1, 1, 0, 0, grid,
-                  globalRows, &info);
-    call_descinit(descRedistB.data(), globalRows, n_, 1, 1, 0, 0, grid,
-                  globalRows, &info);
-    call_descinit(descC.data(), k_, n_, rowBlockSize_, colBlockSize_, 0, 0,
-                  grid, k_, &info);
-
-    // remap A and B
-    std::vector<T> vecRedistA(k_ * globalRows);
-    call_pgemr2d(globalRows, k_, vecA_.data(), 1, 1, descA.data(), vecRedistA.data(), 1, 1,
-                  descRedistA.data(), blacsCtx);
-
-    std::vector<T> vecRedistB(n_ * globalRows);
-    call_pgemr2d(globalRows, n_, vecB_.data(), 1, 1, descB.data(), vecRedistB.data(), 1, 1,
-                  descRedistB.data(), blacsCtx);
+    call_descinit(descA.data(), k_, m_, std::max<int>(k_, 1), m_, 0, 0, grid, std::max<int>(k_, 1), &info);
+    call_descinit(descB.data(), k_, n_, std::max<int>(k_, 1), n_, 0, 0, grid, std::max<int>(k_, 1), &info);
+    call_descinit(descC.data(), m_, n_, rowBlockSize_, colBlockSize_, 0, 0, grid, m_, &info);
 
     // multiply with pdgemm
-    call_pgemm('C', 'N', subMatrixRows, subMatrixCols, globalRows, 1.0, vecRedistA.data(), 1, 1,
-                descRedistA.data(), vecRedistB.data(), 1, 1, descRedistB.data(), 0.0,
-                vecCRef_.data(), subMatrixRowOffset + 1, subMatrixColOffset + 1, descC.data());
-
-    // if mirror distribution, broadcast reference result to all ranks
-    if (desc.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-      MPI_Bcast(vecCRef_.data(), vecCRef_.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
-    }
+    call_pgemm('C', 'N', subMatrixRows, subMatrixCols, k_, 1.0, vecA.data(), 1, 1, descA.data(),
+               vecB.data(), 1, 1, descB.data(), 0.0, vecCRef.data(), subMatrixRowOffset + 1,
+               subMatrixColOffset + 1, descC.data());
 
     // // free handler
-    Cblacs_gridexit(gridAB);
     Cblacs_gridexit(grid);
     Cfree_blacs_system_handle(blacsCtx);
     // NOTE: free must happen before ASSERT, because ASSERT may exit early
 
-    // compare results
-    for (std::size_t i = 0; i < vecC_.size(); ++i) {
-      ASSERT_NEAR(std::real(vecC_[i]), std::real(vecCRef_[i]), 1e-6);
-      ASSERT_NEAR(std::imag(vecC_[i]), std::imag(vecCRef_[i]), 1e-6);
+    // if mirror distribution, broadcast reference result to all ranks
+    if (desc.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
+      MPI_Bcast(vecCRef.data(), vecCRef.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
     }
 
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    std::vector<T> vecCFromGPU;
+    // compare starting from device buffers if GPU enabled
+    if(ctx_.processing_unit() == SPLA_PU_GPU) {
+      Buffer<GPUAllocator> gpuBufferA;
+      gpuBufferA.resize<T>(vecA.size());
+      Buffer<GPUAllocator> gpuBufferB;
+      gpuBufferB.resize<T>(vecB.size());
+      Buffer<GPUAllocator> gpuBufferC;
+      gpuBufferC.resize<T>(vecC.size());
+
+      if (vecA.size())
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data<T>()),
+                                      static_cast<const void*>(vecA.data()),
+                                      vecA.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
+      if (vecB.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+                                    static_cast<const void*>(vecB.data()), vecB.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+      if (vecC.size())
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+                                    static_cast<const void*>(vecC.data()), vecC.size() * sizeof(T),
+                                    gpu::flag::MemcpyHostToDevice));
+
+      spla::pgemm_ssb(
+          subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()], SPLA_OP_CONJ_TRANSPOSE,
+          T(1.0), gpuBufferA.empty() ? nullptr : gpuBufferA.data<T>() + localRowOffset,
+          localViewA.ld_inner(),
+          gpuBufferB.empty() ? nullptr : gpuBufferB.data<T>() + localRowOffset,
+          localViewB.ld_inner(), T(0.0), gpuBufferC.empty() ? nullptr : gpuBufferC.data<T>(), m_,
+          subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
+
+      vecCFromGPU.resize(vecC.size());
+
+
+      if (vecC.size())
+        gpu::check_status(gpu::memcpy(
+            static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data<T>()),
+            vecCFromGPU.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
+    }
+#endif
+
+
+    // compute from host memory
+    spla::pgemm_ssb(subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()],
+                    SPLA_OP_CONJ_TRANSPOSE, T(1.0), localViewA.data(), localViewA.ld_inner(),
+                    localViewB.data(), localViewB.ld_inner(), T(0.0), vecC.data(), m_,
+                    subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
+
+    // Assertions must only be used after all MPI calls, deadlock otherwise
+
+    // compare results
+    for (std::size_t i = 0; i < vecC.size(); ++i) {
+      ASSERT_NEAR(std::real(vecC[i]), std::real(vecCRef[i]), 1e-6);
+      ASSERT_NEAR(std::imag(vecC[i]), std::imag(vecCRef[i]), 1e-6);
+    }
+
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+    for (std::size_t i = 0; i < vecCFromGPU.size(); ++i) {
+      ASSERT_NEAR(std::real(vecCFromGPU[i]), std::real(vecCRef[i]), 1e-6);
+      ASSERT_NEAR(std::imag(vecCFromGPU[i]), std::imag(vecCRef[i]), 1e-6);
+    }
+#endif
   }
 
-  int numThreads_, rowBlockSize_, colBlockSize_, k_, n_, mLocal_;
-  std::vector<T> vecA_, vecB_, vecC_, vecCRef_;
+  int rowBlockSize_, colBlockSize_, m_, n_, k_;
+  std::vector<int> kLocalPerRank_;
   spla::Context ctx_;
+
+  static std::mt19937 staticRandGen_; // must produce same numbers on each rank
 };
+
+template<typename T>
+std::mt19937 GemmSSBTest<T>::staticRandGen_(42);
 
 typedef GemmSSBTest<double> GemmSSBScalar;
 
@@ -388,7 +448,7 @@ TEST_P(GemmSSBComplex, MirrorOffset) {
 }
 
 static auto param_type_names(
-    const ::testing::TestParamInfo<std::tuple<SplaProcessingUnit, int, int, int, int, int, int>>&
+    const ::testing::TestParamInfo<std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int,int>>>&
         info) -> std::string {
   std::stringstream stream;
   if(std::get<0>(info.param) == SplaProcessingUnit::SPLA_PU_HOST) {
@@ -401,7 +461,8 @@ static auto param_type_names(
   stream << "nb_" << std::get<3>(info.param) << "_";
   stream << "m_" << std::get<4>(info.param) << "_";
   stream << "n_" << std::get<5>(info.param) << "_";
-  stream << "kLocal_" << std::get<6>(info.param);
+  stream << "kMin_" << std::get<6>(info.param).first << "_";
+  stream << "kMax_" << std::get<6>(info.param).second;
 
   return stream.str();
 }
@@ -418,7 +479,7 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBScalar,
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
                                            ::testing::Values(1, 13, 32, 263),  // n
-                                           ::testing::Values(1, 13, 32, 263)),  // k
+                                           ::testing::Values(std::pair<int, int>(0, 1), std::pair<int, int>(50, 400))),  // k range
                         param_type_names);
 
 INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
@@ -433,5 +494,5 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
                                            ::testing::Values(1, 13, 32, 263),  // n
-                                           ::testing::Values(1, 13, 32, 263)),  // k
+                                           ::testing::Values(std::pair<int, int>(0, 1), std::pair<int, int>(50, 400))),  // k range
                         param_type_names);

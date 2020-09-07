@@ -74,17 +74,15 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
   if (k == 0 || n == 0) {
     return;
   }
-  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k, A, lda,
-                   B, ldb, C, ldc);
 
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
     return gemm_host<T>(ctx.num_threads(), SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k, alpha, A, lda,
                         B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc);
   }
 
-  HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
-  HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
-  HostArrayView2D<T> viewC(C, n, mLocal, ldc);
+  if (n < 0 || k < 0 || bRowOffset < 0 || bColOffset < 0) {
+    throw InvalidParameterError();
+  }
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -92,9 +90,18 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
                                               descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
                                               bRowOffset, bColOffset));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k, n,
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), k, n,
                                          bRowOffset, bColOffset));
   }
+
+  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
+                   matrixDist->local_cols(descB.comm().rank()),
+                   matrixDist->local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
+
+  HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
+  HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
+  HostArrayView2D<T> viewC(C, n, mLocal, ldc);
+
 
   std::vector<StripeHost<T>> stripes;
   stripes.reserve(ctx.num_threads());

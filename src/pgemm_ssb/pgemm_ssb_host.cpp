@@ -61,16 +61,15 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
   if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
     throw InvalidParameterError();
   }
-  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, A, lda, B, ldb, C, ldc);
+
+  if (m < 0 || n < 0 || cRowStart < 0 || cColStart < 0) {
+    throw InvalidParameterError();
+  }
 
   if (descC.comm().size() == 1) {
     return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
                         beta, C + cRowStart + cColStart * ldc, ldc);
   }
-
-  HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
-  HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
-  HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -78,17 +77,25 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
                                               descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
                                               cRowStart, cColStart));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), m, n,
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
                                          cRowStart, cColStart));
   }
+
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, matrixDist->local_rows(descC.comm().rank()),
+                   matrixDist->local_cols(descC.comm().rank()), kLocal, A, lda, B, ldb, C, ldc);
+
+  HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
+  HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
+  HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
+
   const IntType numBlockRows = matrixDist->num_block_rows();
   const IntType numBlockCols = matrixDist->num_block_cols();
 
   const IntType numBlockRowsInTile =
-      (ctx.tile_length_target() + matrixDist->max_rows_in_block() - 1) /
+      (ctx.tile_size_host() + matrixDist->max_rows_in_block() - 1) /
       matrixDist->max_rows_in_block();
   const IntType numBlockColsInTile =
-      (ctx.tile_length_target() + matrixDist->max_cols_in_block() - 1) /
+      (ctx.tile_size_host() + matrixDist->max_cols_in_block() - 1) /
       matrixDist->max_cols_in_block();
 
   // Thread barrier when multiplying tiles -> 2 tiles allow for maximum overlap

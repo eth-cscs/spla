@@ -94,16 +94,15 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Target size of tiles.
+   * @return Size of tiles on host. Used for partitioning communication.
    */
-  int tile_length_target() const;
+  int tile_size_host() const;
 
   /**
    * Access a Context parameter.
-   * @return Amount of memory, allowed to be allocated for computations. A small mimimum is always
-   * required, therefore this is not a hard limit.
+   * @return Target size of tiles on GPU.
    */
-  std::size_t gpu_memory_limit() const;
+  int tile_size_gpu() const;
 
   /**
    * Access a Context parameter.
@@ -127,19 +126,18 @@ public:
   void set_num_tiles(int numTilesPerThread);
 
   /**
-   * Set the target tile length used for computations.
+   * Set the tile size used for computations on host and partitioning of communication.
    *
-   * @param[in] tileLengthTarget Target tile length.
+   * @param[in] tileSizeHost Tile size.
    */
-  void set_tile_length_target(int tileLengthTarget);
+  void set_tile_size_host(int tileSizeHost);
 
   /**
-   * Set the memory limit on GPU. A small mimimum is always required, therefore this is not a hard
-   * limit.
+   * Set the tile size used for computations on GPU.
    *
-   * @param[in] gpuMemoryLimit GPU memory limit.
+   * @param[in] tileSizeGPU Tile size on GPU.
    */
-  void set_gpu_memory_limit(std::size_t gpuMemoryLimit);
+  void set_tile_size_gpu(int tileSizeGPU);
 
 private:
   /*! \cond PRIVATE */
