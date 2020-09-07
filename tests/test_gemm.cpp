@@ -234,3 +234,11 @@ INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmScalar,
                                            ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
                         param_type_names);
 
+INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmComplex,
+                        ::testing::Combine(::testing::Values(1, 13, 32, 263),
+                                           ::testing::Values(1, 13, 32, 263),
+                                           ::testing::Values(1, 13, 32, 263),
+                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
+                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
+                        param_type_names);
+

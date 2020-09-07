@@ -52,16 +52,32 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 #endif
   }
 
+
+  // get memory type - cuda 10 changed attribute name
 #if defined(SPLA_CUDA) && (CUDART_VERSION >= 10000)
-  if(attr.type != gpu::flag::MemoryTypeDevice) {
+  auto memoryType = attr.type;
 #else
-  if(attr.memoryType != gpu::flag::MemoryTypeDevice) {
+  auto memoryType = attr.memoryType;
 #endif
-    const T* hostPtr = attr.hostPointer ? static_cast<const T*>(attr.hostPointer) : inputPointer;
-    return {static_cast<const T*>(hostPtr), static_cast<const T*>(nullptr)};
+
+  std::pair<const T*, const T*> ptrPair{nullptr, nullptr};
+
+  // Workaround due to bug with HIP when parsing pointers with offset from allocated memory start
+#ifdef SPLA_ROCM
+  if(memoryType != gpu::flag::MemoryTypeDevice) {
+    ptrPair.first = inputPointer;
   } else {
-    return {static_cast<const T*>(nullptr), static_cast<const T*>(attr.devicePointer)};
+    ptrPair.second = inputPointer;
   }
+#else
+  if(memoryType != gpu::flag::MemoryTypeDevice) {
+    ptrPair.first = attr.hostPointer ? static_cast<const T*>(attr.hostPointer) : inputPointer;
+  } else {
+    ptrPair.second =  static_cast<const T*>(attr.devicePointer);
+  }
+#endif
+
+  return ptrPair;
 }
 
 template <typename T>
