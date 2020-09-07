@@ -85,7 +85,7 @@ SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] tileSizeHost Target size of tiles on host. Used for partitioning communication.
+ * @param[out] tileSizeHost Size of tiles for host compuations and partitioning of communication.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
@@ -93,7 +93,7 @@ SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] tileSizeGPU Target size of tiles on GPU.
+ * @param[out] tileSizeGPU Size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
@@ -135,20 +135,19 @@ SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
 SplaError spla_ctx_set_num_gpu_streams(SplaContext ctx, int numGPUStreams);
 
 /**
- * Set the target tile size used for computations.
+ * Set the tile size used for computations on host and partitioning communication.
  *
  * @param[in] ctx Context handle.
- * @param[in] tileSizeHost Target size of tiles on host. Used for partitioning communication.
+ * @param[in] tileSizeHost Size of tiles on host.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
 
 /**
- * Set the memory tileSizeGPU on GPU. A small mimimum is always required, therefore this is not a hard
- * tileSizeGPU.
+ * Set tile size for GPU computations.
  *
  * @param[in] ctx Context handle.
- * @param[in] tileSizeGPU Target size of tiles on GPU.
+ * @param[in] tileSizeGPU Size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU);

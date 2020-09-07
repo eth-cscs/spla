@@ -94,7 +94,7 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Target size of tiles on host. Used for partitioning communication.
+   * @return Size of tiles on host. Used for partitioning communication.
    */
   int tile_size_host() const;
 
@@ -126,16 +126,16 @@ public:
   void set_num_tiles(int numTilesPerThread);
 
   /**
-   * Set the target tile size used for computations and partitioning of communication.
+   * Set the tile size used for computations on host and partitioning of communication.
    *
-   * @param[in] tileSizeHost Target tile size.
+   * @param[in] tileSizeHost Tile size.
    */
   void set_tile_size_host(int tileSizeHost);
 
   /**
-   * Set the target tile size used for computations on GPU.
+   * Set the tile size used for computations on GPU.
    *
-   * @param[in] tileSizeGPU GPU memory limit.
+   * @param[in] tileSizeGPU Tile size on GPU.
    */
   void set_tile_size_gpu(int tileSizeGPU);
 
