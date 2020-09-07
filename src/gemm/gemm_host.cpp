@@ -28,6 +28,7 @@
 
 #include "gemm/gemm_host.hpp"
 #include <complex>
+#include <algorithm>
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "spla/config.h"
@@ -89,8 +90,11 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const IntType numThreadCols = numThreads;
   const IntType numThreadRows = numThreads > 1 ? 2 : 1;
 
-  const IntType colBlockSize = (n + numThreadCols - 1) / numThreadCols;
-  const IntType rowBlockSize = (m + numThreadRows - 1) / numThreadRows;
+  const IntType minBlockSize = 5;
+
+  const IntType colBlockSize = std::min<IntType>((n + numThreadCols - 1) / numThreadCols, minBlockSize);
+  const IntType rowBlockSize = std::min<IntType>((m + numThreadRows - 1) / numThreadRows, minBlockSize);
+
 
   if (omp_in_parallel()) {
     SPLA_OMP_PRAGMA("omp for schedule(dynamic) collapse(2)")
