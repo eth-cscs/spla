@@ -28,7 +28,6 @@
 #ifndef SPLA_CONTEXT_H
 #define SPLA_CONTEXT_H
 
-#include <stddef.h>
 #include "spla/config.h"
 #include "spla/errors.h"
 #include "spla/types.h"
@@ -86,19 +85,18 @@ SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] tileLengthTarget Target length of tiles.
+ * @param[out] tileSizeHost Target size of tiles on host. Used for partitioning communication.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_tile_length_target(SplaContext ctx, int* tileLengthTarget);
+SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
 
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] limit Amount of memory, allowed to be allocated for computations. A small mimimum is always
- * required, therefore this is not a hard limit.
+ * @param[out] tileSizeGPU Target size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_gpu_memory_limit(SplaContext ctx, size_t* limit);
+SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
 
 /**
  * Access a Context parameter.
@@ -137,23 +135,23 @@ SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
 SplaError spla_ctx_set_num_gpu_streams(SplaContext ctx, int numGPUStreams);
 
 /**
- * Set the target tile length used for computations.
+ * Set the target tile size used for computations.
  *
  * @param[in] ctx Context handle.
- * @param[in] tileLengthTarget Target tile length.
+ * @param[in] tileSizeHost Target size of tiles on host. Used for partitioning communication.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_tile_length_target(SplaContext ctx, int tileLengthTarget);
+SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
 
 /**
- * Set the memory limit on GPU. A small mimimum is always required, therefore this is not a hard
- * limit.
+ * Set the memory tileSizeGPU on GPU. A small mimimum is always required, therefore this is not a hard
+ * tileSizeGPU.
  *
  * @param[in] ctx Context handle.
- * @param[in] gpuMemoryLimit GPU memory limit.
+ * @param[in] tileSizeGPU Target size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_gpu_memory_limit(SplaContext ctx, size_t gpuMemoryLimit);
+SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU);
 
 #ifdef __cplusplus
 }

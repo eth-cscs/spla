@@ -34,6 +34,7 @@
 #include <utility>
 namespace spla {
 
+// Translate input pointer to host / device pointer pair. Managed memory is not considered for device pointer.
 template <typename T>
 auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T*> {
   gpu::PointerAttributes attr;
@@ -56,7 +57,8 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 #else
   if(attr.memoryType != gpu::flag::MemoryTypeDevice) {
 #endif
-    return {static_cast<const T*>(attr.hostPointer), static_cast<const T*>(nullptr)};
+    const T* hostPtr = attr.hostPointer ? static_cast<const T*>(attr.hostPointer) : inputPointer;
+    return {static_cast<const T*>(hostPtr), static_cast<const T*>(nullptr)};
   } else {
     return {static_cast<const T*>(nullptr), static_cast<const T*>(attr.devicePointer)};
   }

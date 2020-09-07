@@ -77,7 +77,7 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
                                               descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
                                               cRowStart, cColStart));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), m, n,
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
                                          cRowStart, cColStart));
   }
 
@@ -92,10 +92,10 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
   const IntType numBlockCols = matrixDist->num_block_cols();
 
   const IntType numBlockRowsInTile =
-      (ctx.tile_length_target() + matrixDist->max_rows_in_block() - 1) /
+      (ctx.tile_size_host() + matrixDist->max_rows_in_block() - 1) /
       matrixDist->max_rows_in_block();
   const IntType numBlockColsInTile =
-      (ctx.tile_length_target() + matrixDist->max_cols_in_block() - 1) /
+      (ctx.tile_size_host() + matrixDist->max_cols_in_block() - 1) /
       matrixDist->max_cols_in_block();
 
   // Thread barrier when multiplying tiles -> 2 tiles allow for maximum overlap

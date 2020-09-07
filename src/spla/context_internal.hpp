@@ -59,8 +59,8 @@ public:
       : pu_(pu),
         numThreads_(omp_get_max_threads()),
         numTiles_(4),
-        tileLengthTarget_(1024),
-        gpuMemoryLimit_(512 * 1024 * 1024),
+        tileSizeHost_(1024),
+        tileSizeGPU_(1024),
         gpuDeviceId_(0) {
     if (pu == SplaProcessingUnit::SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
@@ -118,9 +118,9 @@ public:
 
   inline auto num_tiles() const -> IntType { return numTiles_; }
 
-  inline auto tile_length_target() const -> IntType { return tileLengthTarget_; }
+  inline auto tile_size_host() const -> IntType { return tileSizeHost_; }
 
-  inline auto gpu_memory_limit() const -> std::size_t { return gpuMemoryLimit_; }
+  inline auto tile_size_gpu() const -> IntType { return tileSizeGPU_; }
 
   inline auto gpu_device_id() const -> int { return gpuDeviceId_; }
 
@@ -138,22 +138,23 @@ public:
     numTiles_ = numTilesPerThread;
   }
 
-  inline auto set_tile_length_target(IntType tileLengthTarget) -> void {
-    if(tileLengthTarget < 1) throw InvalidParameterError();
-    tileLengthTarget_ = tileLengthTarget;
+  inline auto set_tile_size_host(IntType tileSizeHost) -> void {
+    if(tileSizeHost < 1) throw InvalidParameterError();
+    tileSizeHost_ = tileSizeHost;
   }
 
-  inline auto set_gpu_memory_limit(std::size_t gpuMemoryLimit) -> void {
-    if(gpuMemoryLimit < 1) throw InvalidParameterError();
-    gpuMemoryLimit_ = gpuMemoryLimit;
+  inline auto set_tile_size_gpu(IntType tileSizeGPU) -> void {
+    if(tileSizeGPU < 1) throw InvalidParameterError();
+    tileSizeGPU_ = tileSizeGPU;
   }
+
 
 private:
   SplaProcessingUnit pu_;
   IntType numThreads_;
   IntType numTiles_;
-  IntType tileLengthTarget_;
-  std::size_t gpuMemoryLimit_;
+  IntType tileSizeHost_;
+  IntType tileSizeGPU_;
   int gpuDeviceId_;
 
   std::deque<std::shared_ptr<Buffer<MPIAllocator>>> mpiBuffers_;

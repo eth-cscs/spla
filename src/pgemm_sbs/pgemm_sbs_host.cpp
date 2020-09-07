@@ -90,7 +90,7 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
                                               descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
                                               bRowOffset, bColOffset));
   } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_length_target(), ctx.tile_length_target(), k, n,
+    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), k, n,
                                          bRowOffset, bColOffset));
   }
 

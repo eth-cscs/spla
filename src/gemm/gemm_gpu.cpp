@@ -84,14 +84,13 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
 
-  IntType maxGPUMultiplyBufferSize = ctx.gpu_memory_limit() / (ctx.num_tiles() * 3 * sizeof(T));
-  maxGPUMultiplyBufferSize = std::max<IntType>(maxGPUMultiplyBufferSize , 512*512); // miminum of 512^2
-
   auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
   auto& gpuBuffers = ctx.gpu_buffers(3 * ctx.num_tiles());
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsA;
   std::vector<GPUMatrixAccessor<GPUArrayConstView2D<T>>> matAccessorsB;
   std::vector<GPUMatrixAccessor<GPUArrayView2D<T>>> matAccessorsC;
+
+  const IntType maxNumElementsInTile = ctx.tile_size_gpu() * ctx.tile_size_gpu();
 
   for(IntType i = 0; i < ctx.num_tiles(); ++i) {
     matAccessorsA.emplace_back(
@@ -99,21 +98,21 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
                       GPUArrayConstView2D<T>(gpuPtrA, numColsA, numRowsA, lda))
                 : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                       HostArrayConstView2D<T>(A, numColsA, numRowsA, lda),
-                      maxGPUMultiplyBufferSize, gpuBuffers[i * 3]));
+                      maxNumElementsInTile, gpuBuffers[i * 3]));
 
     matAccessorsB.emplace_back(
         gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                       GPUArrayConstView2D<T>(gpuPtrB, numColsB, numRowsB, ldb))
                 : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                       HostArrayConstView2D<T>(B, numColsB, numRowsB, ldb),
-                      maxGPUMultiplyBufferSize, gpuBuffers[i * 3 + 1]));
+                      maxNumElementsInTile, gpuBuffers[i * 3 + 1]));
 
     matAccessorsC.emplace_back(
         gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(
                       GPUArrayView2D<T>(gpuPtrC, n, m, ldc))
                 : GPUMatrixAccessor<GPUArrayView2D<T>>(
                       HostArrayConstView2D<T>(C, n, m, ldc),
-                      maxGPUMultiplyBufferSize, gpuBuffers[i * 3 + 2]));
+                      maxNumElementsInTile, gpuBuffers[i * 3 + 2]));
   }
 
   IntType rowBlockSize = m;
