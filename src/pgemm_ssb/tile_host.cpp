@@ -25,41 +25,37 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <algorithm>
-#include <cassert>
-#include <complex>
-#include <cassert>
-#include <cstring>
 #include "tile_host.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
+#include <algorithm>
+#include <cassert>
+#include <complex>
+#include <cstring>
 namespace spla {
 
 template <typename T>
-TileHost<T>::TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                      std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
-                      ValueType alpha, const HostArrayConstView2D<ValueType>& A,
-                      const HostArrayConstView2D<ValueType>& B, ValueType beta,
-                      HostArrayView2D<ValueType> C, IntType numBlockRows, IntType numBlockCols)
-    : state_(TileState::Empty),
-      matrixDist_(std::move(matrixDist)),
-      buffer_(std::move(buffer)),
-      comm_(std::move(comm)),
-      numBlockRows_(numBlockRows),
-      numBlockCols_(numBlockCols),
-      A_(A),
-      B_(B),
-      C_(C),
-      alpha_(alpha),
-      beta_(beta),
-      opA_(opA) {
+TileHost<T>::TileHost(IntType numThreads, MPICommunicatorHandle comm,
+                      std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                      std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                      SplaOperation opA, ValueType alpha,
+                      const HostArrayConstView2D<ValueType> &A,
+                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                      HostArrayView2D<ValueType> C, IntType numBlockRows,
+                      IntType numBlockCols)
+    : state_(TileState::Empty), matrixDist_(std::move(matrixDist)),
+      buffer_(std::move(buffer)), comm_(std::move(comm)),
+      numBlockRows_(numBlockRows), numBlockCols_(numBlockCols), A_(A), B_(B),
+      C_(C), alpha_(alpha), beta_(beta), opA_(opA), numThreads_(numThreads) {
   assert(A_.dim_inner() == B_.dim_inner());
   assert(buffer_);
-  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
-  buffer_->resize<ValueType>(numBlockRows * numBlockCols * matrixDist_->max_rows_in_block() *
+  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE ||
+         opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
+  buffer_->resize<ValueType>(numBlockRows * numBlockCols *
+                             matrixDist_->max_rows_in_block() *
                              matrixDist_->max_cols_in_block());
 }
 
@@ -68,48 +64,37 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
   assert(blockRowIdx < matrixDist_->num_block_rows());
   assert(blockColIdx < matrixDist_->num_block_cols());
 
-  // avoid implicit barrier, use custom signal for finished block info
-  // generation, to allow for start of multiplication without waiting for all
-  // threads
-  SPLA_OMP_PRAGMA("omp single nowait") {
-    if (state_.get() != TileState::Empty) {
-      throw InternalError();
+  if (state_.get() != TileState::Empty) {
+    throw InternalError();
+  }
+  const IntType numCurrentBlockRows =
+      std::min(matrixDist_->num_block_rows() - blockRowIdx, numBlockRows_);
+  const IntType numCurrentBlockCols =
+      std::min(matrixDist_->num_block_cols() - blockColIdx, numBlockCols_);
+
+  // get block informations
+  blockInfos_.clear(); // leaves capacity unchanged
+  blockInfos_.reserve(numCurrentBlockRows * numCurrentBlockCols);
+  for (IntType c = 0; c < numCurrentBlockCols; ++c) {
+    for (IntType r = 0; r < numCurrentBlockRows; ++r) {
+      blockInfos_.emplace_back(
+          matrixDist_->get_block_info(blockRowIdx + r, blockColIdx + c));
     }
-    const IntType numCurrentBlockRows =
-        std::min(matrixDist_->num_block_rows() - blockRowIdx, numBlockRows_);
-    const IntType numCurrentBlockCols =
-        std::min(matrixDist_->num_block_cols() - blockColIdx, numBlockCols_);
-
-    // get block informations
-    blockInfos_.clear(); // leaves capacity unchanged
-    blockInfos_.reserve(numCurrentBlockRows * numCurrentBlockCols);
-    for (IntType c = 0; c < numCurrentBlockCols; ++c) {
-      for (IntType r = 0; r < numCurrentBlockRows; ++r) {
-        blockInfos_.emplace_back(
-            matrixDist_->get_block_info(blockRowIdx + r, blockColIdx + c));
-      }
-    }
-
-    const IntType numTileRows = blockInfos_.back().numRows +
-                                blockInfos_.back().globalSubRowIdx -
-                                blockInfos_.front().globalSubRowIdx;
-    const IntType numTileCols = blockInfos_.back().numCols +
-                                blockInfos_.back().globalSubColIdx -
-                                blockInfos_.front().globalSubColIdx;
-
-    tile_ = HostArrayView2D<ValueType>(buffer_->data<ValueType>(), numTileCols,
-                                       numTileRows);
-    state_.set(TileState::Prepared);
   }
 
-  // wait for block infos to be generated
-  while (state_.get() != TileState::Prepared) {
-  }
+  const IntType numTileRows = blockInfos_.back().numRows +
+                              blockInfos_.back().globalSubRowIdx -
+                              blockInfos_.front().globalSubRowIdx;
+  const IntType numTileCols = blockInfos_.back().numCols +
+                              blockInfos_.back().globalSubColIdx -
+                              blockInfos_.front().globalSubColIdx;
+
+  tile_ = HostArrayView2D<ValueType>(buffer_->data<ValueType>(), numTileCols,
+                                     numTileRows);
+  state_.set(TileState::Prepared);
 
   if (A_.dim_inner() == 0) {
-    SPLA_OMP_PRAGMA("omp single nowait") {
-      std::memset(tile_.data(), 0, tile_.size() * sizeof(ValueType));
-    }
+    std::memset(tile_.data(), 0, tile_.size() * sizeof(ValueType));
   } else {
     const IntType lda = A_.ld_inner();
     const IntType ldb = B_.ld_inner();
@@ -119,76 +104,82 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 
     const ValueType beta = 0.0;
 
-    gemm_host<T>(omp_get_num_threads(), opA_, SplaOperation::SPLA_OP_NONE, tile_.dim_inner(),
-                 tile_.dim_outer(), k, alpha_, &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
-                 &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta, tile_.data(), ldc);
+    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE,
+                 tile_.dim_inner(), tile_.dim_outer(), k, alpha_,
+                 &A_(blockInfos_.front().globalSubRowIdx, 0), lda,
+                 &B_(blockInfos_.front().globalSubColIdx, 0), ldb, beta,
+                 tile_.data(), ldc);
   }
 
-  // set state atomically
-  SPLA_OMP_PRAGMA("omp barrier")
-  SPLA_OMP_PRAGMA("omp single") {
-    this->state_.set(TileState::Multiplied);
-  } // implicit barrier
+
+  state_.set(TileState::Multiplied);
 }
 
-template <typename T>
-auto TileHost<T>::exchange() -> void {
+template <typename T> auto TileHost<T>::start_exchange() -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
-  assert(this->state_.get() == TileState::Multiplied);
   if (this->state_.get() != TileState::Multiplied) {
     throw InternalError();
   }
 
-  if(blockInfos_.size() == 1 && blockInfos_.front().mpiRank >= 0) {
-    const auto& info = blockInfos_.front();
+  if (blockInfos_.size() == 1 && blockInfos_.front().mpiRank >= 0) {
+    const auto &info = blockInfos_.front();
     // result is send to single rank
     if (comm_.rank() == info.mpiRank) {
-      mpi_check_status(MPI_Reduce(MPI_IN_PLACE, this->tile_.data(),
-                                  this->tile_.size(),
-                                  MPIMatchElementaryType<ValueType>::get(),
-                                  MPI_SUM, info.mpiRank, comm_.get()));
+      mpi_check_status(MPI_Ireduce(
+          MPI_IN_PLACE, this->tile_.data(), this->tile_.size(),
+          MPIMatchElementaryType<ValueType>::get(), MPI_SUM, info.mpiRank,
+          comm_.get(), mpiRequest_.get_and_activate()));
     } else {
-      mpi_check_status(MPI_Reduce(this->tile_.data(), nullptr,
-                                  this->tile_.size(),
-                                  MPIMatchElementaryType<ValueType>::get(),
-                                  MPI_SUM, info.mpiRank, comm_.get()));
+      mpi_check_status(MPI_Ireduce(
+          this->tile_.data(), nullptr, this->tile_.size(),
+          MPIMatchElementaryType<ValueType>::get(), MPI_SUM, info.mpiRank,
+          comm_.get(), mpiRequest_.get_and_activate()));
     }
   } else {
     // result required on all ranks
-    mpi_check_status(MPI_Allreduce(
-        MPI_IN_PLACE, this->tile_.data(), this->tile_.size(),
-        MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get()));
+    mpi_check_status(
+        MPI_Iallreduce(MPI_IN_PLACE, this->tile_.data(), this->tile_.size(),
+                       MPIMatchElementaryType<ValueType>::get(), MPI_SUM,
+                       comm_.get(), mpiRequest_.get_and_activate()));
   }
 
+  this->state_.set(TileState::InExchange);
+}
 
-  // set state atomically
-  // this->state_.set(TileState::InExchange);
+template <typename T> auto TileHost<T>::finalize_exchange() -> void {
+  assert(omp_get_thread_num() == 0); // only master thread should execute
+  if (this->state_.get() != TileState::InExchange) {
+    throw InternalError();
+  }
+
+  mpiRequest_.wait_if_active();
+
   this->state_.set(TileState::Exchanged);
 }
 
-
-template <typename T>
-auto TileHost<T>::extract() -> void {
-  assert(this->state_.get() == TileState::Exchanged);
+template <typename T> auto TileHost<T>::extract() -> void {
   if (this->state_.get() != TileState::Exchanged) {
     throw InternalError();
   }
 
   // iterate over all blocks within tile
-  // SPLA_OMP_PRAGMA("omp parallel num_threads(numThreads_)")
-  for (const auto& info : blockInfos_) {
-    const IntType tileRowOffset = info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
-    const IntType tileColOffset = info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
+  for (const auto &info : blockInfos_) {
+    const IntType tileRowOffset =
+        info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
+    const IntType tileColOffset =
+        info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
     if (info.mpiRank == comm_.rank() || info.mpiRank < 0) {
       if (this->beta_ == ValueType(0.0) || this->beta_ == ValueType(-0.0)) {
-        SPLA_OMP_PRAGMA("omp for schedule(dynamic) nowait")
+        SPLA_OMP_PRAGMA(
+            "omp parallel for schedule(static) num_threads(numThreads_)")
         for (IntType col = 0; col < info.numCols; ++col) {
           std::memcpy(&(this->C_(info.localColIdx + col, info.localRowIdx)),
                       &(this->tile_(col + tileColOffset, tileRowOffset)),
                       info.numRows * sizeof(T));
         }
       } else {
-        SPLA_OMP_PRAGMA("omp for schedule(dynamic) nowait")
+        SPLA_OMP_PRAGMA(
+            "omp parallel for schedule(static) num_threads(numThreads_)")
         for (IntType col = 0; col < info.numCols; ++col) {
           for (IntType row = 0; row < info.numRows; ++row) {
             this->C_(info.localColIdx + col, info.localRowIdx + row) =
@@ -200,17 +191,11 @@ auto TileHost<T>::extract() -> void {
       }
     }
   }
-
-  SPLA_OMP_PRAGMA("omp barrier")
-  SPLA_OMP_PRAGMA("omp single") {
-    this->state_.set(TileState::Empty);
-  } // implicit barrier
 }
-
 
 template class TileHost<double>;
 template class TileHost<float>;
 template class TileHost<std::complex<double>>;
 template class TileHost<std::complex<float>>;
 
-}  // namespace spla
+} // namespace spla

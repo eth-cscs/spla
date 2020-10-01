@@ -90,9 +90,9 @@ list(APPEND SPLA_EXTERNAL_LIBS MPI::MPI_CXX)
 find_package(MKL QUIET)
 
 if(SPLA_BUILD_TESTS)
-	set(SPLA_MKL_TARGET mkl::scalapack_mpich_intel_32bit_seq_st)
+	set(SPLA_MKL_TARGET mkl::scalapack_mpich_intel_32bit_omp_dyn)
 else()
-	set(SPLA_MKL_TARGET mkl::mkl_intel_32bit_seq_st)
+	set(SPLA_MKL_TARGET mkl::mkl_intel_32bit_omp_dyn)
 endif()
 
 if(TARGET ${SPLA_MKL_TARGET})
@@ -109,7 +109,8 @@ else()
 		set(SPLA_BLAS_OPENBLAS ON)
 
 		# try to find openblas header file
-		find_file(_OPENBLAS_HEADER NAMES cblas_openblas.h cblas-openblas.h cblas.h)
+		find_file(_OPENBLAS_HEADER NAMES cblas_openblas.h cblas-openblas.h cblas.h 
+			PATH_SUFFIXES openblas include include/openblas)
 		if(_OPENBLAS_HEADER)
 			get_filename_component(SPLA_BLAS_HEADER_NAME ${_OPENBLAS_HEADER} NAME)
 			get_filename_component(BLAS_INCLUDE_DIRS ${_OPENBLAS_HEADER} DIRECTORY)

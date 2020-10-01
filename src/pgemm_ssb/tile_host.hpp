@@ -50,20 +50,24 @@ class TileHost {
 public:
   using ValueType = T;
 
-  TileHost(MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-           std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA, ValueType alpha,
-           const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
-           ValueType beta, HostArrayView2D<ValueType> C, IntType numBlockRows,
+  TileHost(IntType numThreads, MPICommunicatorHandle comm,
+           std::shared_ptr<Buffer<MPIAllocator>> buffer,
+           std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
+           ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+           const HostArrayConstView2D<ValueType> &B, ValueType beta,
+           HostArrayView2D<ValueType> C, IntType numBlockRows,
            IntType numBlockCols);
 
-  // Multiply tile starting from given indices. All threads in parallel region
-  // must call this function.
+  // Multiply tile starting from given indices.
   auto multiply(IntType blockRowIdx, IntType blockColIdx) -> void;
 
-  // Exchange data with MPI. NOT thread-safe.
-  auto exchange() -> void;
+  // Start exchange data with MPI.
+  auto start_exchange() -> void;
 
-  // Add tile to C. All threads in parallel region must call this function.
+  // Finalize exchange data with MPI.
+  auto finalize_exchange() -> void;
+
+  // Add tile to C.
   auto extract() -> void;
 
   inline auto state() -> TileState { return state_.get(); }
@@ -73,6 +77,7 @@ protected:
   AtomicTileState state_;
   HostArrayView2D<ValueType> tile_;
   std::vector<BlockInfo> blockInfos_;
+  MPIRequestHandle mpiRequest_;
 
   // fixed
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
@@ -84,6 +89,7 @@ protected:
   HostArrayView2D<ValueType> C_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
+  const IntType numThreads_;
 };
 
 }  // namespace spla

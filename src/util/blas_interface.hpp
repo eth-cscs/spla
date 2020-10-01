@@ -40,6 +40,8 @@ enum class Operation { NONE = 111, TRANS = 112, CONJ_TRANS = 113 };
 
 auto is_parallel() -> bool;
 
+auto is_thread_safe() -> bool;
+
 auto get_num_threads() -> IntType;
 
 auto set_num_threads(IntType numThreads) -> void;
