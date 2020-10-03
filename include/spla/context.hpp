@@ -106,6 +106,13 @@ public:
 
   /**
    * Access a Context parameter.
+   * @return Operations threshold, below which computation may be done on Host, even if processing
+   * unit is set to GPU.
+   */
+  int op_threshold_gpu() const;
+
+  /**
+   * Access a Context parameter.
    * @return Id of GPU used for computations. This is set as fixed parameter by query of device id
    * at context creation.
    */
@@ -131,6 +138,14 @@ public:
    * @param[in] tileSizeHost Tile size.
    */
   void set_tile_size_host(int tileSizeHost);
+
+  /**
+   * Set the operations threshold, below which computation may be done on Host, even if processing
+   * unit is set to GPU.
+   *
+   * @param[in] opThresholdGPU Threshold in number of operations.
+   */
+  void set_op_threshold_gpu(int opThresholdGPU);
 
   /**
    * Set the tile size used for computations on GPU.
