@@ -170,16 +170,12 @@ template <typename T> auto TileHost<T>::extract() -> void {
         info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
     if (info.mpiRank == comm_.rank() || info.mpiRank < 0) {
       if (this->beta_ == ValueType(0.0) || this->beta_ == ValueType(-0.0)) {
-        SPLA_OMP_PRAGMA(
-            "omp parallel for schedule(static) num_threads(numThreads_)")
         for (IntType col = 0; col < info.numCols; ++col) {
           std::memcpy(&(this->C_(info.localColIdx + col, info.localRowIdx)),
                       &(this->tile_(col + tileColOffset, tileRowOffset)),
                       info.numRows * sizeof(T));
         }
       } else {
-        SPLA_OMP_PRAGMA(
-            "omp parallel for schedule(static) num_threads(numThreads_)")
         for (IntType col = 0; col < info.numCols; ++col) {
           for (IntType row = 0; row < info.numRows; ++row) {
             this->C_(info.localColIdx + col, info.localRowIdx + row) =
