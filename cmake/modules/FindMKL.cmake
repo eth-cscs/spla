@@ -230,7 +230,7 @@ find_package_handle_standard_args(MKL REQUIRED_VARS MKL_INCLUDE_DIR
 set(_mkl_dep_found_SEQ TRUE)
 set(_mkl_dep_found_TBB TRUE)
 if (TARGET OpenMP::OpenMP_CXX)
-  set(_mkl_dep_OMP OpenMP::OpenMP_CXX)
+  set(_mkl_dep_OMP ${OpenMP_CXX_LIBRARIES})
   set(_mkl_dep_found_OMP TRUE)
 endif()
 

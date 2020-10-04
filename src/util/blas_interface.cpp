@@ -175,6 +175,14 @@ auto is_parallel() -> bool {
 #endif
 }
 
+auto is_thread_safe() -> bool {
+#if defined(SPLA_BLAS_OPENBLAS)
+  return false;
+#else
+  return true;
+#endif
+}
+
 }  // namespace blas
 }  // namespace spla
 

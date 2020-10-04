@@ -110,39 +110,37 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
     auto &comms = descC.get_comms(numTiles);
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < numTiles; ++tileIdx, ++idx) {
-      tiles.emplace_back(comms[idx], buffers[idx], matrixDist, opA, alpha, viewA, viewB, beta,
-                         viewC, numBlockRowsInTile, numBlockColsInTile);
+      tiles.emplace_back(ctx.num_threads(), comms[idx], buffers[idx],
+                         matrixDist, opA, alpha, viewA, viewB, beta, viewC,
+                         numBlockRowsInTile, numBlockColsInTile);
     }
   }
 
-  BlasThreadsGuard threadGuard(1);
+  IntType currentTileIdx = 0;
+  for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
+       blockRowIdx += numBlockRowsInTile) {
+    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+         blockColIdx += numBlockColsInTile) {
+      const IntType nextTileIdx = (currentTileIdx + 1) % numTiles;
 
-  SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
-    IntType currentTileIdx = 0;
-    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
-      for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
-        const IntType nextTileIdx = (currentTileIdx + 1) % numTiles;
-
-        SPLA_OMP_PRAGMA("omp master") {
-          if (tiles[nextTileIdx].state() == TileState::Multiplied) tiles[nextTileIdx].exchange();
-        }
-
-        tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
-
-        if (tiles[nextTileIdx].state() == TileState::Exchanged) tiles[nextTileIdx].extract();
-
-        currentTileIdx = nextTileIdx;
+      if (tiles[nextTileIdx].state() == TileState::InExchange) {
+        tiles[nextTileIdx].finalize_exchange();
+        tiles[nextTileIdx].extract();
       }
+
+      tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
+      tiles[currentTileIdx].start_exchange();
+
+      currentTileIdx = nextTileIdx;
     }
-    for (IntType i = 0; i < numTiles; ++i) {
-      if (tiles[i].state() == TileState::Multiplied) {
-        SPLA_OMP_PRAGMA("omp master") { tiles[i].exchange(); }
-      }
+  }
+  for (IntType i = 0; i < numTiles; ++i) {
+    if (tiles[i].state() == TileState::InExchange) {
+      tiles[i].finalize_exchange();
+    }
 
-      SPLA_OMP_PRAGMA("omp barrier")
-      if (tiles[i].state() == TileState::Exchanged) {
-        tiles[i].extract();
-      }
+    if (tiles[i].state() == TileState::Exchanged) {
+      tiles[i].extract();
     }
   }
 }

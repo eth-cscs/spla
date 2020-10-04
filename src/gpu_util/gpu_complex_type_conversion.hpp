@@ -25,46 +25,64 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_BLAS_INTERFACE_HPP
-#define SPLA_BLAS_INTERFACE_HPP
+#ifndef SPLA_GPU_COMPLEX_TYPE_CONVERSION_HPP
+#define SPLA_GPU_COMPLEX_TYPE_CONVERSION_HPP
 
-#include <complex>
 #include "spla/config.h"
-#include "util/common_types.hpp"
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+#include <complex>
+#include "gpu_util/gpu_runtime_api.hpp"
+#include "gpu_util/gpu_blas_api.hpp"
 
 namespace spla {
-namespace blas {
 
-enum class Order { ROW_MAJOR = 101, COL_MAJOR = 102 };
-enum class Operation { NONE = 111, TRANS = 112, CONJ_TRANS = 113 };
+template <typename T>
+struct ComplexTypeGPU;
 
-auto is_parallel() -> bool;
+template <>
+struct ComplexTypeGPU<float>{ 
+  using type = float;
+};
 
-auto is_thread_safe() -> bool;
+template <>
+struct ComplexTypeGPU<double>{ 
+  using type = double;
+};
 
-auto get_num_threads() -> IntType;
+template <>
+struct ComplexTypeGPU<std::complex<float>>{ 
+  using type =gpu::blas::ComplexFloatType ;
+};
 
-auto set_num_threads(IntType numThreads) -> void;
+template <>
+struct ComplexTypeGPU<std::complex<double>>{
+  using type = gpu::blas::ComplexDoubleType;
+};
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          float alpha, const float *A, IntType lda, const float *B, IntType ldb, float beta,
-          float *C, IntType ldc) -> void;
+template <typename T>
+struct ComplexTypeHost;
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          double alpha, const double *A, IntType lda, const double *B, IntType ldb, double beta,
-          double *C, IntType ldc) -> void;
+template <>
+struct ComplexTypeHost<float> {
+  using type = float;
+};
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          std::complex<float> alpha, const std::complex<float> *A, IntType lda,
-          const std::complex<float> *B, IntType ldb, std::complex<float> beta,
-          std::complex<float> *C, IntType ldc) -> void;
+template <>
+struct ComplexTypeHost<double> {
+  using type = double;
+};
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          std::complex<double> alpha, const std::complex<double> *A, IntType lda,
-          const std::complex<double> *B, IntType ldb, std::complex<double> beta,
-          std::complex<double> *C, IntType ldc) -> void;
+template <>
+struct ComplexTypeHost<gpu::blas::ComplexFloatType> {
+  using type = std::complex<float>;
+};
 
-}  // namespace blas
+template <>
+struct ComplexTypeHost<gpu::blas::ComplexDoubleType> {
+  using type = std::complex<double>;
+};
+
 }  // namespace spla
 
+#endif
 #endif

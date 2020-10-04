@@ -44,6 +44,8 @@ int Context::tile_size_host() const { return ctxInternal_->tile_size_host(); }
 
 int Context::tile_size_gpu() const { return ctxInternal_->tile_size_gpu(); }
 
+int Context::op_threshold_gpu() const { return ctxInternal_->op_threshold_gpu(); }
+
 int Context::gpu_device_id() const { return ctxInternal_->gpu_device_id(); }
 
 void Context::set_num_threads(int numThreads) { ctxInternal_->set_num_threads(numThreads); }
@@ -56,8 +58,10 @@ void Context::set_tile_size_host(int tileSizeHost) {
   ctxInternal_->set_tile_size_host(tileSizeHost);
 }
 
-void Context::set_tile_size_gpu(int tileSizeGPU) {
-  ctxInternal_->set_tile_size_gpu(tileSizeGPU);
+void Context::set_tile_size_gpu(int tileSizeGPU) { ctxInternal_->set_tile_size_gpu(tileSizeGPU); }
+
+void Context::set_op_threshold_gpu(int opThresholdGPU) {
+  ctxInternal_->set_op_threshold_gpu(opThresholdGPU);
 }
 
 }  // namespace spla
@@ -146,6 +150,20 @@ SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU) {
   return SplaError::SPLA_SUCCESS;
 }
 
+SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    *opThresholdGPU = reinterpret_cast<spla::Context*>(ctx)->op_threshold_gpu();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
 SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
@@ -208,6 +226,20 @@ SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU) {
   }
   try {
     reinterpret_cast<spla::Context*>(ctx)->set_tile_size_gpu(tileSizeGPU);
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<spla::Context*>(ctx)->set_op_threshold_gpu(opThresholdGPU);
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

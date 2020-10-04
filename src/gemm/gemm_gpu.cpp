@@ -35,9 +35,11 @@
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gpu_util/multiply_gpu.hpp"
 #include "gpu_util/gpu_device_guard.hpp"
+#include "gpu_util/gpu_complex_type_conversion.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "util/check_gemm_param.hpp"
+#include "gemm/gemm_host.hpp"
 
 namespace spla {
 
@@ -83,6 +85,15 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   std::tie(hostPtrA, gpuPtrA) =  translate_gpu_pointer(A);
   std::tie(hostPtrB, gpuPtrB) =  translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
+
+  // Compute on Host if below threshold and input / output not on GPU
+  if (!gpuPtrA && !gpuPtrB && !gpuPtrC && 2 * m * n * k < ctx.op_threshold_gpu()) {
+    using hostType = typename ComplexTypeHost<T>::type;
+    return gemm_host<hostType>(
+        ctx.num_threads(), opA, opB, m, n, k, *reinterpret_cast<hostType *>(&alpha),
+        reinterpret_cast<const hostType *>(A), lda, reinterpret_cast<const hostType *>(B), ldb,
+        *reinterpret_cast<hostType *>(&beta), reinterpret_cast<hostType *>(C), ldc);
+  }
 
   auto& blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
   auto& gpuBuffers = ctx.gpu_buffers(3 * ctx.num_tiles());

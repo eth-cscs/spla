@@ -69,11 +69,18 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   if(ldb < 1) ldb =1;
   if(ldc < 1) ldc =1;
 
-  // if blas library is parallelized, call it directly
-  if(blas::is_parallel() && !omp_in_parallel()) {
-    BlasThreadsGuard threadGuard(numThreads);
-    blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda,
-               B, ldb, beta, C, ldc);
+  const bool inParallel = omp_in_parallel();
+
+  // if blas library is parallelized or not thread safe, call it directly
+  if((blas::is_parallel() && !inParallel) || !blas::is_thread_safe()) {
+    SPLA_OMP_PRAGMA("omp master") { // no implicit barrier
+      BlasThreadsGuard threadGuard(numThreads);
+      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A,
+                 lda, B, ldb, beta, C, ldc);
+    }
+    if(inParallel) {
+      SPLA_OMP_PRAGMA("omp barrier")
+    }
     return;
   }
 

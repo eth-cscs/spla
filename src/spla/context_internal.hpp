@@ -61,6 +61,7 @@ public:
         numTiles_(4),
         tileSizeHost_(1024),
         tileSizeGPU_(1024),
+        opThresholdGPU_(2000000),
         gpuDeviceId_(0) {
     if (pu == SplaProcessingUnit::SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
@@ -122,6 +123,8 @@ public:
 
   inline auto tile_size_gpu() const -> IntType { return tileSizeGPU_; }
 
+  inline auto op_threshold_gpu() const -> IntType { return opThresholdGPU_; }
+
   inline auto gpu_device_id() const -> int { return gpuDeviceId_; }
 
   // Set methods
@@ -148,6 +151,10 @@ public:
     tileSizeGPU_ = tileSizeGPU;
   }
 
+  inline auto set_op_threshold_gpu(IntType opThresholdGPU) -> void {
+    if(opThresholdGPU < 0) throw InvalidParameterError();
+    opThresholdGPU_ = opThresholdGPU;
+  }
 
 private:
   SplaProcessingUnit pu_;
@@ -155,6 +162,7 @@ private:
   IntType numTiles_;
   IntType tileSizeHost_;
   IntType tileSizeGPU_;
+  IntType opThresholdGPU_;
   int gpuDeviceId_;
 
   std::deque<std::shared_ptr<Buffer<MPIAllocator>>> mpiBuffers_;

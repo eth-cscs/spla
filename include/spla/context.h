@@ -101,6 +101,15 @@ SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
+ * @param[out] opThresholdGPU Operations threshold, below which computation may be done on Host,
+ * even if processing unit is set to GPU.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU);
+
+/**
+ * Access a Context parameter.
+ * @param[in] ctx Context handle.
  * @param[out] deviceId Id of GPU used for computations. This is set as fixed parameter by query of
  * device id at context creation.
  * @return Error code or SPLA_SUCCESS.
@@ -142,6 +151,16 @@ SplaError spla_ctx_set_num_gpu_streams(SplaContext ctx, int numGPUStreams);
  * @return Error code or SPLA_SUCCESS.
  */
 SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
+
+/**
+ * Set the operations threshold, below which computation may be done on Host, even if processing
+ * unit is set to GPU.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] opThresholdGPU Threshold in number of operations.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU);
 
 /**
  * Set tile size for GPU computations.

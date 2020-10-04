@@ -116,44 +116,42 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
     auto &comms = descB.get_comms(ctx.num_tiles());
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < ctx.num_tiles(); ++tileIdx, ++idx) {
-      stripes.emplace_back(comms[idx], buffers[2 * idx], buffers[2 * idx + 1], matrixDist, alpha,
-                           viewA, viewB, beta, viewC, numBlockColsInTile);
+      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx],
+                           buffers[2 * idx + 1], matrixDist, alpha, viewA,
+                           viewB, beta, viewC, numBlockColsInTile);
     }
   }
 
-  SPLA_OMP_PRAGMA("omp parallel num_threads(ctx.num_threads())") {
-    IntType currentTileIdx = 0;
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
-      IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
+  IntType currentTileIdx = 0;
+  for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+       blockColIdx += numBlockColsInTile) {
+    IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
-      SPLA_OMP_PRAGMA("omp master") {
-        while (stripes[nextTileIdx].state() != StripeState::Empty) {
-        }
-        stripes[nextTileIdx].collect(blockColIdx);
-        stripes[nextTileIdx].exchange();
-      }
+    stripes[nextTileIdx].collect(blockColIdx);
+    stripes[nextTileIdx].start_exchange();
 
-      if (blockColIdx != 0) {
-        while (stripes[currentTileIdx].state() != StripeState::Exchanged) {
-        }
-        stripes[currentTileIdx].multiply();
-      }
-
-      currentTileIdx = nextTileIdx;
+    if (stripes[currentTileIdx].state() == StripeState::InExchange) {
+      stripes[currentTileIdx].finalize_exchange();
+      stripes[currentTileIdx].multiply();
     }
-    SPLA_OMP_PRAGMA("omp barrier")
-    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-      if (stripes[i].state() == StripeState::Exchanged) {
-        stripes[i].multiply();
-      }
+
+    currentTileIdx = nextTileIdx;
+  }
+  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+    if (stripes[i].state() == StripeState::InExchange) {
+      stripes[i].finalize_exchange();
+    }
+    if (stripes[i].state() == StripeState::Exchanged) {
+      stripes[i].multiply();
     }
   }
 }
 
-template void pgemm_sbs_host(int mLocal, int n, int k, float alpha, const float *A, int lda,
-                             const float *B, int ldb, int bRowOffset, int bColOffset,
-                             MatrixDistributionInternal &descB, float beta, float *C, int ldc,
-                             ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, float alpha,
+                             const float *A, int lda, const float *B, int ldb,
+                             int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, float beta,
+                             float *C, int ldc, ContextInternal &ctx);
 
 template void pgemm_sbs_host(int mLocal, int n, int k, double alpha, const double *A, int lda,
                              const double *B, int ldb, int bRowOffset, int bColOffset,
