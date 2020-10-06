@@ -83,7 +83,7 @@ endif()
 
 
 # MPI is always required
-find_package(MPI REQUIRED)
+find_package(MPI COMPONENTS CXX REQUIRED)
 list(APPEND SPLA_EXTERNAL_LIBS MPI::MPI_CXX)
 
 # find BLAS backend for Host computation. Prefer MKL if available.
