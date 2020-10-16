@@ -87,7 +87,7 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   std::tie(hostPtrC, gpuPtrC) =  translate_gpu_pointer(C);
 
   // Compute on Host if below threshold and input / output not on GPU
-  if (!gpuPtrA && !gpuPtrB && !gpuPtrC && 2 * m * n * k < ctx.op_threshold_gpu()) {
+  if (!gpuPtrA && !gpuPtrB && !gpuPtrC && k * n < ctx.op_threshold_gpu() / (2 * m)) { // m always != 0 here
     using hostType = typename ComplexTypeHost<T>::type;
     return gemm_host<hostType>(
         ctx.num_threads(), opA, opB, m, n, k, *reinterpret_cast<hostType *>(&alpha),
