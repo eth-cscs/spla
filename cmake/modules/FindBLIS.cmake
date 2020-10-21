@@ -26,59 +26,61 @@
 
 
 #.rst:
-# FindROCBLAS
+# FindBLIS
 # -----------
 #
-# This module tries to find the rocBLAS library.
+# This module tries to find the BLIS library.
 #
 # The following variables are set
 #
 # ::
 #
-#   ROCBLAS_FOUND           - True if rocblas is found
-#   ROCBLAS_LIBRARIES       - The required libraries
-#   ROCBLAS_INCLUDE_DIRS    - The required include directory
+#   BLIS_FOUND           - True if blis is found
+#   BLIS_LIBRARIES       - The required libraries
+#   BLIS_INCLUDE_DIRS    - The required include directory
 #
 # The following import target is created
 #
 # ::
 #
-#   ROCBLAS::rocblas
+#   BLIS::blis
 
 #set paths to look for library from ROOT variables.If new policy is set, find_library() automatically uses them.
 if(NOT POLICY CMP0074)
-    set(_ROCBLAS_PATHS ${ROCBLAS_ROOT} $ENV{ROCBLAS_ROOT})
-endif()
-
-if(NOT _ROCBLAS_PATHS)
-    set(_ROCBLAS_PATHS /opt/rocm)
+    set(_BLIS_PATHS ${BLIS_ROOT} $ENV{BLIS_ROOT})
 endif()
 
 find_library(
-    ROCBLAS_LIBRARIES
-    NAMES "rocblas"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/lib" "rocblas/lib64" "rocblas" 
+    BLIS_LIBRARIES
+    NAMES "blis"
+    HINTS ${_BLIS_PATHS}
+    PATH_SUFFIXES "blis/lib" "blis/lib64" "blis"
 )
 find_path(
-    ROCBLAS_INCLUDE_DIRS
-    NAMES "rocblas.h"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/include" "include"
+    BLIS_INCLUDE_DIRS
+    NAMES "blis.h"
+    HINTS ${_BLIS_PATHS}
+    PATH_SUFFIXES "blis" "blis/include" "include/blis"
+)
+find_path(
+    BLIS_CBLAS_INCLUDE_DIRS
+    NAMES "cblas_blis.h" "cblas-blis.h" "cblas.h" 
+    HINTS ${_BLIS_PATHS}
+    PATH_SUFFIXES "blis" "blis/include" "include/blis"
 )
 
 # check if found
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ROCBLAS REQUIRED_VARS ROCBLAS_INCLUDE_DIRS ROCBLAS_LIBRARIES )
+find_package_handle_standard_args(BLIS REQUIRED_VARS BLIS_INCLUDE_DIRS BLIS_LIBRARIES BLIS_CBLAS_INCLUDE_DIRS)
 
 # add target to link against
-if(ROCBLAS_FOUND)
-    if(NOT TARGET ROCBLAS::rocblas)
-        add_library(ROCBLAS::rocblas INTERFACE IMPORTED)
+if(BLIS_FOUND)
+    if(NOT TARGET BLIS::blis)
+        add_library(BLIS::blis INTERFACE IMPORTED)
     endif()
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_LINK_LIBRARIES ${ROCBLAS_LIBRARIES})
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${ROCBLAS_INCLUDE_DIRS})
+    set_property(TARGET BLIS::blis PROPERTY INTERFACE_LINK_LIBRARIES ${BLIS_LIBRARIES})
+    set_property(TARGET BLIS::blis PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${BLIS_INCLUDE_DIRS} ${BLIS_CBLAS_INCLUDE_DIRS})
 endif()
 
 # prevent clutter in cache
-MARK_AS_ADVANCED(ROCBLAS_FOUND ROCBLAS_LIBRARIES ROCBLAS_INCLUDE_DIRS)
+MARK_AS_ADVANCED(BLIS_FOUND BLIS_LIBRARIES BLIS_INCLUDE_DIRS BLIS_CBLAS_INCLUDE_DIRS)

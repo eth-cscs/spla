@@ -187,6 +187,7 @@ template <typename T> auto TileHost<T>::extract() -> void {
       }
     }
   }
+  this->state_.set(TileState::Empty);
 }
 
 template class TileHost<double>;

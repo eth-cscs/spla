@@ -70,12 +70,13 @@ make -j8 install
 ```
 
 ### CMake options
-| Option                | Default | Description                                      |
-|-----------------------|---------|--------------------------------------------------|
-| SPLA_OMP              | ON      | Enable multi-threading with OpenMP               |
-| SPLA_GPU_BACKEND      | OFF     | Select GPU backend. Can be OFF, CUDA or ROCM     |
-| SPLA_BUILD_TESTS      | OFF     | Build test executables for developement purposes |
-| SPLA_INSTALL          | ON      | Add library to install target                    |
+| Option                |  Values                                                  | Default | Description                                      |
+|-----------------------|----------------------------------------------------------|---------|--------------------------------------------------|
+| SPLA_OMP              |  ON, OFF                                                 | ON      | Enable multi-threading with OpenMP               |
+| SPLA_HOST_BLAS        |  AUTO, MKL, OPENBLAS, BLIS, CRAY_LIBSCI, ATLAS, GENERIC  | AUTO    | BLAS library for computations on host            |
+| SPLA_GPU_BACKEND      |  OFF, CUDA, ROCM                                         | OFF     | Select GPU backend                               |
+| SPLA_BUILD_TESTS      |  ON, OFF                                                 | OFF     | Build test executables                           |
+| SPLA_INSTALL          |  ON, OFF                                                 | ON      | Add library to install target                    |
 
 ## Acknowledgements
 This work was supported by:

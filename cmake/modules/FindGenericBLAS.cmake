@@ -26,59 +26,61 @@
 
 
 #.rst:
-# FindROCBLAS
+# FindGenericBLAS
 # -----------
 #
-# This module tries to find the rocBLAS library.
+# This module tries to find the GenericBLAS library.
 #
 # The following variables are set
 #
 # ::
 #
-#   ROCBLAS_FOUND           - True if rocblas is found
-#   ROCBLAS_LIBRARIES       - The required libraries
-#   ROCBLAS_INCLUDE_DIRS    - The required include directory
+#   GenericBLAS_FOUND           - True if blas is found
+#   GenericBLAS_LIBRARIES       - The required libraries
+#   GenericBLAS_INCLUDE_DIRS    - The required include directory
 #
 # The following import target is created
 #
 # ::
 #
-#   ROCBLAS::rocblas
+#   GenericBLAS::blas
 
 #set paths to look for library from ROOT variables.If new policy is set, find_library() automatically uses them.
 if(NOT POLICY CMP0074)
-    set(_ROCBLAS_PATHS ${ROCBLAS_ROOT} $ENV{ROCBLAS_ROOT})
-endif()
-
-if(NOT _ROCBLAS_PATHS)
-    set(_ROCBLAS_PATHS /opt/rocm)
+    set(_GenericBLAS_PATHS ${GenericBLAS_ROOT} $ENV{GenericBLAS_ROOT})
 endif()
 
 find_library(
-    ROCBLAS_LIBRARIES
-    NAMES "rocblas"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/lib" "rocblas/lib64" "rocblas" 
+    GenericBLAS_LIBRARIES
+    NAMES "blas"
+    HINTS ${_GenericBLAS_PATHS}
+)
+find_library( # optinally look for cblas library - not required
+    GenericBLAS_CBLAS_LIBRARIES
+    NAMES "cblas"
+    HINTS ${_GenericBLAS_PATHS}
 )
 find_path(
-    ROCBLAS_INCLUDE_DIRS
-    NAMES "rocblas.h"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/include" "include"
+    GenericBLAS_INCLUDE_DIRS
+    NAMES "cblas.h"
+    HINTS ${_GenericBLAS_PATHS}
 )
 
 # check if found
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ROCBLAS REQUIRED_VARS ROCBLAS_INCLUDE_DIRS ROCBLAS_LIBRARIES )
+find_package_handle_standard_args(GenericBLAS REQUIRED_VARS GenericBLAS_INCLUDE_DIRS GenericBLAS_LIBRARIES)
+if(GenericBLAS_CBLAS_LIBRARIES)
+    list(APPEND GenericBLAS_LIBRARIES ${GenericBLAS_CBLAS_LIBRARIES})
+endif()
 
 # add target to link against
-if(ROCBLAS_FOUND)
-    if(NOT TARGET ROCBLAS::rocblas)
-        add_library(ROCBLAS::rocblas INTERFACE IMPORTED)
+if(GenericBLAS_FOUND)
+    if(NOT TARGET GenericBLAS::blas)
+        add_library(GenericBLAS::blas INTERFACE IMPORTED)
     endif()
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_LINK_LIBRARIES ${ROCBLAS_LIBRARIES})
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${ROCBLAS_INCLUDE_DIRS})
+    set_property(TARGET GenericBLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${GenericBLAS_LIBRARIES})
+    set_property(TARGET GenericBLAS::blas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${GenericBLAS_INCLUDE_DIRS})
 endif()
 
 # prevent clutter in cache
-MARK_AS_ADVANCED(ROCBLAS_FOUND ROCBLAS_LIBRARIES ROCBLAS_INCLUDE_DIRS)
+MARK_AS_ADVANCED(GenericBLAS_FOUND GenericBLAS_LIBRARIES GenericBLAS_INCLUDE_DIRS GenericBLAS_CBLAS_LIBRARIES)

@@ -26,59 +26,55 @@
 
 
 #.rst:
-# FindROCBLAS
+# FindATLAS
 # -----------
 #
-# This module tries to find the rocBLAS library.
+# This module tries to find the ATLAS library.
 #
 # The following variables are set
 #
 # ::
 #
-#   ROCBLAS_FOUND           - True if rocblas is found
-#   ROCBLAS_LIBRARIES       - The required libraries
-#   ROCBLAS_INCLUDE_DIRS    - The required include directory
+#   ATLAS_FOUND           - True if atlas is found
+#   ATLAS_LIBRARIES       - The required libraries
+#   ATLAS_INCLUDE_DIRS    - The required include directory
 #
 # The following import target is created
 #
 # ::
 #
-#   ROCBLAS::rocblas
+#   ATLAS::atlas
 
 #set paths to look for library from ROOT variables.If new policy is set, find_library() automatically uses them.
 if(NOT POLICY CMP0074)
-    set(_ROCBLAS_PATHS ${ROCBLAS_ROOT} $ENV{ROCBLAS_ROOT})
-endif()
-
-if(NOT _ROCBLAS_PATHS)
-    set(_ROCBLAS_PATHS /opt/rocm)
+    set(_ATLAS_PATHS ${ATLAS_ROOT} $ENV{ATLAS_ROOT})
 endif()
 
 find_library(
-    ROCBLAS_LIBRARIES
-    NAMES "rocblas"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/lib" "rocblas/lib64" "rocblas" 
+    ATLAS_LIBRARIES
+    NAMES "atlas"
+    HINTS ${_ATLAS_PATHS}
+    PATH_SUFFIXES "atlas/lib" "atlas/lib64" "atlas"
 )
 find_path(
-    ROCBLAS_INCLUDE_DIRS
-    NAMES "rocblas.h"
-    HINTS ${_ROCBLAS_PATHS}
-    PATH_SUFFIXES "rocblas/include" "include"
+    ATLAS_INCLUDE_DIRS
+    NAMES "cblas-atlas.h" "cblas_atlas.h" "cblas.h" 
+    HINTS ${_ATLAS_PATHS}
+    PATH_SUFFIXES "atlas" "atlas/include" "include/atlas"
 )
 
 # check if found
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ROCBLAS REQUIRED_VARS ROCBLAS_INCLUDE_DIRS ROCBLAS_LIBRARIES )
+find_package_handle_standard_args(ATLAS REQUIRED_VARS ATLAS_INCLUDE_DIRS ATLAS_LIBRARIES)
 
 # add target to link against
-if(ROCBLAS_FOUND)
-    if(NOT TARGET ROCBLAS::rocblas)
-        add_library(ROCBLAS::rocblas INTERFACE IMPORTED)
+if(ATLAS_FOUND)
+    if(NOT TARGET ATLAS::atlas)
+        add_library(ATLAS::atlas INTERFACE IMPORTED)
     endif()
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_LINK_LIBRARIES ${ROCBLAS_LIBRARIES})
-    set_property(TARGET ROCBLAS::rocblas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${ROCBLAS_INCLUDE_DIRS})
+    set_property(TARGET ATLAS::atlas PROPERTY INTERFACE_LINK_LIBRARIES ${ATLAS_LIBRARIES})
+    set_property(TARGET ATLAS::atlas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${ATLAS_INCLUDE_DIRS})
 endif()
 
 # prevent clutter in cache
-MARK_AS_ADVANCED(ROCBLAS_FOUND ROCBLAS_LIBRARIES ROCBLAS_INCLUDE_DIRS)
+MARK_AS_ADVANCED(ATLAS_FOUND ATLAS_LIBRARIES ATLAS_INCLUDE_DIRS)
