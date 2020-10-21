@@ -48,6 +48,10 @@ using ConstDoubleComplexPtr = const void *;
 
 #endif
 
+#ifdef SPLA_BLAS_BLIS
+#include <blis.h>
+#endif
+
 
 // use blas header if found
 #if defined(SPLA_BLAS_HEADER_NAME)
@@ -152,6 +156,8 @@ auto get_num_threads() -> IntType {
   return openblas_get_num_threads();
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads();
+#elif defined(SPLA_BLAS_BLIS)
+  return bli_thread_get_num_threads();
 #else
   return 1;
 #endif
@@ -162,6 +168,8 @@ auto set_num_threads(IntType numThreads) -> void {
   openblas_set_num_threads(numThreads);
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   mkl_set_num_threads(numThreads);
+#elif defined(SPLA_BLAS_BLIS)
+  bli_thread_set_num_threads(numThreads);
 #endif
 }
 
@@ -170,6 +178,8 @@ auto is_parallel() -> bool {
   return openblas_get_parallel();
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads() != 1;
+#elif defined(SPLA_BLAS_BLIS)
+  return bli_thread_get_num_threads() == 1;
 #else
   return false;
 #endif
