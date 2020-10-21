@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.2.0)
+project(spla LANGUAGES CXX VERSION 1.2.1)
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
