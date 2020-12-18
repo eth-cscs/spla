@@ -47,6 +47,8 @@
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
 #include "util/check_gemm_param.hpp"
+#include "mpi_util/mpi_match_elementary_type.hpp"
+#include "mpi_util/mpi_request_handle.hpp"
 
 namespace spla {
 
@@ -66,10 +68,10 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
     throw InvalidParameterError();
   }
 
-  if (descC.comm().size() == 1) {
-    return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
-                        beta, C + cRowStart + cColStart * ldc, ldc);
-  }
+  // if (descC.comm().size() == 1) {
+  //   return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
+  //                       beta, C + cRowStart + cColStart * ldc, ldc);
+  // }
 
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
@@ -77,6 +79,7 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
                                               descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
                                               cRowStart, cColStart));
   } else {
+    return; // TODO:remove
     matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
                                          cRowStart, cColStart));
   }
@@ -88,61 +91,156 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
   HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
 
-  const IntType numBlockRows = matrixDist->num_block_rows();
-  const IntType numBlockCols = matrixDist->num_block_cols();
-
-  const IntType numBlockRowsInTile =
-      (ctx.tile_size_host() + matrixDist->max_rows_in_block() - 1) /
-      matrixDist->max_rows_in_block();
-  const IntType numBlockColsInTile =
-      (ctx.tile_size_host() + matrixDist->max_cols_in_block() - 1) /
-      matrixDist->max_cols_in_block();
-
-  // Thread barrier when multiplying tiles -> 2 tiles allow for maximum overlap
-  constexpr IntType numTiles = 2;
-
-  std::vector<TileHost<T>> tiles;
-  tiles.reserve(numTiles);
-
-  // create tiles
-  {
-    auto &buffers = ctx.mpi_buffers(numTiles);
-    auto &comms = descC.get_comms(numTiles);
-    IntType idx = 0;
-    for (IntType tileIdx = 0; tileIdx < numTiles; ++tileIdx, ++idx) {
-      tiles.emplace_back(ctx.num_threads(), comms[idx], buffers[idx],
-                         matrixDist, opA, alpha, viewA, viewB, beta, viewC,
-                         numBlockRowsInTile, numBlockColsInTile);
-    }
+  auto buffers = ctx.mpi_buffers(3);
+  for(auto& b : buffers) {
+    b->resize<T>(matrixDist->max_cols_in_block() *
+                 matrixDist->max_rows_in_block());
   }
+  HostArrayView2D<T> recvView(buffers[0]->data<T>(), matrixDist->max_cols_in_block(), matrixDist->max_rows_in_block());
+  HostArrayView2D<T> sendView(buffers[1]->data<T>(), matrixDist->max_cols_in_block(), matrixDist->max_rows_in_block());
+  HostArrayView2D<T> resultView(buffers[2]->data<T>(), matrixDist->max_cols_in_block(), matrixDist->max_rows_in_block());
 
-  IntType currentTileIdx = 0;
-  for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
-       blockRowIdx += numBlockRowsInTile) {
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-         blockColIdx += numBlockColsInTile) {
-      const IntType nextTileIdx = (currentTileIdx + 1) % numTiles;
+  const IntType gridSize = descC.proc_grid_cols() * descC.proc_grid_rows();
+  const IntType numBlocks = matrixDist->num_blocks();
 
-      if (tiles[nextTileIdx].state() == TileState::InExchange) {
-        tiles[nextTileIdx].finalize_exchange();
-        tiles[nextTileIdx].extract();
+  std::vector<BlockInfo> blockInfos(gridSize);
+
+  MPIRequestHandle sendReq;
+  MPIRequestHandle recvReq;
+  auto& comm = descC.comm();
+  MPI_Win resultWindow;
+  MPI_Win_create(resultView.data(), resultView.size() * sizeof(T), sizeof(T),
+                 MPI_INFO_NULL, comm.get(), &resultWindow);
+
+  for (IntType blockColIdx = 0; blockColIdx < matrixDist->num_block_cols();
+       blockColIdx += descC.proc_grid_cols()) {
+    for (IntType blockRowIdx = 0; blockRowIdx < matrixDist->num_block_rows();
+         blockRowIdx += descC.proc_grid_rows()) {
+      const IntType numCurrentBlockRows =
+          std::min<IntType>(matrixDist->num_block_rows() - blockRowIdx, descC.proc_grid_rows());
+      const IntType numCurrentBlockCols =
+          std::min<IntType>(matrixDist->num_block_cols() - blockColIdx, descC.proc_grid_cols());
+      const IntType numCurrentBlocks = numCurrentBlockRows * numCurrentBlockCols;
+      // compute block infos
+      IntType myBlockIdx = -1;
+      for (IntType ic = 0; ic < numCurrentBlockCols; ++ic) {
+        for (IntType ir = 0; ir < numCurrentBlockRows; ++ir) {
+          blockInfos[ic * numCurrentBlockRows + ir] = matrixDist->get_block_info(blockRowIdx + ir, blockColIdx + ic);
+          if (blockInfos[ic * numCurrentBlockRows + ir].mpiRank == comm.rank()) {
+            assert(myBlockIdx < 0); // each rank must receive at most one block within grid
+            myBlockIdx = ic * numCurrentBlockRows + ir;
+          }
+        }
+      }
+      const bool accRequired = numCurrentBlocks != comm.size();
+
+      if (accRequired) {
+        // make sure result is 0 for accumulation
+        std::memset(resultView.data(), 0, resultView.size() * sizeof(T));
+        // Remote access required after this fence
+        MPI_Win_fence(0, resultWindow);
       }
 
-      tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
-      tiles[currentTileIdx].start_exchange();
+      if (myBlockIdx >= 0) {
+        const IntType startGridIdx = (myBlockIdx + 1) % numCurrentBlocks;
 
-      currentTileIdx = nextTileIdx;
+        const int sendRank =
+            blockInfos[myBlockIdx == 0 ? numCurrentBlocks - 1 : myBlockIdx - 1].mpiRank;
+        const int recvRank = blockInfos[(myBlockIdx + 1) % numCurrentBlocks].mpiRank;
+
+        std::memset(recvView.data(), 0, recvView.size() * sizeof(T));
+
+        for (IntType i = 0; i < numCurrentBlocks; ++i) {
+          const IntType gridBlockIdx = (startGridIdx + i) % numCurrentBlocks;
+          const auto &info = blockInfos[gridBlockIdx];
+
+          sendReq.wait_if_active();
+          recvReq.wait_if_active();
+          std::swap(sendView, recvView);
+
+          if (i < numCurrentBlocks - 1) {
+            MPI_Irecv(recvView.data(), recvView.size(),
+                      MPIMatchElementaryType<T>::get(), recvRank, 0, comm.get(),
+                      recvReq.get_and_activate());
+          }
+          if (viewA.dim_inner() != 0) {
+            gemm_host<T>(ctx.num_threads(), opA, SplaOperation::SPLA_OP_NONE,
+                         info.numRows, info.numCols, kLocal, alpha,
+                         &viewA(info.globalSubRowIdx, 0), lda,
+                         &viewB(info.globalSubColIdx, 0), ldb, 1.0,
+                         sendView.data(), sendView.ld_inner());
+          }
+          if (i < numCurrentBlocks - 1)
+            MPI_Send(sendView.data(), sendView.size(),
+                     MPIMatchElementaryType<T>::get(), sendRank, 0, comm.get());
+          else {
+            if(accRequired)
+              mpi_check_status(MPI_Raccumulate(
+                  sendView.data(), sendView.size(),
+                  MPIMatchElementaryType<T>::get(), info.mpiRank, 0,
+                  sendView.size(), MPIMatchElementaryType<T>::get(), MPI_SUM,
+                  resultWindow, sendReq.get_and_activate()));
+          }
+        }
+
+      } else {
+        // More ranks than blocks -> extra ranks simply do accumulate on target
+        assert(accRequired);
+        for (IntType gridBlockIdx = 0; gridBlockIdx < numCurrentBlocks;
+             ++gridBlockIdx) {
+          BlockInfo info =
+              blockInfos[(gridBlockIdx + comm.rank()) % numCurrentBlocks];
+          assert(info.numCols <= sendView.dim_outer());
+          assert(info.numRows <= sendView.dim_inner());
+          sendReq.wait_if_active();
+          if (viewA.dim_inner() == 0) {
+            std::memset(sendView.data(), 0, sendView.size() * sizeof(T));
+          } else {
+            gemm_host<T>(ctx.num_threads(), opA, SplaOperation::SPLA_OP_NONE,
+                         info.numRows, info.numCols, kLocal, alpha,
+                         &viewA(info.globalSubRowIdx, 0), lda,
+                         &viewB(info.globalSubColIdx, 0), ldb, 0.0,
+                         sendView.data(), sendView.ld_inner());
+          }
+          if (info.mpiRank < 0) {
+            mpi_check_status(MPI_Allreduce(
+                sendView.data(), resultView.data(), sendView.size(),
+                MPIMatchElementaryType<T>::get(), MPI_SUM, comm.get()));
+
+          } else {
+            mpi_check_status(MPI_Raccumulate(
+                sendView.data(), sendView.size(),
+                MPIMatchElementaryType<T>::get(), info.mpiRank, 0,
+                sendView.size(), MPIMatchElementaryType<T>::get(), MPI_SUM,
+                resultWindow, sendReq.get_and_activate()));
+          }
+        }
+      }
+
+      sendReq.wait_if_active();
+      recvReq.wait_if_active();
+
+      // local access only after this fence
+      if (accRequired) {
+        MPI_Win_fence(0, resultWindow);
+      }
+
+      if (myBlockIdx >= 0) {
+        const auto &myInfo = blockInfos[myBlockIdx];
+        auto TileView = accRequired ? resultView : sendView;
+        for (IntType col = 0; col < myInfo.numCols; ++col) {
+          for (IntType row = 0; row < myInfo.numRows; ++row) {
+            viewC(myInfo.localColIdx + col, myInfo.localRowIdx + row) =
+                beta *
+                    viewC(myInfo.localColIdx + col, myInfo.localRowIdx + row) +
+                TileView(col, row);
+          }
+        }
+      }
     }
   }
-  for (IntType i = 0; i < numTiles; ++i) {
-    if (tiles[i].state() == TileState::InExchange) {
-      tiles[i].finalize_exchange();
-    }
 
-    if (tiles[i].state() == TileState::Exchanged) {
-      tiles[i].extract();
-    }
-  }
+  MPI_Win_free(&resultWindow);
 }
 
 template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,

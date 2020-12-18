@@ -45,7 +45,7 @@ public:
     if (!initialized) {
       // MPI_Init(&argc, &argv);
       int provided;
-      mpi_check_status(MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided));
+      mpi_check_status(MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided));
       if(provided < MPI_THREAD_FUNNELED) {
         throw MPIError();
       }
