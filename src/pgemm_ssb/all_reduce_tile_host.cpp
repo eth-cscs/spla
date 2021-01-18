@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "tile_host.hpp"
+#include "pgemm_ssb/all_reduce_tile_host.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
@@ -38,7 +38,7 @@
 namespace spla {
 
 template <typename T>
-TileHost<T>::TileHost(IntType numThreads, MPICommunicatorHandle comm,
+AllReduceTileHost<T>::AllReduceTileHost(IntType numThreads, MPICommunicatorHandle comm,
                       std::shared_ptr<Buffer<MPIAllocator>> buffer,
                       std::shared_ptr<MatrixBlockGenerator> matrixDist,
                       SplaOperation opA, ValueType alpha,
@@ -60,7 +60,7 @@ TileHost<T>::TileHost(IntType numThreads, MPICommunicatorHandle comm,
 }
 
 template <typename T>
-auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
+auto AllReduceTileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
   assert(blockRowIdx < matrixDist_->num_block_rows());
   assert(blockColIdx < matrixDist_->num_block_cols());
 
@@ -115,7 +115,7 @@ auto TileHost<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
   state_.set(TileState::Multiplied);
 }
 
-template <typename T> auto TileHost<T>::start_exchange() -> void {
+template <typename T> auto AllReduceTileHost<T>::start_exchange() -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
   if (this->state_.get() != TileState::Multiplied) {
     throw InternalError();
@@ -146,7 +146,7 @@ template <typename T> auto TileHost<T>::start_exchange() -> void {
   this->state_.set(TileState::InExchange);
 }
 
-template <typename T> auto TileHost<T>::finalize_exchange() -> void {
+template <typename T> auto AllReduceTileHost<T>::finalize_exchange() -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
   if (this->state_.get() != TileState::InExchange) {
     throw InternalError();
@@ -157,7 +157,7 @@ template <typename T> auto TileHost<T>::finalize_exchange() -> void {
   this->state_.set(TileState::Exchanged);
 }
 
-template <typename T> auto TileHost<T>::extract() -> void {
+template <typename T> auto AllReduceTileHost<T>::extract() -> void {
   if (this->state_.get() != TileState::Exchanged) {
     throw InternalError();
   }
@@ -190,9 +190,9 @@ template <typename T> auto TileHost<T>::extract() -> void {
   this->state_.set(TileState::Empty);
 }
 
-template class TileHost<double>;
-template class TileHost<float>;
-template class TileHost<std::complex<double>>;
-template class TileHost<std::complex<float>>;
+template class AllReduceTileHost<double>;
+template class AllReduceTileHost<float>;
+template class AllReduceTileHost<std::complex<double>>;
+template class AllReduceTileHost<std::complex<float>>;
 
 } // namespace spla

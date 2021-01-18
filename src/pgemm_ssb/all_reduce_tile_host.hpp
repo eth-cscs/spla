@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_TILE_HOST_HPP
-#define SPLA_TILE_HOST_HPP
+#ifndef SPLA_ALL_REDUCE_TILE_HOST_HPP
+#define SPLA_ALL_REDUCE_TILE_HOST_HPP
 
 #include <atomic>
 #include <memory>
@@ -46,11 +46,11 @@
 
 namespace spla {
 template <typename T>
-class TileHost {
+class AllReduceTileHost {
 public:
   using ValueType = T;
 
-  TileHost(IntType numThreads, MPICommunicatorHandle comm,
+  AllReduceTileHost(IntType numThreads, MPICommunicatorHandle comm,
            std::shared_ptr<Buffer<MPIAllocator>> buffer,
            std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
            ValueType alpha, const HostArrayConstView2D<ValueType> &A,
