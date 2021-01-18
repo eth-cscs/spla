@@ -4,6 +4,7 @@ set(SPLA_SOURCE_FILES
 	timing/rt_graph.cpp
 	pgemm_ssb/tile_host.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
+	pgemm_ssb/ring_reduce_tile_host.cpp
 	pgemm_sbs/pgemm_sbs_host.cpp
 	pgemm_sbs/stripe_host.cpp
 	gemm/gemm_host.cpp
