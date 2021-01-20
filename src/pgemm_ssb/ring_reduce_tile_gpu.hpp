@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_TILE_GPU_HPP
-#define SPLA_TILE_GPU_HPP
+#ifndef SPLA_RING_REDUCE_TILE_GPU_HPP
+#define SPLA_RING_REDUCE_TILE_GPU_HPP
 
 #include <memory>
 #include "memory/host_array_const_view.hpp"
@@ -38,47 +38,50 @@
 #include "memory/pinned_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
+#include "mpi_util/mpi_window_handle.hpp"
 #include "spla/config.h"
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
 #include "block_generation/matrix_block_generator.hpp"
-#include "util/tile_state.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
 
 namespace spla {
 template <typename T>
-class TileGPU {
+class RingReduceTileGPU {
 public:
   using ValueType = T;
 
-  TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
-          std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
-          std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
-          std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA, ValueType alpha,
-          GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
-          GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB, ValueType beta,
-          HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC,
-          IntType numBlockRows, IntType numBlockCols);
+  RingReduceTileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
+                    std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
+                    std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
+                    std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                    SplaOperation opA, ValueType alpha,
+                    GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
+                    GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB,
+                    ValueType beta, HostArrayView2D<ValueType> HostMatC,
+                    GPUArrayView2D<ValueType> GPUMatC);
 
-  auto multiply(IntType blockRowIdx, IntType blockColIdx) -> void;
+  auto prepare(IntType blockRowIdx, IntType blockColIdx, IntType numBlockRows,
+               IntType numBlockCols) -> void;
 
-  auto exchange() -> void;
-
-  auto extract() -> void;
-
-  inline auto state() -> TileState { return state_.get(); }
+  auto process_step() -> bool;
 
   auto synchronize() -> void {
     gpu::check_status(gpu::stream_synchronize(blasHandle_.stream_handle().get()));
   }
 
 protected:
-  // state dependent
-  AtomicTileState state_;
-  HostArrayView2D<ValueType> tileHost_;
-  GPUArrayView2D<ValueType> tileGPU_;
+  // state dependend
+  IntType numBlockRows_ = 0;
+  IntType numBlockCols_ = 0;
+  IntType myBlockIdx_ = -1;
+  IntType currentBlockIdx = 0;
+  MPIRequestHandle sendReq_;
+  MPIRequestHandle recvReq_;
+  MPIWindowHandle<T> window_;
   std::vector<BlockInfo> blockInfos_;
+  MPIRequestHandle mpiRequest_;
 
   // fixed
   MPICommunicatorHandle comm_;
@@ -86,13 +89,16 @@ protected:
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_;
   GPUBlasHandle blasHandle_;
-  const IntType numBlockRows_, numBlockCols_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB_;
   HostArrayView2D<ValueType> HostMatC_;
   GPUArrayView2D<ValueType> GPUMatC_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
+  HostArrayView2D<ValueType> recvView_;
+  HostArrayView2D<ValueType> sendView_;
+  HostArrayView2D<ValueType> resultView_;
+  GPUArrayView2D<ValueType> tileViewGPU_;
 };
 
 }  // namespace spla

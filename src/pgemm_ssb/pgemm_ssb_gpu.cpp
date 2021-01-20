@@ -42,7 +42,8 @@
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "pgemm_ssb/tile_gpu.hpp"
+#include "pgemm_ssb/all_reduce_tile_gpu.hpp"
+#include "pgemm_ssb/ring_reduce_tile_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -84,16 +85,24 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
     throw InvalidParameterError();
   }
 
-  if (descC.comm().size() == 1) {
-    return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
-                       C + cRowStart + cColStart * ldc, ldc, ctx);
-  }
+  // if (descC.comm().size() == 1) {
+  //   return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
+  //                      C + cRowStart + cColStart * ldc, ldc, ctx);
+  // }
 
+  bool useRingReduce = false;
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
     matrixDist.reset(new BlockCyclicGenerator(descC.row_block_size(), descC.col_block_size(),
                                               descC.proc_grid_rows(), descC.proc_grid_cols(), m, n,
                                               cRowStart, cColStart));
+    // Use ring reduce if block size is at least a given size and most ranks
+    // hold result blocks
+    if (descC.row_block_size() * descC.col_block_size() >= 256 * 256 &&
+        descC.comm().size() >
+            (descC.proc_grid_rows() * descC.proc_grid_cols()) / 2) {
+      useRingReduce = true;
+    }
   } else {
     matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
                                          cRowStart, cColStart));
@@ -118,115 +127,192 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
   std::tie(hostPtrB, gpuPtrB) = translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) = translate_gpu_pointer(C);
 
-  const IntType numBlockRows = matrixDist->num_block_rows();
-  const IntType numBlockCols = matrixDist->num_block_cols();
-
-  const IntType numBlockRowsInTile = std::max<IntType>(
-      (ctx.tile_size_host() + descC.row_block_size() - 1) / descC.row_block_size(), 1);
-  const IntType numBlockColsInTile = std::max<IntType>(
-      (ctx.tile_size_host() + descC.col_block_size() - 1) / descC.col_block_size(), 1);
 
   const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
-
-  std::vector<TileGPU<T>> tiles;
-  tiles.reserve(ctx.num_tiles());
 
   auto &gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
   auto &pinnedBuffers = ctx.pinned_buffers(ctx.num_tiles());
   auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
+  if (useRingReduce) {
+    std::vector<RingReduceTileGPU<T>> tiles;
+    tiles.reserve(ctx.num_tiles());
+    auto &comms = descC.get_comms(ctx.num_tiles());
 
-  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
-                        : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(A, m, kLocal, lda), tileSizeGEMM,
-                              gpuBuffers[i * 3]);
+    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+      auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
+                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                HostArrayConstView2D<T>(A, m, kLocal, lda),
+                                tileSizeGEMM, gpuBuffers[i * 3]);
 
-    auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
-                        : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(B, n, kLocal, ldb), tileSizeGEMM,
-                              gpuBuffers[i * 3 + 1]);
+      auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
+                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                HostArrayConstView2D<T>(B, n, kLocal, ldb),
+                                tileSizeGEMM, gpuBuffers[i * 3 + 1]);
 
-    auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);
+      auto hostMatC = gpuPtrC ? HostArrayView2D<T>()
+                              : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);
 
-    auto gpuMatC =
-        gpuPtrC ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc) : GPUArrayView2D<T>();
+      auto gpuMatC = gpuPtrC
+                         ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc)
+                         : GPUArrayView2D<T>();
 
-    tiles.emplace_back(descC.comm(), blasHandles[i], pinnedBuffers[i], gpuBuffers[i * 3 + 2],
-                       matrixDist, opA, alpha, matA, matB, beta, hostMatC, gpuMatC,
-                       numBlockRowsInTile, numBlockColsInTile);
-  }
+      tiles.emplace_back(comms[i], blasHandles[i], pinnedBuffers[i],
+                         gpuBuffers[i * 3 + 2], matrixDist, opA, alpha, matA,
+                         matB, beta, hostMatC, gpuMatC);
+    }
 
-  if (ctx.num_threads() > 1) {
-    // comm + worker thread
-    SPLA_OMP_PRAGMA("omp parallel num_threads(2)") {
-      GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
-      IntType counter = 0;
-      for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
-        for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-             blockColIdx += numBlockColsInTile, ++counter) {
-          auto &t = tiles[counter % ctx.num_tiles()];
-          if (omp_get_thread_num() == 0) {
-            // wait for tile to be multiplied
-            while (t.state() != TileState::Multiplied) {
-            }
-            t.exchange();
-          } else {
-            // wait for tile once encountering the same tile more than once
-            if (counter >= ctx.num_tiles()) {
-              while (t.state() != TileState::Exchanged) {
-              }
-              t.extract();
-            }
-            // start multiplication
-            t.multiply(blockRowIdx, blockColIdx);
+
+    IntType tileIdx = 0;
+    for (IntType blockColIdx = 0; blockColIdx < matrixDist->num_block_cols();
+         blockColIdx += descC.proc_grid_cols()) {
+      for (IntType blockRowIdx = 0; blockRowIdx < matrixDist->num_block_rows();
+           blockRowIdx += descC.proc_grid_rows(), ++tileIdx) {
+        const IntType numCurrentBlockRows = std::min<IntType>(
+            matrixDist->num_block_rows() - blockRowIdx, descC.proc_grid_rows());
+        const IntType numCurrentBlockCols = std::min<IntType>(
+            matrixDist->num_block_cols() - blockColIdx, descC.proc_grid_cols());
+
+        tiles[tileIdx % tiles.size()].prepare(
+            blockRowIdx, blockColIdx, numCurrentBlockRows, numCurrentBlockCols);
+        bool tileToProcess = true;
+
+        while (tileToProcess) {
+          tileToProcess = false;
+          for (auto &t : tiles) {
+            tileToProcess |= t.process_step();
           }
         }
       }
     }
+
+    // synchronize all streams
+    for (auto &t : tiles) {
+      t.synchronize();
+    }
+
+
   } else {
-    // single thread
-    IntType counter = 0;
-    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows; blockRowIdx += numBlockRowsInTile) {
-      for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-           blockColIdx += numBlockColsInTile, ++counter) {
-        auto &t = tiles[counter % ctx.num_tiles()];
-        if (t.state() == TileState::Multiplied) {
-          t.exchange();
-          t.extract();
+    const IntType numBlockRows = matrixDist->num_block_rows();
+    const IntType numBlockCols = matrixDist->num_block_cols();
+
+    const IntType numBlockRowsInTile =
+        std::max<IntType>((ctx.tile_size_host() + descC.row_block_size() - 1) /
+                              descC.row_block_size(),
+                          1);
+    const IntType numBlockColsInTile =
+        std::max<IntType>((ctx.tile_size_host() + descC.col_block_size() - 1) /
+                              descC.col_block_size(),
+                          1);
+
+    std::vector<AllReduceTileGPU<T>> tiles;
+    tiles.reserve(ctx.num_tiles());
+
+    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+      auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
+                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                HostArrayConstView2D<T>(A, m, kLocal, lda),
+                                tileSizeGEMM, gpuBuffers[i * 3]);
+
+      auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
+                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                                HostArrayConstView2D<T>(B, n, kLocal, ldb),
+                                tileSizeGEMM, gpuBuffers[i * 3 + 1]);
+
+      auto hostMatC = gpuPtrC ? HostArrayView2D<T>()
+                              : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);
+
+      auto gpuMatC = gpuPtrC
+                         ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc)
+                         : GPUArrayView2D<T>();
+
+      tiles.emplace_back(descC.comm(), blasHandles[i], pinnedBuffers[i],
+                         gpuBuffers[i * 3 + 2], matrixDist, opA, alpha, matA,
+                         matB, beta, hostMatC, gpuMatC, numBlockRowsInTile,
+                         numBlockColsInTile);
+    }
+
+    if (ctx.num_threads() > 1) {
+      // comm + worker thread
+      SPLA_OMP_PRAGMA("omp parallel num_threads(2)") {
+        GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
+        IntType counter = 0;
+        for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
+             blockRowIdx += numBlockRowsInTile) {
+          for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+               blockColIdx += numBlockColsInTile, ++counter) {
+            auto &t = tiles[counter % ctx.num_tiles()];
+            if (omp_get_thread_num() == 0) {
+              // wait for tile to be multiplied
+              while (t.state() != TileState::Multiplied) {
+              }
+              t.exchange();
+            } else {
+              // wait for tile once encountering the same tile more than once
+              if (counter >= ctx.num_tiles()) {
+                while (t.state() != TileState::Exchanged) {
+                }
+                t.extract();
+              }
+              // start multiplication
+              t.multiply(blockRowIdx, blockColIdx);
+            }
+          }
         }
-        t.multiply(blockRowIdx, blockColIdx);
+      }
+    } else {
+      // single thread
+      IntType counter = 0;
+      for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
+           blockRowIdx += numBlockRowsInTile) {
+        for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
+             blockColIdx += numBlockColsInTile, ++counter) {
+          auto &t = tiles[counter % ctx.num_tiles()];
+          if (t.state() == TileState::Multiplied) {
+            t.exchange();
+            t.extract();
+          }
+          t.multiply(blockRowIdx, blockColIdx);
+        }
       }
     }
-  }
 
-  // finalize remaining tiles
-  for (auto &t : tiles) {
-    if (t.state() == TileState::Multiplied) {
-      t.exchange();
+    // finalize remaining tiles
+    for (auto &t : tiles) {
+      if (t.state() == TileState::Multiplied) {
+        t.exchange();
+      }
+      if (t.state() == TileState::Exchanged) {
+        t.extract();
+      }
     }
-    if (t.state() == TileState::Exchanged) {
-      t.extract();
-    }
-  }
 
-  // synchronize all streams
-  for (auto &t : tiles) {
-    t.synchronize();
+    // synchronize all streams
+    for (auto &t : tiles) {
+      t.synchronize();
+    }
   }
 }
 
-template void pgemm_ssb_gpu<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
-                                   const float *A, int lda, const float *B, int ldb, float beta,
-                                   float *C, int ldc, int cRowStart, int cColStart,
-                                   MatrixDistributionInternal &descC, ContextInternal &ctx);
+template void pgemm_ssb_gpu<float>(int m, int n, int kLocal, SplaOperation opA,
+                                   float alpha, const float *A, int lda,
+                                   const float *B, int ldb, float beta,
+                                   float *C, int ldc, int cRowStart,
+                                   int cColStart,
+                                   MatrixDistributionInternal &descC,
+                                   ContextInternal &ctx);
 
-template void pgemm_ssb_gpu<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
-                                    const double *A, int lda, const double *B, int ldb, double beta,
-                                    double *C, int ldc, int cRowStart, int cColStart,
-                                    MatrixDistributionInternal &descC, ContextInternal &ctx);
+template void pgemm_ssb_gpu<double>(int m, int n, int kLocal, SplaOperation opA,
+                                    double alpha, const double *A, int lda,
+                                    const double *B, int ldb, double beta,
+                                    double *C, int ldc, int cRowStart,
+                                    int cColStart,
+                                    MatrixDistributionInternal &descC,
+                                    ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<gpu::blas::ComplexFloatType>(
     int m, int n, int kLocal, SplaOperation opA, gpu::blas::ComplexFloatType alpha,

@@ -18,7 +18,8 @@ set(SPLA_SOURCE_FILES
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				pgemm_ssb/tile_gpu.cpp
+				pgemm_ssb/all_reduce_tile_gpu.cpp
+				pgemm_ssb/ring_reduce_tile_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
 				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp

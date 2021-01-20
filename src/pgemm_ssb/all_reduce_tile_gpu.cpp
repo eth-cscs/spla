@@ -42,7 +42,7 @@
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 #include "gpu_util/multiply_gpu.hpp"
-#include "pgemm_ssb/tile_gpu.hpp"
+#include "pgemm_ssb/all_reduce_tile_gpu.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
@@ -83,7 +83,7 @@ static auto call_gpu_geam(const gpu::blas::HandleType& handle,
   gpu::blas::cgeam(handle, transa, transb, m, n, &alpha, A, lda, &beta, B, ldb, C, ldc);
 }
 template <typename T>
-TileGPU<T>::TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
+AllReduceTileGPU<T>::AllReduceTileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
                     std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
                     std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
                     std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
@@ -116,7 +116,7 @@ TileGPU<T>::TileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
 }
 
 template <typename T>
-auto TileGPU<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
+auto AllReduceTileGPU<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
   assert(state_.get() == TileState::Empty);
   if (state_.get() != TileState::Empty) {
     throw InternalError();
@@ -164,7 +164,7 @@ auto TileGPU<T>::multiply(IntType blockRowIdx, IntType blockColIdx) -> void {
 }
 
 template <typename T>
-auto TileGPU<T>::exchange() -> void {
+auto AllReduceTileGPU<T>::exchange() -> void {
   assert(this->state_.get() == TileState::Multiplied);
   if (this->state_.get() != TileState::Multiplied) {
     throw InternalError();
@@ -196,7 +196,7 @@ auto TileGPU<T>::exchange() -> void {
 }
 
 template <typename T>
-auto TileGPU<T>::extract() -> void {
+auto AllReduceTileGPU<T>::extract() -> void {
   assert(this->state_.get() == TileState::Exchanged);
   if (this->state_.get() != TileState::Exchanged) {
     throw InternalError();
@@ -262,9 +262,9 @@ auto TileGPU<T>::extract() -> void {
   this->state_.set(TileState::Empty);
 }
 
-template class TileGPU<double>;
-template class TileGPU<float>;
-template class TileGPU<gpu::blas::ComplexFloatType>;
-template class TileGPU<gpu::blas::ComplexDoubleType>;
+template class AllReduceTileGPU<double>;
+template class AllReduceTileGPU<float>;
+template class AllReduceTileGPU<gpu::blas::ComplexFloatType>;
+template class AllReduceTileGPU<gpu::blas::ComplexDoubleType>;
 
 }  // namespace spla
