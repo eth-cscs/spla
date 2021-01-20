@@ -159,6 +159,7 @@ auto RingReduceTileGPU<T>::prepare(IntType blockRowIdx, IntType blockColIdx,
   const IntType numBlocks = numBlockRows_ * numBlockCols_;
   const bool accumulateRequired = numBlocks != comm_.size();
   if (accumulateRequired) {
+  std::cout << "Accumulate required" << std::endl;
     std::memset(resultView_.data(), 0, resultView_.size() * sizeof(T));
     mpi_check_status(MPI_Win_fence(0, window_.get()));
   }
@@ -242,17 +243,7 @@ template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
       assert(info.numCols <= sendView_.dim_outer());
       assert(info.numRows <= sendView_.dim_inner());
 
-      sendReq_.wait_if_active();
       if (matA_.rows() != 0) {
-        if (currentBlockIdx) {
-          gpu::stream_synchronize(blasHandle_.stream_handle().get());
-          mpi_check_status(MPI_Raccumulate(
-              sendView_.data(), sendView_.size(),
-              MPIMatchElementaryType<T>::get(), info.mpiRank, 0,
-              sendView_.size(), MPIMatchElementaryType<T>::get(), MPI_SUM,
-              window_.get(), sendReq_.get_and_activate()));
-        }
-
         std::swap(sendView_, recvView_);
 
         auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
@@ -269,14 +260,13 @@ template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
                               tileViewGPU_.ld_inner()));
         copy_from_gpu_async(blasHandle_.stream_handle().get(),
                             GPUArrayConstView2D<T>(tileViewGPU_), sendView_);
-        if (currentBlockIdx == numBlocks - 1) {
-          gpu::stream_synchronize(blasHandle_.stream_handle().get());
-          mpi_check_status(MPI_Raccumulate(
-              sendView_.data(), sendView_.size(),
-              MPIMatchElementaryType<T>::get(), info.mpiRank, 0,
-              sendView_.size(), MPIMatchElementaryType<T>::get(), MPI_SUM,
-              window_.get(), sendReq_.get_and_activate()));
-        }
+        gpu::stream_synchronize(blasHandle_.stream_handle().get());
+        sendReq_.wait_if_active();
+        mpi_check_status(MPI_Raccumulate(
+            sendView_.data(), sendView_.size(),
+            MPIMatchElementaryType<T>::get(), info.mpiRank, 0, sendView_.size(),
+            MPIMatchElementaryType<T>::get(), MPI_SUM, window_.get(),
+            sendReq_.get_and_activate()));
       }
     }
 
