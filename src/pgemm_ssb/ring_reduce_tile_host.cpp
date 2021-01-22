@@ -35,6 +35,7 @@
 #include <cassert>
 #include <complex>
 #include <cstring>
+
 namespace spla {
 
 template <typename T>
@@ -54,18 +55,13 @@ RingReduceTileHost<T>::RingReduceTileHost(
          opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
   const auto blockSize =
       matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
-  buffer_->resize<ValueType>(3 * blockSize);
-  resultView_ =
+  buffer_->resize<ValueType>(2 * blockSize);
+  sendView_ =
       HostArrayView2D<T>(buffer_->data<T>(), matrixDist_->max_cols_in_block(),
                          matrixDist_->max_rows_in_block());
-  sendView_ = HostArrayView2D<T>(buffer_->data<T>() + blockSize,
+  recvView_ = HostArrayView2D<T>(buffer_->data<T>() + blockSize,
                                  matrixDist_->max_cols_in_block(),
                                  matrixDist_->max_rows_in_block());
-  recvView_ = HostArrayView2D<T>(buffer_->data<T>() + 2 * blockSize,
-                                 matrixDist_->max_cols_in_block(),
-                                 matrixDist_->max_rows_in_block());
-  window_ =
-      MPIWindowHandle<T>(resultView_.data(), resultView_.size(), comm_.get());
 }
 
 template <typename T>
@@ -94,12 +90,6 @@ auto RingReduceTileHost<T>::prepare(IntType blockRowIdx, IntType blockColIdx,
 
   std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
 
-  const IntType numBlocks = numBlockRows_ * numBlockCols_;
-  const bool accumulateRequired = numBlocks != comm_.size();
-  if (accumulateRequired) {
-    std::memset(resultView_.data(), 0, resultView_.size() * sizeof(T));
-    mpi_check_status(MPI_Win_fence(0, window_.get()));
-  }
 }
 
 template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
@@ -107,7 +97,7 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
   const bool accumulateRequired = numBlocks != comm_.size();
 
   if (currentBlockIdx < numBlocks) {
-    if (myBlockIdx_ >= 0) {
+    if (!accumulateRequired) {
       const IntType startGridIdx = (myBlockIdx_ + 1) % numBlocks;
 
       const int sendRank =
@@ -135,44 +125,30 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
                      &B_(info.globalSubColIdx, 0), B_.ld_inner(), 1.0,
                      sendView_.data(), sendView_.ld_inner());
       }
-      if (currentBlockIdx < numBlocks - 1)
-        // continue sending around in ring
+      if (currentBlockIdx < numBlocks - 1) // continue sending around in ring
         MPI_Send(sendView_.data(), sendView_.size(),
                  MPIMatchElementaryType<T>::get(), sendRank, 0, comm_.get());
-      else if (accumulateRequired) {
-        // Last step - accumulate if other ranks hold partial result
-        mpi_check_status(MPI_Raccumulate(
-            sendView_.data(), sendView_.size(),
-            MPIMatchElementaryType<T>::get(), info.mpiRank, 0, sendView_.size(),
-            MPIMatchElementaryType<T>::get(), MPI_SUM, window_.get(),
-            sendReq_.get_and_activate()));
-      }
     } else {
-      // More ranks than blocks -> extra ranks simply do accumulate on target
       assert(accumulateRequired);
 
-      // Avoid accumulating the same block with all ranks
-      const BlockInfo &info =
-          blockInfos_[(currentBlockIdx + comm_.rank()) % numBlocks];
-      assert(info.mpiRank >= 0); // Mirror distribution not supported
-      assert(info.numCols <= sendView_.dim_outer());
-      assert(info.numRows <= sendView_.dim_inner());
+      const BlockInfo &info = blockInfos_[currentBlockIdx];
 
       sendReq_.wait_if_active();
 
       if (A_.dim_inner() == 0) {
-        std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
+        std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
       } else {
         gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE,
                      info.numRows, info.numCols, A_.dim_inner(), alpha_,
                      &A_(info.globalSubRowIdx, 0), A_.ld_inner(),
                      &B_(info.globalSubColIdx, 0), B_.ld_inner(), 0.0,
-                     sendView_.data(), sendView_.ld_inner());
+                     recvView_.data(), recvView_.ld_inner());
       }
-      mpi_check_status(MPI_Raccumulate(
-          sendView_.data(), sendView_.size(), MPIMatchElementaryType<T>::get(),
-          info.mpiRank, 0, sendView_.size(), MPIMatchElementaryType<T>::get(),
-          MPI_SUM, window_.get(), sendReq_.get_and_activate()));
+      mpi_check_status(MPI_Ireduce(
+          recvView_.data(), sendView_.data(), sendView_.size(),
+          MPIMatchElementaryType<ValueType>::get(), MPI_SUM, info.mpiRank,
+          comm_.get(), sendReq_.get_and_activate()));
+
     }
 
   } else if (currentBlockIdx == numBlocks) {
@@ -181,19 +157,13 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
     sendReq_.wait_if_active();
     recvReq_.wait_if_active();
 
-    // local access only after this fence
-    if (accumulateRequired) {
-      mpi_check_status(MPI_Win_fence(0, window_.get()));
-    }
-
     if (myBlockIdx_ >= 0) {
       const auto &myInfo = blockInfos_[myBlockIdx_];
-      auto TileView = accumulateRequired ? resultView_ : sendView_;
       for (IntType col = 0; col < myInfo.numCols; ++col) {
         for (IntType row = 0; row < myInfo.numRows; ++row) {
           C_(myInfo.localColIdx + col, myInfo.localRowIdx + row) =
               beta_ * C_(myInfo.localColIdx + col, myInfo.localRowIdx + row) +
-              TileView(col, row);
+              sendView_(col, row);
         }
       }
     }

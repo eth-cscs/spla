@@ -79,9 +79,9 @@ protected:
   IntType currentBlockIdx = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
-  MPIWindowHandle<T> window_;
   std::vector<BlockInfo> blockInfos_;
   MPIRequestHandle mpiRequest_;
+  const BlockInfo* infoForReduce_ = nullptr;
 
   // fixed
   MPICommunicatorHandle comm_;
