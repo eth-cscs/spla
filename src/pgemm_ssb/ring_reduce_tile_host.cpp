@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "pgemm_ssb/ring_reduce_tile_host.hpp"
+#include "pgemm_ssb/add_kernel.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
@@ -155,7 +156,7 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
         MPI_Isend(sendView_.data(), info.numRows * info.numCols,
                   MPIMatchElementaryType<T>::get(), sendRank_, ringTag,
                   comm_.get(), sendReq_.get_and_activate());
-      } else {
+      } else { // send final result to target rank
         MPI_Isend(sendView_.data(), info.numRows * info.numCols,
                   MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
                   comm_.get(), sendReq_.get_and_activate());
@@ -181,6 +182,7 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
           resultBuffer_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
           info.numCols * info.numRows, MPIMatchElementaryType<ValueType>::get(),
           MPI_SUM, info.mpiRank, comm_.get(), sendReq_.get_and_activate()));
+
       if(info.mpiRank == comm_.rank()) ++numMyBlocksReduced_;
 
     }
@@ -191,18 +193,15 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
     sendReq_.wait_if_active();
     recvReq_.wait_if_active();
 
-    for(IntType i = 0; i < myBlockIndices_.size(); ++i){
+    for (IntType i = 0; i < myBlockIndices_.size(); ++i) {
       resultRecvs_[i].wait_if_active();
       const auto &info = blockInfos_[myBlockIndices_[i]];
       HostArrayView2D<T> resultView(resultBuffer_->data<T>() + i * maxBlockSize,
                                     info.numCols, info.numRows);
-      for (IntType col = 0; col < info.numCols; ++col) {
-        for (IntType row = 0; row < info.numRows; ++row) {
-          C_(info.localColIdx + col, info.localRowIdx + row) =
-              beta_ * C_(info.localColIdx + col, info.localRowIdx + row) +
-              resultView(col, row);
-        }
-      }
+
+      add_kernel(info.numRows, info.numCols,
+                 resultBuffer_->data<T>() + i * maxBlockSize, info.numRows,
+                 beta_, &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
     }
 
     state_ = TileState::Empty;

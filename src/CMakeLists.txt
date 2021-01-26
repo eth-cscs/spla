@@ -5,6 +5,7 @@ set(SPLA_SOURCE_FILES
 	pgemm_ssb/all_reduce_tile_host.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
 	pgemm_ssb/ring_reduce_tile_host.cpp
+	pgemm_ssb/add_kernel.cpp
 	pgemm_sbs/pgemm_sbs_host.cpp
 	pgemm_sbs/stripe_host.cpp
 	gemm/gemm_host.cpp

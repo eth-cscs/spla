@@ -25,26 +25,19 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef SPLA_ADD_KERNEL_HPP
+#define SPLA_ADD_KERNEL_HPP
 
-/*****************
- * CMAKE GENERATED
- *****************/
+#include "spla/config.h"
+#include "spla/types.h"
+#include "util/common_types.hpp"
 
-#ifndef SPLA_CONFIG_H
-#define SPLA_CONFIG_H
+namespace spla {
+// Computes
+// B <- A + beta * B
+template <typename T>
+void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A,
+                IntType lda, T beta, T *SPLA_RESTRICT_ATTR B, IntType ldb);
 
-#cmakedefine SPLA_CUDA
-#cmakedefine SPLA_ROCM
-#cmakedefine SPLA_OMP
-#cmakedefine SPLA_TIMING
-#cmakedefine SPLA_BLAS_MKL
-#cmakedefine SPLA_BLAS_OPENBLAS
-#cmakedefine SPAL_BLAS_ATLAS
-#cmakedefine SPLA_BLAS_SCI
-#cmakedefine SPLA_BLAS_BLIS
-#cmakedefine SPLA_BLAS_HEADER_NAME <@SPLA_BLAS_HEADER_NAME@>
-#cmakedefine SPLA_RESTRICT_ATTR @SPLA_RESTRICT_ATTR@
-
-#include "spla/spla_export.h"
-
+}  // namespace spla
 #endif

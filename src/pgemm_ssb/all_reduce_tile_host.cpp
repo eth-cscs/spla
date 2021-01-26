@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "pgemm_ssb/all_reduce_tile_host.hpp"
+#include "pgemm_ssb/add_kernel.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
@@ -168,23 +169,12 @@ template <typename T> auto AllReduceTileHost<T>::extract() -> void {
         info.globalSubRowIdx - blockInfos_.front().globalSubRowIdx;
     const IntType tileColOffset =
         info.globalSubColIdx - blockInfos_.front().globalSubColIdx;
+
     if (info.mpiRank == comm_.rank() || info.mpiRank < 0) {
-      if (this->beta_ == ValueType(0.0) || this->beta_ == ValueType(-0.0)) {
-        for (IntType col = 0; col < info.numCols; ++col) {
-          std::memcpy(&(this->C_(info.localColIdx + col, info.localRowIdx)),
-                      &(this->tile_(col + tileColOffset, tileRowOffset)),
-                      info.numRows * sizeof(T));
-        }
-      } else {
-        for (IntType col = 0; col < info.numCols; ++col) {
-          for (IntType row = 0; row < info.numRows; ++row) {
-            this->C_(info.localColIdx + col, info.localRowIdx + row) =
-                beta_ *
-                    this->C_(info.localColIdx + col, info.localRowIdx + row) +
-                this->tile_(col + tileColOffset, row + tileRowOffset);
-          }
-        }
-      }
+      add_kernel(info.numRows, info.numCols,
+                 &(tile_(tileColOffset, tileRowOffset)), tile_.ld_inner(),
+                 beta_, &(C_(info.localColIdx, info.localRowIdx)),
+                 C_.ld_inner());
     }
   }
   this->state_.set(TileState::Empty);

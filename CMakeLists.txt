@@ -78,6 +78,7 @@ set(SPLA_BLAS_MKL OFF)
 set(SPLA_BLAS_BLIS OFF)
 set(SPLA_BLAS_SCI OFF)
 set(SPLA_BLAS_ATLAS OFF)
+set(SPLA_RESTRICT_ATTR " ")
 
 # Hide symbols by default if tests are not build
 if(NOT SPLA_BUILD_TESTS)
@@ -88,6 +89,41 @@ else()
 	list(APPEND SPLA_DEFINITIONS -DSPLA_STATIC_DEFINE)
 	set(CMAKE_CXX_VISIBILITY_PRESET default)
 	set(CMAKE_VISIBILITY_INLINES_HIDDEN 0)
+endif()
+
+# check if restrict attribute is available
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles(
+	"
+			int f(double *__restrict__ x);
+			int main(void) {return 0;}
+	"
+	HAVE___RESTRICT__
+	)
+if(${HAVE___RESTRICT__})
+	set(SPLA_RESTRICT_ATTR "__restrict__")
+else()
+	check_cxx_source_compiles(
+			"
+					int f(double *__restrict x);
+					int main(void) {return 0;}
+			"
+			HAVE___RESTRICT
+		)
+	if(HAVE___RESTRICT)
+		set(SPLA_RESTRICT_ATTR "__restrict")
+	else()
+		check_cxx_source_compiles(
+			"
+					int f(double *restrict x);
+					int main(void) {return 0;}
+			"
+			HAVE_RESTRICT
+			)
+		if(${HAVE_RESTRICT})
+			set(SPLA_RESTRICT_ATTR "restrict")
+		endif()
+	endif()
 endif()
 
 
