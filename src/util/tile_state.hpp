@@ -34,6 +34,7 @@ namespace spla {
 enum class TileState : int {
   Empty,
   Prepared,
+  PartiallyProcessed,
   Multiplied,
   InExchange,
   Exchanged

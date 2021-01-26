@@ -35,78 +35,104 @@
 #include <cassert>
 #include <complex>
 #include <cstring>
+#include <vector>
 
 namespace spla {
+
+static constexpr int resultTag = 1;
+static constexpr int ringTag = 2;
 
 template <typename T>
 RingReduceTileHost<T>::RingReduceTileHost(
     IntType numThreads, MPICommunicatorHandle comm,
     std::shared_ptr<Buffer<MPIAllocator>> buffer,
+    std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
     std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
     ValueType alpha, const HostArrayConstView2D<ValueType> &A,
     const HostArrayConstView2D<ValueType> &B, ValueType beta,
     HostArrayView2D<ValueType> C)
-    : matrixDist_(std::move(matrixDist)), buffer_(std::move(buffer)),
+    : state_(TileState::Empty), matrixDist_(std::move(matrixDist)),
+      buffer_(std::move(buffer)), resultBuffer_(std::move(resultBuffer)),
       comm_(std::move(comm)), A_(A), B_(B), C_(C), alpha_(alpha), beta_(beta),
       opA_(opA), numThreads_(numThreads) {
   assert(A_.dim_inner() == B_.dim_inner());
   assert(buffer_);
   assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE ||
          opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
-  const auto blockSize =
+  const auto maxBlockSize =
       matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
-  buffer_->resize<ValueType>(2 * blockSize);
-  sendView_ =
-      HostArrayView2D<T>(buffer_->data<T>(), matrixDist_->max_cols_in_block(),
-                         matrixDist_->max_rows_in_block());
-  recvView_ = HostArrayView2D<T>(buffer_->data<T>() + blockSize,
-                                 matrixDist_->max_cols_in_block(),
-                                 matrixDist_->max_rows_in_block());
+  buffer_->resize<ValueType>(2 * maxBlockSize);
+  sendView_ = HostArrayView1D<T>(buffer_->data<T>(), maxBlockSize);
+  recvView_ = HostArrayView1D<T>(buffer_->data<T>() + maxBlockSize, maxBlockSize);
 }
 
 template <typename T>
-auto RingReduceTileHost<T>::prepare(IntType blockRowIdx, IntType blockColIdx,
-                                    IntType numBlockRows, IntType numBlockCols)
-    -> void {
-  blockInfos_.resize(numBlockRows * numBlockCols);
+auto RingReduceTileHost<T>::prepare(
+    std::vector<BlockInfo>::const_iterator begin,
+    std::vector<BlockInfo>::const_iterator end) -> void {
+  assert(state_ == TileState::Empty);
 
-  numBlockRows_ = numBlockRows;
-  numBlockCols_ = numBlockCols;
-  myBlockIdx_ = -1;
+  numMyBlocksReduced_ = 0;
+
+  blockInfos_.assign(begin, end);
+
   currentBlockIdx = 0;
+  const IntType rankOffset = blockInfos_.front().mpiRank;
+  myStartIdx_ = (rankOffset + comm_.rank()) % blockInfos_.size();
+  sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
+  recvRank_ = (comm_.rank() + 1) % comm_.size();
 
-  // compute block infos
-  for (IntType ic = 0; ic < numBlockCols; ++ic) {
-    for (IntType ir = 0; ir < numBlockRows; ++ir) {
-      blockInfos_[ic * numBlockRows + ir] =
-          matrixDist_->get_block_info(blockRowIdx + ir, blockColIdx + ic);
-      if (blockInfos_[ic * numBlockRows + ir].mpiRank == comm_.rank()) {
-        assert(myBlockIdx_ <
-               0); // each rank must receive at most one block within grid
-        myBlockIdx_ = ic * numBlockRows + ir;
-      }
+  myBlockIndices_.resize(0);
+  for (IntType i = 0; i < blockInfos_.size(); ++i) {
+    if (blockInfos_[i].mpiRank == comm_.rank()) {
+      myBlockIndices_.emplace_back(i);
     }
   }
 
+  const auto maxBlockSize =
+      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+
+
   std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
 
+  const bool accumulateRequired = blockInfos_.size() != comm_.size();
+  resultBuffer_->resize<T>(std::max<std::size_t>(myBlockIndices_.size(), 1) *
+                           maxBlockSize);
+  resultRecvs_.resize(myBlockIndices_.size());
+
+  if (!accumulateRequired) {
+    for(IntType i = 0; i < myBlockIndices_.size(); ++i){
+      // Determine rank to receive result from by computing the rank, which
+      // holds the block initially and substracting the number of steps in the
+      // ring (blocks are send backwards)
+      const auto originRank =
+          (myBlockIndices_[i] + 2 * comm_.size() - rankOffset - (blockInfos_.size() - 1)) % comm_.size();
+      const auto& info = blockInfos_[myBlockIndices_[i]];
+      // Post receive for each block this ranks requires
+      MPI_Irecv(resultBuffer_->data<T>() + i * maxBlockSize,
+                info.numCols * info.numRows, MPIMatchElementaryType<T>::get(),
+                originRank, resultTag, comm_.get(),
+                resultRecvs_[i].get_and_activate());
+    }
+  } else {
+    std::memset(resultBuffer_->data<T>(), 0, maxBlockSize * sizeof(T));
+  }
+
+  state_ = TileState::Prepared;
 }
 
 template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
-  const IntType numBlocks = numBlockRows_ * numBlockCols_;
-  const bool accumulateRequired = numBlocks != comm_.size();
+  state_ = TileState::PartiallyProcessed;
+  const bool accumulateRequired = blockInfos_.size() != comm_.size();
+  const IntType numBlocks = blockInfos_.size();
+  const auto maxBlockSize =
+      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
 
   if (currentBlockIdx < numBlocks) {
     if (!accumulateRequired) {
-      const IntType startGridIdx = (myBlockIdx_ + 1) % numBlocks;
 
-      const int sendRank =
-          blockInfos_[myBlockIdx_ == 0 ? numBlocks - 1 : myBlockIdx_ - 1]
-              .mpiRank;
-      const int recvRank = blockInfos_[(myBlockIdx_ + 1) % numBlocks].mpiRank;
-
-      const IntType gridBlockIdx = (startGridIdx + currentBlockIdx) % numBlocks;
-      const auto &info = blockInfos_[gridBlockIdx];
+      const auto &info = blockInfos_[(myStartIdx_ + currentBlockIdx) % blockInfos_.size()];
+      const auto &nextInfo = blockInfos_[(myStartIdx_ + currentBlockIdx + 1) % blockInfos_.size()];
       assert(info.mpiRank >= 0); // Mirror distribution not supported
 
       sendReq_.wait_if_active();
@@ -114,20 +140,26 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
       std::swap(sendView_, recvView_);
 
       if (currentBlockIdx < numBlocks - 1) {
-        MPI_Irecv(recvView_.data(), recvView_.size(),
-                  MPIMatchElementaryType<T>::get(), recvRank, 0, comm_.get(),
-                  recvReq_.get_and_activate());
+        MPI_Irecv(recvView_.data(), nextInfo.numCols * nextInfo.numRows,
+                  MPIMatchElementaryType<T>::get(), recvRank_, ringTag,
+                  comm_.get(), recvReq_.get_and_activate());
       }
       if (A_.dim_inner() != 0) {
         gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE,
                      info.numRows, info.numCols, A_.dim_inner(), alpha_,
                      &A_(info.globalSubRowIdx, 0), A_.ld_inner(),
                      &B_(info.globalSubColIdx, 0), B_.ld_inner(), 1.0,
-                     sendView_.data(), sendView_.ld_inner());
+                     sendView_.data(), info.numRows);
       }
-      if (currentBlockIdx < numBlocks - 1) // continue sending around in ring
-        MPI_Send(sendView_.data(), sendView_.size(),
-                 MPIMatchElementaryType<T>::get(), sendRank, 0, comm_.get());
+      if (currentBlockIdx < numBlocks - 1) { // continue sending around in ring
+        MPI_Isend(sendView_.data(), info.numRows * info.numCols,
+                  MPIMatchElementaryType<T>::get(), sendRank_, ringTag,
+                  comm_.get(), sendReq_.get_and_activate());
+      } else {
+        MPI_Isend(sendView_.data(), info.numRows * info.numCols,
+                  MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
+                  comm_.get(), sendReq_.get_and_activate());
+      }
     } else {
       assert(accumulateRequired);
 
@@ -136,18 +168,20 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
       sendReq_.wait_if_active();
 
       if (A_.dim_inner() == 0) {
-        std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
+        std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
       } else {
         gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE,
                      info.numRows, info.numCols, A_.dim_inner(), alpha_,
                      &A_(info.globalSubRowIdx, 0), A_.ld_inner(),
                      &B_(info.globalSubColIdx, 0), B_.ld_inner(), 0.0,
-                     recvView_.data(), recvView_.ld_inner());
+                     sendView_.data(), info.numRows);
       }
       mpi_check_status(MPI_Ireduce(
-          recvView_.data(), sendView_.data(), sendView_.size(),
-          MPIMatchElementaryType<ValueType>::get(), MPI_SUM, info.mpiRank,
-          comm_.get(), sendReq_.get_and_activate()));
+          sendView_.data(),
+          resultBuffer_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
+          info.numCols * info.numRows, MPIMatchElementaryType<ValueType>::get(),
+          MPI_SUM, info.mpiRank, comm_.get(), sendReq_.get_and_activate()));
+      if(info.mpiRank == comm_.rank()) ++numMyBlocksReduced_;
 
     }
 
@@ -157,16 +191,21 @@ template <typename T> auto RingReduceTileHost<T>::process_step() -> bool {
     sendReq_.wait_if_active();
     recvReq_.wait_if_active();
 
-    if (myBlockIdx_ >= 0) {
-      const auto &myInfo = blockInfos_[myBlockIdx_];
-      for (IntType col = 0; col < myInfo.numCols; ++col) {
-        for (IntType row = 0; row < myInfo.numRows; ++row) {
-          C_(myInfo.localColIdx + col, myInfo.localRowIdx + row) =
-              beta_ * C_(myInfo.localColIdx + col, myInfo.localRowIdx + row) +
-              sendView_(col, row);
+    for(IntType i = 0; i < myBlockIndices_.size(); ++i){
+      resultRecvs_[i].wait_if_active();
+      const auto &info = blockInfos_[myBlockIndices_[i]];
+      HostArrayView2D<T> resultView(resultBuffer_->data<T>() + i * maxBlockSize,
+                                    info.numCols, info.numRows);
+      for (IntType col = 0; col < info.numCols; ++col) {
+        for (IntType row = 0; row < info.numRows; ++row) {
+          C_(info.localColIdx + col, info.localRowIdx + row) =
+              beta_ * C_(info.localColIdx + col, info.localRowIdx + row) +
+              resultView(col, row);
         }
       }
     }
+
+    state_ = TileState::Empty;
   }
 
   ++currentBlockIdx;

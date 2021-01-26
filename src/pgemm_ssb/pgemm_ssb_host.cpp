@@ -108,36 +108,57 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
 
   if (useRingReduce) {
 
-    auto &buffers = ctx.mpi_buffers(numTiles);
+    auto &buffers = ctx.mpi_buffers(2 * numTiles);
+    auto &comms = descC.get_comms(numTiles);
 
     std::array<RingReduceTileHost<T>, numTiles> tiles{
-        RingReduceTileHost<T>{ctx.num_threads(), descC.comm(), buffers[0],
-                              matrixDist, opA, alpha, viewA, viewB, beta,
-                              viewC},
-        RingReduceTileHost<T>{ctx.num_threads(), descC.comm(), buffers[1],
-                              matrixDist, opA, alpha, viewA, viewB, beta,
-                              viewC}};
+        RingReduceTileHost<T>{ctx.num_threads(), comms[0], buffers[0],
+                              buffers[1], matrixDist, opA, alpha, viewA, viewB,
+                              beta, viewC},
+        RingReduceTileHost<T>{ctx.num_threads(), comms[1], buffers[2],
+                              buffers[3], matrixDist, opA, alpha, viewA, viewB,
+                              beta, viewC}};
+
+    std::vector<BlockInfo> blockInfos;
+    blockInfos.reserve(descC.comm().size());
 
     IntType tileIdx = 0;
     for (IntType blockColIdx = 0; blockColIdx < matrixDist->num_block_cols();
-         blockColIdx += descC.proc_grid_cols()) {
+         ++blockColIdx) {
       for (IntType blockRowIdx = 0; blockRowIdx < matrixDist->num_block_rows();
-           blockRowIdx += descC.proc_grid_rows(), ++tileIdx) {
-        const IntType numCurrentBlockRows = std::min<IntType>(
-            matrixDist->num_block_rows() - blockRowIdx, descC.proc_grid_rows());
-        const IntType numCurrentBlockCols = std::min<IntType>(
-            matrixDist->num_block_cols() - blockColIdx, descC.proc_grid_cols());
+           ++blockRowIdx) {
 
-        tiles[tileIdx % tiles.size()].prepare(
-            blockRowIdx, blockColIdx, numCurrentBlockRows, numCurrentBlockCols);
-        bool tileToProcess = true;
+        blockInfos.emplace_back(
+            matrixDist->get_block_info(blockRowIdx, blockColIdx));
 
-        while (tileToProcess) {
-          tileToProcess = false;
-          for (auto &t : tiles) {
-            tileToProcess |= t.process_step();
-          }
+        if(blockInfos.size() == descC.comm().size()) {
+          tiles[tileIdx % numTiles].prepare(blockInfos.begin(), blockInfos.end());
+          blockInfos.resize(0);
+          ++tileIdx;
         }
+
+        if (tileIdx == numTiles) {
+          bool tileToProcess = true;
+          while (tileToProcess) {
+            tileToProcess = false;
+            for (auto &t : tiles) {
+              tileToProcess |= t.process_step();
+            }
+          }
+          tileIdx = 0;
+        }
+      }
+    }
+
+    if (blockInfos.size()) {
+      tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
+      blockInfos.resize(0);
+    }
+    bool tileToProcess = true;
+    while (tileToProcess) {
+      tileToProcess = false;
+      for (auto &t : tiles) {
+        tileToProcess |= t.process_step();
       }
     }
 

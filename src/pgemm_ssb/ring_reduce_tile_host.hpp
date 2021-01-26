@@ -52,33 +52,41 @@ public:
   using ValueType = T;
 
   RingReduceTileHost(IntType numThreads, MPICommunicatorHandle comm,
-           std::shared_ptr<Buffer<MPIAllocator>> buffer,
-           std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
-           ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-           const HostArrayConstView2D<ValueType> &B, ValueType beta,
-           HostArrayView2D<ValueType> C);
+                     std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
+                     std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                     SplaOperation opA, ValueType alpha,
+                     const HostArrayConstView2D<ValueType> &A,
+                     const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                     HostArrayView2D<ValueType> C);
 
-  auto prepare(IntType blockRowIdx, IntType blockColIdx, IntType numBlockRows,
-               IntType numBlockCols) -> void;
+  auto prepare(std::vector<BlockInfo>::const_iterator begin,
+               std::vector<BlockInfo>::const_iterator end) -> void;
 
   auto process_step() -> bool;
 
+  inline auto state() -> TileState { return state_; }
+
 protected:
   // state dependend
-  IntType numBlockRows_ = 0;
-  IntType numBlockCols_ = 0;
-  IntType myBlockIdx_ = -1;
+  IntType sendRank_ = 0;
+  IntType recvRank_ = 0;
+  IntType myStartIdx_ = 0;
   IntType currentBlockIdx = 0;
+  IntType numMyBlocksReduced_ = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
   std::vector<BlockInfo> blockInfos_;
+  std::vector<IntType> myBlockIndices_;
+  std::vector<MPIRequestHandle> resultRecvs_;
+  TileState state_;
 
   // fixed
-  HostArrayView2D<ValueType> recvView_;
-  HostArrayView2D<ValueType> sendView_;
-  HostArrayView2D<ValueType> resultView_;
+  HostArrayView1D<ValueType> recvView_;
+  HostArrayView1D<ValueType> sendView_;
   std::shared_ptr<MatrixBlockGenerator> matrixDist_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
+  std::shared_ptr<Buffer<MPIAllocator>> resultBuffer_;
   MPICommunicatorHandle comm_;
   HostArrayConstView2D<ValueType> A_;
   HostArrayConstView2D<ValueType> B_;
