@@ -123,37 +123,59 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
     blockInfos.reserve(descC.comm().size());
 
     IntType tileIdx = 0;
-    for (IntType blockColIdx = 0; blockColIdx < matrixDist->num_block_cols();
-         ++blockColIdx) {
-      for (IntType blockRowIdx = 0; blockRowIdx < matrixDist->num_block_rows();
-           ++blockRowIdx) {
 
-        blockInfos.emplace_back(
-            matrixDist->get_block_info(blockRowIdx, blockColIdx));
+    // iterate grid wise
+    for (IntType colStartIdx = 0; colStartIdx < matrixDist->num_block_cols();
+         colStartIdx += descC.proc_grid_cols()) {
+      for (IntType rowStartIdx = 0; rowStartIdx < matrixDist->num_block_rows();
+           rowStartIdx += descC.proc_grid_rows()) {
 
-        if(blockInfos.size() == descC.comm().size()) {
-          tiles[tileIdx % numTiles].prepare(blockInfos.begin(), blockInfos.end());
-          blockInfos.resize(0);
-          ++tileIdx;
-        }
+        // iterate through blocks within grid
+        for (IntType blockColIdx = colStartIdx;
+             blockColIdx <
+             std::min<IntType>(matrixDist->num_block_cols(),
+                               colStartIdx + descC.proc_grid_cols());
+             ++blockColIdx) {
+          for (IntType blockRowIdx = rowStartIdx;
+               blockRowIdx <
+               std::min<IntType>(matrixDist->num_block_rows(),
+                                 rowStartIdx + descC.proc_grid_rows());
+               ++blockRowIdx) {
 
-        if (tileIdx == numTiles) {
-          bool tileToProcess = true;
-          while (tileToProcess) {
-            tileToProcess = false;
-            for (auto &t : tiles) {
-              tileToProcess |= t.process_step();
+            blockInfos.emplace_back(
+                matrixDist->get_block_info(blockRowIdx, blockColIdx));
+
+            // Prepare processing when there are enough blocks to form ring
+            if (blockInfos.size() == descC.comm().size()) {
+              tiles[tileIdx % numTiles].prepare(blockInfos.begin(),
+                                                blockInfos.end());
+              blockInfos.resize(0);
+              ++tileIdx;
+            }
+
+            if (tileIdx == numTiles) {
+              // All tiles are prepared -> start processing
+              bool tileToProcess = true;
+              while (tileToProcess) {
+                tileToProcess = false;
+                // Interleave processing to hide communication cost
+                for (auto &t : tiles) {
+                  tileToProcess |= t.process_step();
+                }
+              }
+              tileIdx = 0;
             }
           }
-          tileIdx = 0;
         }
       }
     }
 
     if (blockInfos.size()) {
+      // Prepare with remaining blocks
       tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
       blockInfos.resize(0);
     }
+    // Process remaining blocks
     bool tileToProcess = true;
     while (tileToProcess) {
       tileToProcess = false;
