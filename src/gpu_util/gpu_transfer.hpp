@@ -147,7 +147,7 @@ auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView1
 template <typename T, typename U>
 auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView1D<T>& source,
                          HostArrayView1D<U>&& target) -> void {
-  copy_from_gpu(stream, source, target);
+  copy_from_gpu_async(stream, source, target);
 }
 
 template <typename T, typename U>

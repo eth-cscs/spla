@@ -219,8 +219,11 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
     ValueType beta = RealValueGPU<T>::create(0.0);
     if (currentBlockIdx) { // only copy to GPU from second step onwards
       beta = RealValueGPU<T>::create(1.0);
-      copy_to_gpu_async<T, T>(blasHandle_.stream_handle().get(),
-                              processingView_, tileViewGPU_);
+      copy_to_gpu_async<T, T>(
+          blasHandle_.stream_handle().get(),
+          HostArrayConstView1D<T>(processingView_.data(),
+                                  info.numCols * info.numRows),
+          GPUArrayView1D<T>(tileViewGPU_.data(), info.numCols * info.numRows));
     }
 
     auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
@@ -233,7 +236,10 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
         beta,
         GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows));
     copy_from_gpu_async(blasHandle_.stream_handle().get(),
-                        GPUArrayConstView1D<T>(tileViewGPU_), processingView_);
+                        GPUArrayConstView1D<T>(tileViewGPU_.data(),
+                                               info.numCols * info.numRows),
+                        HostArrayView1D<T>(processingView_.data(),
+                                           info.numCols * info.numRows));
   }
 
   if (currentBlockIdx == numBlocks - 1) {
@@ -282,8 +288,11 @@ auto RingReduceTileGPU<T>::process_step_reduction() -> void {
         matB_.sub_accessor(0, info.globalSubColIdx, matB_.rows(), info.numCols),
         RealValueGPU<T>::create(0.0),
         GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows));
-    copy_from_gpu_async(blasHandle_.stream_handle().get(),
-                        GPUArrayConstView1D<T>(tileViewGPU_), sendView_);
+    copy_from_gpu_async(
+        blasHandle_.stream_handle().get(),
+        GPUArrayConstView1D<T>(tileViewGPU_.data(),
+                               info.numCols * info.numRows),
+        HostArrayView1D<T>(sendView_.data(), info.numCols * info.numRows));
   } else {
     std::memset(sendView_.data(), 0, info.numCols * info.numRows * sizeof(T));
   }
@@ -339,9 +348,10 @@ auto RingReduceTileGPU<T>::process_step_finalize() -> void {
 
       copy_to_gpu_async<T, T>(
           blasHandle_.stream_handle().get(),
-          HostArrayConstView1D<T>(
-              resultBufferHost_->data<T>() + i * maxBlockSize, maxBlockSize),
-          tileViewGPU_);
+          HostArrayConstView1D<T>(resultBufferHost_->data<T>() +
+                                      i * maxBlockSize,
+                                  info.numCols * info.numRows),
+          GPUArrayView1D<T>(tileViewGPU_.data(), info.numCols * info.numRows));
 
       T *subMatPtr =
           GPUMatC_.data() + GPUMatC_.index(info.localColIdx, info.localRowIdx);
