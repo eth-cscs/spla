@@ -35,6 +35,7 @@ enum class TileState : int {
   Empty,
   Prepared,
   PartiallyProcessed,
+  Processed,
   Multiplied,
   InExchange,
   Exchanged

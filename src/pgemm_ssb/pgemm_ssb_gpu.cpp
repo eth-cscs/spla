@@ -194,8 +194,9 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
             // Prepare processing when there are enough blocks to form ring
             if (blockInfos.size() == descC.comm().size()) {
-              tiles[tileIdx % numTiles].prepare(blockInfos.begin(),
-                                                blockInfos.end());
+              auto & t = tiles[tileIdx % numTiles];
+              if(t.state() == TileState::Processed) t.finalize();
+              t.prepare(blockInfos.begin(), blockInfos.end());
               blockInfos.resize(0);
               ++tileIdx;
             }
@@ -219,6 +220,8 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
     if (blockInfos.size()) {
       // Prepare with remaining blocks
+      if (tiles[tileIdx].state() == TileState::Processed)
+        tiles[tileIdx].finalize();
       tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
       blockInfos.resize(0);
     }
@@ -231,6 +234,10 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
       }
     }
 
+    for (auto &t : tiles) {
+      if (t.state() == TileState::Processed)
+        t.finalize();
+    }
 
     // synchronize all streams
     for (auto &t : tiles) {

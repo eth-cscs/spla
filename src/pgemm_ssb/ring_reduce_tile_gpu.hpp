@@ -70,6 +70,8 @@ public:
 
   auto process_step() -> bool;
 
+  auto finalize() -> void;
+
   inline auto state() -> TileState { return state_; }
 
   inline auto synchronize() -> void {
@@ -81,8 +83,6 @@ private:
   auto process_step_ring() -> void;
 
   auto process_step_reduction() -> void;
-
-  auto process_step_finalize() -> void;
 
   // state dependend
   IntType sendRank_ = 0;

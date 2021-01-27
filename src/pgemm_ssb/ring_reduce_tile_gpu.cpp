@@ -242,16 +242,10 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
                                            info.numCols * info.numRows));
   }
 
-  if (currentBlockIdx == numBlocks - 1) {
-    // send final result to target rank
-    sendReq_.wait_if_active();
-    gpu::stream_synchronize(blasHandle_.stream_handle().get());
-    MPI_Isend(processingView_.data(), info.numRows * info.numCols,
-              MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
-              comm_.get(), sendReq_.get_and_activate());
-  }
-
-  state_ = TileState::PartiallyProcessed;
+  if (currentBlockIdx < blockInfos_.size() - 1)
+    state_ = TileState::PartiallyProcessed;
+  else
+    state_ = TileState::Processed;
 }
 
 template <typename T>
@@ -261,9 +255,9 @@ auto RingReduceTileGPU<T>::process_step_reduction() -> void {
 
   const BlockInfo &info = blockInfos_[currentBlockIdx];
 
+  sendReq_.wait_if_active();
   if (currentBlockIdx > 0) {
     const auto previousInfo = blockInfos_[(currentBlockIdx - 1)];
-    sendReq_.wait_if_active();
     gpu::stream_synchronize(blasHandle_.stream_handle().get());
     mpi_check_status(MPI_Ireduce(
         sendView_.data(),
@@ -297,29 +291,43 @@ auto RingReduceTileGPU<T>::process_step_reduction() -> void {
     std::memset(sendView_.data(), 0, info.numCols * info.numRows * sizeof(T));
   }
 
-  if (currentBlockIdx == blockInfos_.size() - 1) {
-    sendReq_.wait_if_active();
-    gpu::stream_synchronize(blasHandle_.stream_handle().get());
-    mpi_check_status(MPI_Ireduce(
-        sendView_.data(),
-        resultBufferHost_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
-        info.numCols * info.numRows, MPIMatchElementaryType<ValueType>::get(),
-        MPI_SUM, info.mpiRank, comm_.get(), sendReq_.get_and_activate()));
-  }
-
-  state_ = TileState::PartiallyProcessed;
+  if (currentBlockIdx < blockInfos_.size() - 1)
+    state_ = TileState::PartiallyProcessed;
+  else
+    state_ = TileState::Processed;
 }
 
 template <typename T>
-auto RingReduceTileGPU<T>::process_step_finalize() -> void {
+auto RingReduceTileGPU<T>::finalize() -> void {
+  assert(state_ == TileState::Processed);
+
   // add tile to result as final step
-
-  sendReq_.wait_if_active();
-  recvReq_.wait_if_active();
-
-  const bool resultOnHost = GPUMatC_.empty();
+  const bool accumulateRequired = blockInfos_.size() != comm_.size();
   const auto maxBlockSize =
       matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+  const bool resultOnHost = GPUMatC_.empty();
+
+  sendReq_.wait_if_active();
+  gpu::stream_synchronize(blasHandle_.stream_handle().get());
+
+  if(accumulateRequired) {
+    const BlockInfo &info = blockInfos_.back();
+    mpi_check_status(MPI_Reduce(
+        sendView_.data(),
+        resultBufferHost_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
+        info.numCols * info.numRows, MPIMatchElementaryType<ValueType>::get(),
+        MPI_SUM, info.mpiRank, comm_.get()));
+  } else {
+    const auto &info = blockInfos_[(myStartIdx_ + blockInfos_.size() - 1) %
+                                   blockInfos_.size()];
+    MPI_Isend(processingView_.data(), info.numRows * info.numCols,
+             MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
+             comm_.get(), sendReq_.get_and_activate());
+  }
+
+
+  recvReq_.wait_if_active();
+
 
   using hostType = typename TypeTranslationHost<T>::type;
 
@@ -376,9 +384,7 @@ template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
     } else {
       this->process_step_reduction();
     }
-  } else if (currentBlockIdx == numBlocks && currentBlockIdx > 0) {
-    this->process_step_finalize();
-  }
+  } 
 
   ++currentBlockIdx;
   return currentBlockIdx <= numBlocks;
