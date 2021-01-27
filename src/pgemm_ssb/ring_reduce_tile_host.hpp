@@ -67,7 +67,14 @@ public:
 
   inline auto state() -> TileState { return state_; }
 
-protected:
+private:
+
+  auto process_step_ring() -> void;
+
+  auto process_step_reduction() -> void;
+
+  auto process_step_finalize() -> void;
+
   // state dependend
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;

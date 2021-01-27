@@ -129,17 +129,18 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
 
   const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
+  const IntType numTiles = ctx.num_tiles();
 
-  auto &gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
-  auto &pinnedBuffers = ctx.pinned_buffers(ctx.num_tiles());
-  auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
+  auto &gpuBuffers = ctx.gpu_buffers(numTiles * 3);
+  auto &blasHandles = ctx.gpu_blas_handles(numTiles);
 
   if (useRingReduce) {
+    auto &pinnedBuffers = ctx.pinned_buffers(2 * numTiles);
     std::vector<RingReduceTileGPU<T>> tiles;
-    tiles.reserve(ctx.num_tiles());
-    auto &comms = descC.get_comms(ctx.num_tiles());
+    tiles.reserve(numTiles);
+    auto &comms = descC.get_comms(numTiles);
 
-    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+    for (IntType i = 0; i < numTiles; ++i) {
       auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                                 GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
                           : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
@@ -159,34 +160,77 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
                          ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc)
                          : GPUArrayView2D<T>();
 
-      tiles.emplace_back(comms[i], blasHandles[i], pinnedBuffers[i],
-                         gpuBuffers[i * 3 + 2], matrixDist, opA, alpha, matA,
-                         matB, beta, hostMatC, gpuMatC);
+      tiles.emplace_back(comms[i], blasHandles[i], pinnedBuffers[2 * i],
+                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2],
+                         matrixDist, opA, alpha, matA, matB, beta, hostMatC,
+                         gpuMatC);
     }
 
+    std::vector<BlockInfo> blockInfos;
+    blockInfos.reserve(descC.comm().size());
 
     IntType tileIdx = 0;
-    for (IntType blockColIdx = 0; blockColIdx < matrixDist->num_block_cols();
-         blockColIdx += descC.proc_grid_cols()) {
-      for (IntType blockRowIdx = 0; blockRowIdx < matrixDist->num_block_rows();
-           blockRowIdx += descC.proc_grid_rows(), ++tileIdx) {
-        const IntType numCurrentBlockRows = std::min<IntType>(
-            matrixDist->num_block_rows() - blockRowIdx, descC.proc_grid_rows());
-        const IntType numCurrentBlockCols = std::min<IntType>(
-            matrixDist->num_block_cols() - blockColIdx, descC.proc_grid_cols());
 
-        tiles[tileIdx % tiles.size()].prepare(
-            blockRowIdx, blockColIdx, numCurrentBlockRows, numCurrentBlockCols);
-        bool tileToProcess = true;
+    // iterate grid wise
+    for (IntType colStartIdx = 0; colStartIdx < matrixDist->num_block_cols();
+         colStartIdx += descC.proc_grid_cols()) {
+      for (IntType rowStartIdx = 0; rowStartIdx < matrixDist->num_block_rows();
+           rowStartIdx += descC.proc_grid_rows()) {
 
-        while (tileToProcess) {
-          tileToProcess = false;
-          for (auto &t : tiles) {
-            tileToProcess |= t.process_step();
+        // iterate through blocks within grid
+        for (IntType blockColIdx = colStartIdx;
+             blockColIdx <
+             std::min<IntType>(matrixDist->num_block_cols(),
+                               colStartIdx + descC.proc_grid_cols());
+             ++blockColIdx) {
+          for (IntType blockRowIdx = rowStartIdx;
+               blockRowIdx <
+               std::min<IntType>(matrixDist->num_block_rows(),
+                                 rowStartIdx + descC.proc_grid_rows());
+               ++blockRowIdx) {
+
+            blockInfos.emplace_back(
+                matrixDist->get_block_info(blockRowIdx, blockColIdx));
+
+            // Prepare processing when there are enough blocks to form ring
+            if (blockInfos.size() == descC.comm().size()) {
+              tiles[tileIdx % numTiles].prepare(blockInfos.begin(),
+                                                blockInfos.end());
+              blockInfos.resize(0);
+              ++tileIdx;
+            }
+
+            if (tileIdx == numTiles) {
+              // All tiles are prepared -> start processing
+              bool tileToProcess = true;
+              while (tileToProcess) {
+                tileToProcess = false;
+                // Interleave processing to hide communication cost
+                for (auto &t : tiles) {
+                  tileToProcess |= t.process_step();
+                }
+              }
+              tileIdx = 0;
+            }
           }
         }
       }
     }
+
+    if (blockInfos.size()) {
+      // Prepare with remaining blocks
+      tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
+      blockInfos.resize(0);
+    }
+    // Process remaining blocks
+    bool tileToProcess = true;
+    while (tileToProcess) {
+      tileToProcess = false;
+      for (auto &t : tiles) {
+        tileToProcess |= t.process_step();
+      }
+    }
+
 
     // synchronize all streams
     for (auto &t : tiles) {
@@ -195,6 +239,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
 
   } else {
+    auto &pinnedBuffers = ctx.pinned_buffers(numTiles);
     const IntType numBlockRows = matrixDist->num_block_rows();
     const IntType numBlockCols = matrixDist->num_block_cols();
 
@@ -208,9 +253,9 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
                           1);
 
     std::vector<AllReduceTileGPU<T>> tiles;
-    tiles.reserve(ctx.num_tiles());
+    tiles.reserve(numTiles);
 
-    for (IntType i = 0; i < ctx.num_tiles(); ++i) {
+    for (IntType i = 0; i < numTiles; ++i) {
       auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                                 GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
                           : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
@@ -245,7 +290,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
              blockRowIdx += numBlockRowsInTile) {
           for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
                blockColIdx += numBlockColsInTile, ++counter) {
-            auto &t = tiles[counter % ctx.num_tiles()];
+            auto &t = tiles[counter % numTiles];
             if (omp_get_thread_num() == 0) {
               // wait for tile to be multiplied
               while (t.state() != TileState::Multiplied) {
@@ -253,7 +298,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
               t.exchange();
             } else {
               // wait for tile once encountering the same tile more than once
-              if (counter >= ctx.num_tiles()) {
+              if (counter >= numTiles) {
                 while (t.state() != TileState::Exchanged) {
                 }
                 t.extract();
@@ -271,7 +316,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
            blockRowIdx += numBlockRowsInTile) {
         for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
              blockColIdx += numBlockColsInTile, ++counter) {
-          auto &t = tiles[counter % ctx.num_tiles()];
+          auto &t = tiles[counter % numTiles];
           if (t.state() == TileState::Multiplied) {
             t.exchange();
             t.extract();

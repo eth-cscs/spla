@@ -36,6 +36,7 @@
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
+#include "pgemm_ssb/add_kernel.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 #include <algorithm>
@@ -45,6 +46,9 @@
 #include <memory>
 
 namespace spla {
+
+static constexpr int resultTag = 1;
+static constexpr int ringTag = 2;
 
 static auto call_gpu_geam(const gpu::blas::HandleType &handle,
                           const gpu::blas::OperationType &transa,
@@ -88,247 +92,282 @@ static auto call_gpu_geam(const gpu::blas::HandleType &handle,
   gpu::blas::cgeam(handle, transa, transb, m, n, &alpha, A, lda, &beta, B, ldb,
                    C, ldc);
 }
+
 template <typename T>
 RingReduceTileGPU<T>::RingReduceTileGPU(
     MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
     std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
+    std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
     std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
     std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
     ValueType alpha, GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA,
     GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB, ValueType beta,
     HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC)
-    : comm_(std::move(comm)), matrixDist_(std::move(matrixDist)),
-      bufferHost_(std::move(bufferHost)), bufferGPU_(std::move(bufferGPU)),
-      blasHandle_(std::move(blasHandle)), matA_(matA), matB_(matB),
-      HostMatC_(HostMatC), GPUMatC_(GPUMatC), alpha_(alpha), beta_(beta),
-      opA_(opA) {
+    : state_(TileState::Empty), comm_(std::move(comm)),
+      matrixDist_(std::move(matrixDist)), bufferHost_(std::move(bufferHost)),
+      resultBufferHost_(std::move(resultBufferHost)),
+      bufferGPU_(std::move(bufferGPU)), blasHandle_(std::move(blasHandle)),
+      matA_(matA), matB_(matB), HostMatC_(HostMatC), GPUMatC_(GPUMatC),
+      alpha_(alpha), beta_(beta), opA_(opA) {
 
   assert(bufferHost_);
+  assert(resultBufferHost_);
   assert(bufferGPU_);
   assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE ||
          opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
   const auto blockSize =
       matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
   bufferHost_->resize<ValueType>(3 * blockSize);
-  resultView_ = HostArrayView2D<T>(bufferHost_->data<T>(),
-                                   matrixDist_->max_cols_in_block(),
-                                   matrixDist_->max_rows_in_block());
-  sendView_ = HostArrayView2D<T>(bufferHost_->data<T>() + blockSize,
-                                 matrixDist_->max_cols_in_block(),
-                                 matrixDist_->max_rows_in_block());
-  recvView_ = HostArrayView2D<T>(bufferHost_->data<T>() + 2 * blockSize,
-                                 matrixDist_->max_cols_in_block(),
-                                 matrixDist_->max_rows_in_block());
+  sendView_ = HostArrayView1D<T>(bufferHost_->data<T>(), blockSize);
+  recvView_ = HostArrayView1D<T>(bufferHost_->data<T>() + blockSize, blockSize);
+  processingView_ =
+      HostArrayView1D<T>(bufferHost_->data<T>() + 2 * blockSize, blockSize);
 
   bufferGPU_->resize<T>(blockSize);
-  tileViewGPU_ =
-      GPUArrayView2D<T>(bufferGPU_->data<T>(), matrixDist_->max_cols_in_block(),
-                        matrixDist_->max_rows_in_block());
-
+  tileViewGPU_ = GPUArrayView1D<T>(bufferGPU_->data<T>(), blockSize);
 }
 
 template <typename T>
-auto RingReduceTileGPU<T>::prepare(IntType blockRowIdx, IntType blockColIdx,
-                                   IntType numBlockRows, IntType numBlockCols)
+auto RingReduceTileGPU<T>::prepare(std::vector<BlockInfo>::const_iterator begin,
+                                   std::vector<BlockInfo>::const_iterator end)
     -> void {
+  assert(state_ == TileState::Empty);
+  gpu::stream_synchronize(blasHandle_.stream_handle().get());
 
-  blockInfos_.resize(numBlockRows * numBlockCols);
-  infoForReduce_ = nullptr;
+  numMyBlocksReduced_ = 0;
 
-  numBlockRows_ = numBlockRows;
-  numBlockCols_ = numBlockCols;
-  myBlockIdx_ = -1;
+  blockInfos_.assign(begin, end);
+
   currentBlockIdx = 0;
+  const IntType rankOffset = blockInfos_.front().mpiRank;
+  myStartIdx_ = (rankOffset + comm_.rank()) % blockInfos_.size();
+  sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
+  recvRank_ = (comm_.rank() + 1) % comm_.size();
 
-  // compute block infos
-  for (IntType ic = 0; ic < numBlockCols; ++ic) {
-    for (IntType ir = 0; ir < numBlockRows; ++ir) {
-      blockInfos_[ic * numBlockRows + ir] =
-          matrixDist_->get_block_info(blockRowIdx + ir, blockColIdx + ic);
-      if (blockInfos_[ic * numBlockRows + ir].mpiRank == comm_.rank()) {
-        assert(myBlockIdx_ <
-               0); // each rank must receive at most one block within grid
-        myBlockIdx_ = ic * numBlockRows + ir;
-      }
+  myBlockIndices_.resize(0);
+  for (IntType i = 0; i < blockInfos_.size(); ++i) {
+    if (blockInfos_[i].mpiRank == comm_.rank()) {
+      myBlockIndices_.emplace_back(i);
     }
   }
+
+  const auto maxBlockSize =
+      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
 
   std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
 
-  const IntType numBlocks = numBlockRows_ * numBlockCols_;
-  const bool accumulateRequired = numBlocks != comm_.size();
-  if (accumulateRequired) {
-    std::memset(resultView_.data(), 0, resultView_.size() * sizeof(T));
-    std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
-    std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
+  const bool accumulateRequired = blockInfos_.size() != comm_.size();
+
+  resultBufferHost_->resize<T>(
+      std::max<std::size_t>(myBlockIndices_.size(), 1) * maxBlockSize);
+  resultRecvs_.resize(myBlockIndices_.size());
+
+  if (!accumulateRequired) {
+    for (IntType i = 0; i < myBlockIndices_.size(); ++i) {
+      // Determine rank to receive result from by computing the rank, which
+      // holds the block initially and substracting the number of steps in the
+      // ring (blocks are send backwards)
+      const auto originRank = (myBlockIndices_[i] + 2 * comm_.size() -
+                               rankOffset - (blockInfos_.size() - 1)) %
+                              comm_.size();
+      const auto &info = blockInfos_[myBlockIndices_[i]];
+      // Post receive for each block this ranks requires
+      MPI_Irecv(resultBufferHost_->data<T>() + i * maxBlockSize,
+                info.numCols * info.numRows, MPIMatchElementaryType<T>::get(),
+                originRank, resultTag, comm_.get(),
+                resultRecvs_[i].get_and_activate());
+    }
+  } else {
+    std::memset(resultBufferHost_->data<T>(), 0,
+                resultBufferHost_->size<T>() * sizeof(T));
   }
+
+  state_ = TileState::Prepared;
+}
+
+template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
+  const IntType numBlocks = blockInfos_.size();
+
+  const auto &info =
+      blockInfos_[(myStartIdx_ + currentBlockIdx) % blockInfos_.size()];
+  assert(info.mpiRank >= 0); // Mirror distribution not supported
+  const auto &nextInfo =
+      blockInfos_[(myStartIdx_ + currentBlockIdx + 1) % blockInfos_.size()];
+
+  gpu::stream_synchronize(blasHandle_.stream_handle().get());
+
+  std::swap(processingView_, recvView_);
+  std::swap(recvView_, sendView_);
+
+  sendReq_.wait_if_active();
+  if (currentBlockIdx > 0) {
+    const auto previousInfo =
+        blockInfos_[(myStartIdx_ + currentBlockIdx - 1) % blockInfos_.size()];
+    MPI_Isend(sendView_.data(), previousInfo.numRows * previousInfo.numCols,
+              MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get(),
+              sendReq_.get_and_activate());
+  }
+
+  recvReq_.wait_if_active();
+  if (currentBlockIdx < numBlocks - 1) {
+    MPI_Irecv(recvView_.data(), nextInfo.numCols * nextInfo.numRows,
+              MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
+              recvReq_.get_and_activate());
+  }
+
+  if (matA_.rows() != 0) {
+    ValueType beta = RealValueGPU<T>::create(0.0);
+    if (currentBlockIdx) { // only copy to GPU from second step onwards
+      beta = RealValueGPU<T>::create(1.0);
+      copy_to_gpu_async<T, T>(blasHandle_.stream_handle().get(),
+                              processingView_, tileViewGPU_);
+    }
+
+    auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
+                      ? gpu::blas::operation::Transpose
+                      : gpu::blas::operation::ConjugateTranspose;
+    multiply_gpu<ValueType>(
+        blasHandle_.get(), opAGPU, gpu::blas::operation::None, alpha_,
+        matA_.sub_accessor(0, info.globalSubRowIdx, matA_.rows(), info.numRows),
+        matB_.sub_accessor(0, info.globalSubColIdx, matB_.rows(), info.numCols),
+        beta,
+        GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows));
+    copy_from_gpu_async(blasHandle_.stream_handle().get(),
+                        GPUArrayConstView1D<T>(tileViewGPU_), processingView_);
+  }
+
+  if (currentBlockIdx == numBlocks - 1) {
+    // send final result to target rank
+    sendReq_.wait_if_active();
+    gpu::stream_synchronize(blasHandle_.stream_handle().get());
+    MPI_Isend(processingView_.data(), info.numRows * info.numCols,
+              MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
+              comm_.get(), sendReq_.get_and_activate());
+  }
+
+  state_ = TileState::PartiallyProcessed;
+}
+
+template <typename T>
+auto RingReduceTileGPU<T>::process_step_reduction() -> void {
+  const auto maxBlockSize =
+      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+
+  const BlockInfo &info = blockInfos_[currentBlockIdx];
+
+  if (currentBlockIdx > 0) {
+    const auto previousInfo = blockInfos_[(currentBlockIdx - 1)];
+    sendReq_.wait_if_active();
+    gpu::stream_synchronize(blasHandle_.stream_handle().get());
+    mpi_check_status(MPI_Ireduce(
+        sendView_.data(),
+        resultBufferHost_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
+        previousInfo.numCols * previousInfo.numRows,
+        MPIMatchElementaryType<ValueType>::get(), MPI_SUM, previousInfo.mpiRank,
+        comm_.get(), sendReq_.get_and_activate()));
+
+    if (previousInfo.mpiRank == comm_.rank())
+      ++numMyBlocksReduced_;
+
+    std::swap(recvView_, sendView_);
+  }
+
+  if (matA_.rows() != 0) {
+    auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
+                      ? gpu::blas::operation::Transpose
+                      : gpu::blas::operation::ConjugateTranspose;
+    multiply_gpu<ValueType>(
+        blasHandle_.get(), opAGPU, gpu::blas::operation::None, alpha_,
+        matA_.sub_accessor(0, info.globalSubRowIdx, matA_.rows(), info.numRows),
+        matB_.sub_accessor(0, info.globalSubColIdx, matB_.rows(), info.numCols),
+        RealValueGPU<T>::create(0.0),
+        GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows));
+    copy_from_gpu_async(blasHandle_.stream_handle().get(),
+                        GPUArrayConstView1D<T>(tileViewGPU_), sendView_);
+  } else {
+    std::memset(sendView_.data(), 0, info.numCols * info.numRows * sizeof(T));
+  }
+
+  if (currentBlockIdx == blockInfos_.size() - 1) {
+    sendReq_.wait_if_active();
+    gpu::stream_synchronize(blasHandle_.stream_handle().get());
+    mpi_check_status(MPI_Ireduce(
+        sendView_.data(),
+        resultBufferHost_->data<T>() + numMyBlocksReduced_ * maxBlockSize,
+        info.numCols * info.numRows, MPIMatchElementaryType<ValueType>::get(),
+        MPI_SUM, info.mpiRank, comm_.get(), sendReq_.get_and_activate()));
+  }
+
+  state_ = TileState::PartiallyProcessed;
+}
+
+template <typename T>
+auto RingReduceTileGPU<T>::process_step_finalize() -> void {
+  // add tile to result as final step
+
+  sendReq_.wait_if_active();
+  recvReq_.wait_if_active();
+
+  const bool resultOnHost = GPUMatC_.empty();
+  const auto maxBlockSize =
+      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+
+  using hostType = typename TypeTranslationHost<T>::type;
+
+  if (resultOnHost) {
+    auto matCHostConverted = HostArrayView2D<hostType>(
+        reinterpret_cast<hostType *>(HostMatC_.data()), HostMatC_.dim_outer(),
+        HostMatC_.dim_inner(), HostMatC_.ld_inner());
+
+    auto betaHost = TypeTranslationHost<T>::convert(this->beta_);
+    for (IntType i = 0; i < myBlockIndices_.size(); ++i) {
+      resultRecvs_[i].wait_if_active();
+      const auto &info = blockInfos_[myBlockIndices_[i]];
+
+      add_kernel(info.numRows, info.numCols,
+                 resultBufferHost_->data<hostType>() + i * maxBlockSize,
+                 info.numRows, betaHost,
+                 &matCHostConverted(info.localColIdx, info.localRowIdx),
+                 matCHostConverted.ld_inner());
+    }
+  } else {
+    // result should be placed in gpu memory
+
+    for (IntType i = 0; i < myBlockIndices_.size(); ++i) {
+      resultRecvs_[i].wait_if_active();
+      const auto &info = blockInfos_[myBlockIndices_[i]];
+
+      copy_to_gpu_async<T, T>(
+          blasHandle_.stream_handle().get(),
+          HostArrayConstView1D<T>(
+              resultBufferHost_->data<T>() + i * maxBlockSize, maxBlockSize),
+          tileViewGPU_);
+
+      T *subMatPtr =
+          GPUMatC_.data() + GPUMatC_.index(info.localColIdx, info.localRowIdx);
+      call_gpu_geam(blasHandle_.get(), gpu::blas::operation::None,
+                    gpu::blas::operation::None, info.numRows, info.numCols,
+                    RealValueGPU<T>::create(1.0), tileViewGPU_.data(),
+                    info.numRows, beta_, subMatPtr, GPUMatC_.ld_inner(),
+                    subMatPtr, GPUMatC_.ld_inner());
+    }
+  }
+
+  state_ = TileState::Empty;
 }
 
 template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
-  const IntType numBlocks = numBlockRows_ * numBlockCols_;
-  const bool accumulateRequired = numBlocks != comm_.size();
-  const bool resultOnHost = GPUMatC_.empty();
+  const bool accumulateRequired = blockInfos_.size() != comm_.size();
+  const IntType numBlocks = blockInfos_.size();
 
   if (currentBlockIdx < numBlocks) {
     if (!accumulateRequired) {
-      const IntType startGridIdx = (myBlockIdx_ + 1) % numBlocks;
-
-      const int sendRank =
-          blockInfos_[myBlockIdx_ == 0 ? numBlocks - 1 : myBlockIdx_ - 1]
-              .mpiRank;
-      const int recvRank = blockInfos_[(myBlockIdx_ + 1) % numBlocks].mpiRank;
-
-      const IntType gridBlockIdx = (startGridIdx + currentBlockIdx) % numBlocks;
-      const auto &info = blockInfos_[gridBlockIdx];
-      assert(info.mpiRank >= 0); // Mirror distribution not supported
-
-      sendReq_.wait_if_active();
-      if (currentBlockIdx > 0) {
-        gpu::stream_synchronize(blasHandle_.stream_handle().get());
-        MPI_Send(sendView_.data(), sendView_.size(),
-                 MPIMatchElementaryType<T>::get(), sendRank, 0, comm_.get());
-      }
-      recvReq_.wait_if_active();
-      std::swap(sendView_, recvView_);
-
-      ValueType beta = RealValueGPU<T>::create(0.0);
-      if (currentBlockIdx) { // only copy to GPU from second step onwards
-        beta = RealValueGPU<T>::create(1.0);
-        copy_to_gpu_async<T, T>(blasHandle_.stream_handle().get(),
-                                HostArrayView2D<ValueType>(sendView_),
-                                tileViewGPU_);
-      }
-      if (matA_.rows() != 0) {
-        auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
-                          ? gpu::blas::operation::Transpose
-                          : gpu::blas::operation::ConjugateTranspose;
-        multiply_gpu<ValueType>(
-            blasHandle_.get(), opAGPU, gpu::blas::operation::None, alpha_,
-            matA_.sub_accessor(0, info.globalSubRowIdx,
-                               matA_.rows(), info.numRows),
-            matB_.sub_accessor(0, info.globalSubColIdx,
-                               matB_.rows(), info.numCols),
-            beta,
-            GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows,
-                              tileViewGPU_.ld_inner()));
-        if (resultOnHost || (currentBlockIdx < numBlocks - 1)) {
-          copy_from_gpu_async(blasHandle_.stream_handle().get(),
-                              GPUArrayConstView2D<T>(tileViewGPU_), sendView_);
-        }
-      }
-      if (currentBlockIdx < numBlocks - 1)
-        MPI_Irecv(recvView_.data(), recvView_.size(),
-                  MPIMatchElementaryType<T>::get(), recvRank, 0, comm_.get(),
-                  recvReq_.get_and_activate());
+      this->process_step_ring();
     } else {
-      // Number of blocks not equal to number of ranks -> use MPI_Reduce instaed of ring
-      assert(accumulateRequired);
-
-      const BlockInfo &info = blockInfos_[currentBlockIdx];
-
-      if(infoForReduce_) {
-        sendReq_.wait_if_active();
-        gpu::stream_synchronize(blasHandle_.stream_handle().get());
-        mpi_check_status(MPI_Ireduce(
-            sendView_.data(), resultView_.data(), sendView_.size(),
-            MPIMatchElementaryType<ValueType>::get(), MPI_SUM,
-            infoForReduce_->mpiRank, comm_.get(), sendReq_.get_and_activate()));
-        std::swap(sendView_, recvView_);
-      }
-
-      infoForReduce_ = &info;
-
-
-      if (matA_.rows() != 0) {
-        auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
-                          ? gpu::blas::operation::Transpose
-                          : gpu::blas::operation::ConjugateTranspose;
-        multiply_gpu<ValueType>(
-            blasHandle_.get(), opAGPU, gpu::blas::operation::None, alpha_,
-            matA_.sub_accessor(0, info.globalSubRowIdx, matA_.rows(),
-                               info.numRows),
-            matB_.sub_accessor(0, info.globalSubColIdx, matB_.rows(),
-                               info.numCols),
-            RealValueGPU<T>::create(0.0),
-            GPUArrayView2D<T>(tileViewGPU_.data(), info.numCols, info.numRows,
-                              tileViewGPU_.ld_inner()));
-        copy_from_gpu_async(blasHandle_.stream_handle().get(),
-                            GPUArrayConstView2D<T>(tileViewGPU_), sendView_);
-      }
-
+      this->process_step_reduction();
     }
-
-  } else if (currentBlockIdx == numBlocks) {
-    // add tile to result as final step
-
-    sendReq_.wait_if_active();
-    recvReq_.wait_if_active();
-
-    if (accumulateRequired && infoForReduce_) {
-      gpu::stream_synchronize(blasHandle_.stream_handle().get());
-      mpi_check_status(
-          MPI_Reduce(sendView_.data(), resultView_.data(), sendView_.size(),
-                     MPIMatchElementaryType<ValueType>::get(), MPI_SUM,
-                     infoForReduce_->mpiRank, comm_.get()));
-    }
-
-    if (myBlockIdx_ >= 0) {
-      auto tileView = accumulateRequired ? resultView_ : sendView_;
-      const auto &myInfo = blockInfos_[myBlockIdx_];
-      if (resultOnHost) {
-        // result should be placed in host memory
-        // interpret as std::complex or scalar for host compuations
-        auto betaHost = TypeTranslationHost<T>::convert(this->beta_);
-        auto matCHostConverted =
-            HostArrayView2D<typename TypeTranslationHost<T>::type>(
-                reinterpret_cast<typename TypeTranslationHost<T>::type *>(
-                    HostMatC_.data()),
-                HostMatC_.dim_outer(), HostMatC_.dim_inner(),
-                HostMatC_.ld_inner());
-        auto tileHostConverted =
-            HostArrayView2D<typename TypeTranslationHost<T>::type>(
-                reinterpret_cast<typename TypeTranslationHost<T>::type *>(
-                    tileView.data()),
-                tileView.dim_outer(), tileView.dim_inner(),
-                tileView.ld_inner());
-
-        gpu::stream_synchronize(blasHandle_.stream_handle().get());
-        if (betaHost == typename TypeTranslationHost<T>::type(0.0)) {
-          for (IntType col = 0; col < myInfo.numCols; ++col) {
-            for (IntType row = 0; row < myInfo.numRows; ++row) {
-              matCHostConverted(myInfo.localColIdx + col,
-                                myInfo.localRowIdx + row) =
-                  tileHostConverted(col, row);
-            }
-          }
-        } else {
-          for (IntType col = 0; col < myInfo.numCols; ++col) {
-            for (IntType row = 0; row < myInfo.numRows; ++row) {
-              matCHostConverted(myInfo.localColIdx + col,
-                                myInfo.localRowIdx + row) =
-                  betaHost * matCHostConverted(myInfo.localColIdx + col,
-                                               myInfo.localRowIdx + row) +
-                  tileHostConverted(col, row);
-            }
-          }
-        }
-      } else {
-        // result should be placed in gpu memory
-        // copy data once if at least one block is assigned to this rank
-        if (accumulateRequired) {
-          copy_to_gpu_async<ValueType, ValueType>(
-              blasHandle_.stream_handle().get(), tileView, tileViewGPU_);
-        }
-        T *subMatPtr = GPUMatC_.data() +
-                       GPUMatC_.index(myInfo.localColIdx, myInfo.localRowIdx);
-        call_gpu_geam(blasHandle_.get(), gpu::blas::operation::None,
-                      gpu::blas::operation::None, myInfo.numRows,
-                      myInfo.numCols, RealValueGPU<T>::create(1.0),
-                      tileViewGPU_.data(), tileViewGPU_.ld_inner(), beta_,
-                      subMatPtr, GPUMatC_.ld_inner(), subMatPtr,
-                      GPUMatC_.ld_inner());
-      }
-    }
+  } else if (currentBlockIdx == numBlocks && currentBlockIdx > 0) {
+    this->process_step_finalize();
   }
 
   ++currentBlockIdx;
