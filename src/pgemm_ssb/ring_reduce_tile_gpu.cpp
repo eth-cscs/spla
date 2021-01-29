@@ -203,9 +203,8 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
   if (currentBlockIdx > 0) {
     const auto previousInfo =
         blockInfos_[(myStartIdx_ + currentBlockIdx - 1) % blockInfos_.size()];
-    MPI_Isend(sendView_.data(), previousInfo.numRows * previousInfo.numCols,
-              MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get(),
-              sendReq_.get_and_activate());
+    MPI_Send(sendView_.data(), previousInfo.numRows * previousInfo.numCols,
+             MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get());
   }
 
   recvReq_.wait_if_active();
@@ -320,9 +319,9 @@ auto RingReduceTileGPU<T>::finalize() -> void {
   } else {
     const auto &info = blockInfos_[(myStartIdx_ + blockInfos_.size() - 1) %
                                    blockInfos_.size()];
-    MPI_Isend(processingView_.data(), info.numRows * info.numCols,
+    MPI_Send(processingView_.data(), info.numRows * info.numCols,
              MPIMatchElementaryType<T>::get(), info.mpiRank, resultTag,
-             comm_.get(), sendReq_.get_and_activate());
+             comm_.get());
   }
 
 

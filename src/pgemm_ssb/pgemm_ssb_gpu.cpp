@@ -85,10 +85,10 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
     throw InvalidParameterError();
   }
 
-  // if (descC.comm().size() == 1) {
-  //   return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
-  //                      C + cRowStart + cColStart * ldc, ldc, ctx);
-  // }
+  if (descC.comm().size() == 1) {
+    return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
+                       C + cRowStart + cColStart * ldc, ldc, ctx);
+  }
 
   bool useRingReduce = false;
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
@@ -197,6 +197,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
               auto & t = tiles[tileIdx % numTiles];
               if(t.state() == TileState::Processed) t.finalize();
               t.prepare(blockInfos.begin(), blockInfos.end());
+              t.process_step(); // Do a first step to start work on GPU
               blockInfos.resize(0);
               ++tileIdx;
             }
@@ -225,6 +226,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
       tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
       blockInfos.resize(0);
     }
+
     // Process remaining blocks
     bool tileToProcess = true;
     while (tileToProcess) {
