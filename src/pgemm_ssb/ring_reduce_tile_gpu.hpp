@@ -45,6 +45,7 @@
 #include "block_generation/matrix_block_generator.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_event_handle.hpp"
 #include "util/tile_state.hpp"
 
 namespace spla {
@@ -63,7 +64,6 @@ public:
                     GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB,
                     ValueType beta, HostArrayView2D<ValueType> HostMatC,
                     GPUArrayView2D<ValueType> GPUMatC);
-
 
   auto prepare(std::vector<BlockInfo>::const_iterator begin,
                std::vector<BlockInfo>::const_iterator end) -> void;
@@ -104,6 +104,7 @@ private:
   std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_;
   GPUBlasHandle blasHandle_;
+  GPUEventHandle event_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB_;
   HostArrayView2D<ValueType> HostMatC_;
@@ -114,6 +115,7 @@ private:
   HostArrayView1D<ValueType> sendView_;
   HostArrayView1D<ValueType> processingView_;
   GPUArrayView1D<ValueType> tileViewGPU_;
+  GPUArrayView1D<ValueType> recvViewGPU_;
 };
 
 }  // namespace spla

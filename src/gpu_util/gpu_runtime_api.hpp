@@ -165,6 +165,11 @@ inline auto event_record(ARGS&&... args) -> StatusType {
 }
 
 template <typename... ARGS>
+inline auto event_synchronize(ARGS&&... args) -> StatusType {
+  return GPU_PREFIX(EventSynchronize)(std::forward<ARGS>(args)...);
+}
+
+template <typename... ARGS>
 inline auto malloc(ARGS&&... args) -> StatusType {
   return GPU_PREFIX(Malloc)(std::forward<ARGS>(args)...);
 }
