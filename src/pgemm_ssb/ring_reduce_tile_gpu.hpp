@@ -29,6 +29,7 @@
 #define SPLA_RING_REDUCE_TILE_GPU_HPP
 
 #include <memory>
+#include <array>
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "memory/gpu_array_view.hpp"
@@ -49,12 +50,27 @@
 #include "util/tile_state.hpp"
 
 namespace spla {
+
+template <typename T> struct RingBlock {
+  // RingBlock(GPUBlasHandle blasHandle_, HostArrayView1D<T> tileViewHost_,
+  //           GPUArrayView1D<T> tileViewGPU_, GPUArrayView1D<T> recvViewGPU_)
+  //     : blasHandle(std::move(blasHandle_)), tileViewHost(tileViewHost_),
+  //       tileViewGPU(tileViewGPU_), recvViewGPU(recvViewGPU_)
+  // {}
+
+  GPUBlasHandle blasHandle;
+  HostArrayView1D<T> tileViewHost;
+  GPUArrayView1D<T> tileViewGPU;
+  GPUArrayView1D<T> recvViewGPU;
+};
+
 template <typename T>
 class RingReduceTileGPU {
 public:
   using ValueType = T;
 
-  RingReduceTileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
+  RingReduceTileGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle1,
+                    GPUBlasHandle blasHandle2,
                     std::shared_ptr<Buffer<PinnedAllocator>> bufferHost,
                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
                     std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
@@ -75,7 +91,10 @@ public:
   inline auto state() -> TileState { return state_; }
 
   inline auto synchronize() -> void {
-    gpu::check_status(gpu::stream_synchronize(blasHandle_.stream_handle().get()));
+    for(auto& b : ringBlocks_) {
+      gpu::check_status(
+          gpu::stream_synchronize(b.blasHandle.stream_handle().get()));
+    }
   }
 
 private:
@@ -95,6 +114,7 @@ private:
   std::vector<BlockInfo> blockInfos_;
   std::vector<IntType> myBlockIndices_;
   std::vector<MPIRequestHandle> resultRecvs_;
+  std::vector<RingBlock<T>> ringBlocks_;
   TileState state_;
 
   // fixed
@@ -103,20 +123,13 @@ private:
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_;
   std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_;
-  GPUBlasHandle blasHandle_;
-  GPUEventHandle event_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matA_;
   GPUMatrixAccessor<GPUArrayConstView2D<ValueType>> matB_;
   HostArrayView2D<ValueType> HostMatC_;
   GPUArrayView2D<ValueType> GPUMatC_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
-  HostArrayView1D<ValueType> recvView_;
-  HostArrayView1D<ValueType> sendView_;
-  HostArrayView1D<ValueType> processingView_;
-  GPUArrayView1D<ValueType> tileViewGPU_;
-  GPUArrayView1D<ValueType> recvViewGPU_;
 };
 
-}  // namespace spla
+} // namespace spla
 #endif

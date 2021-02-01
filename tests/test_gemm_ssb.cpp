@@ -22,7 +22,8 @@
 #include "gpu_util/gpu_runtime_api.hpp"
 #endif
 
-// static auto print_matrix(const double* A, const int rows, const int cols, const int ld, const std::string& label)
+// template<typename T>
+// static auto print_matrix(const T* A, const int rows, const int cols, const int ld, const std::string& label)
 //     -> void {
 //   int rank, size;
 //   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -38,7 +39,7 @@
 //     stream << "Rank = " << rank << ", " << label << ":" << std::endl;
 //     for (int r = 0; r < rows; ++r) {
 //       for (int c = 0; c < cols; ++c) {
-//         stream << std::setw(8) << std::right << A[r + c * ld];
+//         stream << std::setw(12) << std::right << std::real(A[r + c * ld]);
 //       }
 //       stream << std::endl;
 //     }
@@ -298,6 +299,8 @@ protected:
                     SPLA_OP_CONJ_TRANSPOSE, T(1.0), localViewA.data(), localViewA.ld_inner(),
                     localViewB.data(), localViewB.ld_inner(), T(0.0), vecC.data(), m_,
                     subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
+    // print_matrix(vecC.data(), m_, n_, m_, "vecC");
+    // print_matrix(vecCRef.data(), m_, n_, m_, "vecCRef");
 
     // Assertions must only be used after all MPI calls, deadlock otherwise
 

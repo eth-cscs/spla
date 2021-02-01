@@ -31,6 +31,7 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <memory>
+#include <cassert>
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_stream_handle.hpp"
@@ -55,7 +56,10 @@ public:
 
   GPUBlasHandle() : GPUBlasHandle(GPUStreamHandle(false)) {}
 
-  inline auto get() const -> gpu::blas::HandleType { return *handle_; }
+  inline auto get() const -> gpu::blas::HandleType {
+    assert(handle_);
+    return *handle_;
+  }
 
   inline auto device_id() const noexcept -> int { return deviceId_; }
 

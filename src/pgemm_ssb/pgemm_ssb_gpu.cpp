@@ -85,10 +85,10 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
     throw InvalidParameterError();
   }
 
-  if (descC.comm().size() == 1) {
-    return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
-                       C + cRowStart + cColStart * ldc, ldc, ctx);
-  }
+  // if (descC.comm().size() == 1) {
+  //   return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
+  //                      C + cRowStart + cColStart * ldc, ldc, ctx);
+  // }
 
   bool useRingReduce = false;
   std::shared_ptr<MatrixBlockGenerator> matrixDist;
@@ -103,6 +103,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
             (descC.proc_grid_rows() * descC.proc_grid_cols()) / 2) {
       useRingReduce = true;
     }
+      useRingReduce = true;
   } else {
     matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
                                          cRowStart, cColStart));
@@ -129,13 +130,14 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
 
   const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
-  const IntType numTiles = ctx.num_tiles();
+  // const IntType numTiles = ctx.num_tiles();
+  const IntType numTiles = 1;
 
   auto &gpuBuffers = ctx.gpu_buffers(numTiles * 3);
-  auto &blasHandles = ctx.gpu_blas_handles(numTiles);
 
   if (useRingReduce) {
     auto &pinnedBuffers = ctx.pinned_buffers(2 * numTiles);
+    auto &blasHandles = ctx.gpu_blas_handles(2 * numTiles);
     std::vector<RingReduceTileGPU<T>> tiles;
     tiles.reserve(numTiles);
     auto &comms = descC.get_comms(numTiles);
@@ -160,10 +162,10 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
                          ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc)
                          : GPUArrayView2D<T>();
 
-      tiles.emplace_back(comms[i], blasHandles[i], pinnedBuffers[2 * i],
-                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2],
-                         matrixDist, opA, alpha, matA, matB, beta, hostMatC,
-                         gpuMatC);
+      tiles.emplace_back(comms[i], blasHandles[2 * i], blasHandles[2 * i + 1],
+                         pinnedBuffers[2 * i], pinnedBuffers[2 * i + 1],
+                         gpuBuffers[i * 3 + 2], matrixDist, opA, alpha, matA,
+                         matB, beta, hostMatC, gpuMatC);
     }
 
     std::vector<BlockInfo> blockInfos;
@@ -248,6 +250,7 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
 
   } else {
+    auto &blasHandles = ctx.gpu_blas_handles(numTiles);
     auto &pinnedBuffers = ctx.pinned_buffers(numTiles);
     const IntType numBlockRows = matrixDist->num_block_rows();
     const IntType numBlockCols = matrixDist->num_block_cols();
