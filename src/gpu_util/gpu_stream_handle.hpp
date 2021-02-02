@@ -36,9 +36,7 @@
 namespace spla {
 class GPUStreamHandle {
 public:
-  GPUStreamHandle() : stream_(new gpu::StreamType(0)), deviceId_(0) {
-    gpu::check_status(gpu::get_device(&deviceId_));
-  }
+  GPUStreamHandle() : GPUStreamHandle(false) {}
 
   explicit GPUStreamHandle(const bool blockedByDefaultStream) : deviceId_(0) {
     gpu::check_status(gpu::get_device(&deviceId_));
