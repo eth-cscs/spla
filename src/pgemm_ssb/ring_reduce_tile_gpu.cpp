@@ -248,6 +248,8 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
           GPUArrayView1D<T>(nextBlock.recvViewGPU.data(),
                             recvInfo.numCols * recvInfo.numRows));
       nextBlock.event.record(nextBlock.recvStream.get());
+      // make sure transfer of received result is done first to avoid scheduling
+      // performance issues
       nextBlock.event.stream_wait(nextBlock.blasHandle.stream_handle().get());
       call_gpu_geam(nextBlock.blasHandle.get(), gpu::blas::operation::None,
                     gpu::blas::operation::None, recvInfo.numRows,
@@ -275,6 +277,10 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
     auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
                       ? gpu::blas::operation::Transpose
                       : gpu::blas::operation::ConjugateTranspose;
+    // make sure transfer of received result is done first to avoid scheduling
+    // performance issues
+    nextBlock.event.stream_wait(block.blasHandle.stream_handle().get());
+    // compute gemm
     multiply_gpu<ValueType>(
         block.blasHandle.get(), opAGPU, gpu::blas::operation::None, alpha_,
         block.matA.sub_accessor(0, info.globalSubRowIdx, block.matA.rows(),
