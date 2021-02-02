@@ -240,12 +240,15 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
 
     if (nextBlock.matA.rows() != 0) {
 
+
       copy_to_gpu_async(
-          nextBlock.blasHandle.stream_handle().get(),
+          nextBlock.recvStream.get(),
           HostArrayConstView1D<T>(nextBlock.tileViewHost.data(),
                                   recvInfo.numCols * recvInfo.numRows),
           GPUArrayView1D<T>(nextBlock.recvViewGPU.data(),
                             recvInfo.numCols * recvInfo.numRows));
+      nextBlock.event.record(nextBlock.recvStream.get());
+      nextBlock.event.stream_wait(nextBlock.blasHandle.stream_handle().get());
       call_gpu_geam(nextBlock.blasHandle.get(), gpu::blas::operation::None,
                     gpu::blas::operation::None, recvInfo.numRows,
                     recvInfo.numCols, RealValueGPU<T>::create(1.0),

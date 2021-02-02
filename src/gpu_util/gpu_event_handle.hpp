@@ -50,6 +50,8 @@ public:
     });
   };
 
+  GPUEventHandle() : GPUEventHandle(false) {}
+
   inline auto get() const -> gpu::EventType { return *event_; }
 
   inline auto device_id() const noexcept -> int { return deviceId_; }

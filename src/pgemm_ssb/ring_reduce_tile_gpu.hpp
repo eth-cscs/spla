@@ -55,11 +55,13 @@ namespace spla {
 
 template <typename T> struct RingBlock {
   RingBlock(IntType blockSize_, GPUBlasHandle blasHandle_,
+            GPUEventHandle event_, GPUStreamHandle recvStream_,
             std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
             std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
             GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
             GPUMatrixAccessor<GPUArrayConstView2D<T>> matB_)
       : blockSize(blockSize_), blasHandle(std::move(blasHandle_)),
+        event(std::move(event_)), recvStream(std::move(recvStream_)),
         bufferHost(std::move(bufferHost_)), bufferGPU(std::move(bufferGPU_)),
         matA(std::move(matA_)), matB(std::move(matB_)) {
     assert(bufferHost);
@@ -75,6 +77,8 @@ template <typename T> struct RingBlock {
 
   IntType blockSize;
   GPUBlasHandle blasHandle;
+  GPUEventHandle event;
+  GPUStreamHandle recvStream;
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
   GPUMatrixAccessor<GPUArrayConstView2D<T>> matA;

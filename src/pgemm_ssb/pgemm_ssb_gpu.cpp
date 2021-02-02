@@ -133,11 +133,13 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
 
   if (useRingReduce) {
     const IntType numTiles = 2;
-    const IntType numRingBlocks =  3;
+    const IntType numRingBlocks =  2;
 
     auto pinnedBuffersIt = ctx.pinned_buffers(numTiles * (numRingBlocks + 1)).begin();
-    auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingBlocks).begin();
     auto gpuBuffersIt = ctx.gpu_buffers(numTiles * numRingBlocks * 3).begin();
+    auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingBlocks).begin();
+    auto eventHandlesIt = ctx.gpu_event_handles(numTiles * numRingBlocks).begin();
+    auto streamHandlesIt = ctx.gpu_stream_handles(numTiles * numRingBlocks).begin();
     auto commsIt = descC.get_comms(numTiles).begin();
 
 
@@ -170,6 +172,8 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
         ringBlocks.emplace_back(matrixDist->max_cols_in_block() *
                                     matrixDist->max_rows_in_block(),
                                 *(blasHandlesIt++),
+                                *(eventHandlesIt++),
+                                *(streamHandlesIt++),
                                 *(pinnedBuffersIt++),
                                 *(gpuBuffersIt++),
                                 std::move(matA), std::move(matB));

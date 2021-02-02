@@ -47,6 +47,8 @@
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_event_handle.hpp"
+#include "gpu_util/gpu_stream_handle.hpp"
 #include "memory/gpu_allocator.hpp"
 #include "memory/pinned_allocator.hpp"
 #endif
@@ -109,6 +111,22 @@ public:
     }
     return gpuBlasHandles_;
   }
+
+  inline auto gpu_event_handles(IntType numHandles) -> std::deque<GPUEventHandle>& {
+    const IntType numMissing = numHandles - static_cast<IntType>(gpuEventHandles_.size());
+    if(static_cast<IntType>(gpuEventHandles_.size()) < numHandles) {
+      gpuEventHandles_.resize(numHandles);
+    }
+    return gpuEventHandles_;
+  }
+
+  inline auto gpu_stream_handles(IntType numHandles) -> std::deque<GPUStreamHandle>& {
+    const IntType numMissing = numHandles - static_cast<IntType>(gpuStreamHandles_.size());
+    if(static_cast<IntType>(gpuStreamHandles_.size()) < numHandles) {
+      gpuStreamHandles_.resize(numHandles);
+    }
+    return gpuStreamHandles_;
+  }
 #endif
 
   // Get methods
@@ -170,6 +188,8 @@ private:
   std::deque<std::shared_ptr<Buffer<GPUAllocator>>> gpuBuffers_;
   std::deque<std::shared_ptr<Buffer<PinnedAllocator>>> pinnedBuffers_;
   std::deque<GPUBlasHandle> gpuBlasHandles_;
+  std::deque<GPUEventHandle> gpuEventHandles_;
+  std::deque<GPUStreamHandle> gpuStreamHandles_;
 #endif
 };
 } // namespace spla
