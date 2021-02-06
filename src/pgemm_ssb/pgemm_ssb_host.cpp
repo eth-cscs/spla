@@ -35,7 +35,6 @@
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
-#include "pgemm_ssb/all_reduce_tile_host.hpp"
 #include "pgemm_ssb/ring_reduce_tile_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
@@ -50,6 +49,103 @@
 #include "util/omp_definitions.hpp"
 
 namespace spla {
+
+template <typename T, typename BLOCK_GEN>
+void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
+                         const T *A, int lda, const T *B, int ldb, T beta, T *C,
+                         int ldc, int cRowStart, int cColStart,
+                         MatrixDistributionInternal &descC,
+                         ContextInternal &ctx, BLOCK_GEN gen) {
+
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE,
+                   gen.local_rows(descC.comm().rank()),
+                   gen.local_cols(descC.comm().rank()), kLocal, A, lda,
+                   B, ldb, C, ldc);
+
+  constexpr IntType numTiles = 2;
+
+  HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
+  HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
+  HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
+
+  auto &buffers = ctx.mpi_buffers(2 * numTiles);
+  auto &comms = descC.get_comms(numTiles);
+
+  const IntType rowsInBlock = gen.max_rows_in_block();
+  const IntType colsInBlock = gen.max_cols_in_block();
+
+  std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
+      RingReduceTileHost<T, BLOCK_GEN>{
+          rowsInBlock * colsInBlock, ctx.num_threads(), comms[0], buffers[0],
+          buffers[1], gen, opA, alpha, viewA, viewB, beta, viewC},
+      RingReduceTileHost<T, BLOCK_GEN>{
+          rowsInBlock * colsInBlock, ctx.num_threads(), comms[1], buffers[2],
+          buffers[3], gen, opA, alpha, viewA, viewB, beta, viewC}};
+
+  std::vector<BlockCoord> blocks;
+  blocks.reserve(descC.comm().size());
+
+  IntType tileIdx = 0;
+
+  // iterate grid wise
+  for (IntType colStartIdx = 0; colStartIdx < n;
+       colStartIdx += descC.proc_grid_cols() * colsInBlock) {
+    for (IntType rowStartIdx = 0; rowStartIdx < m;
+         rowStartIdx += descC.proc_grid_rows() * rowsInBlock) {
+
+      // iterate through blocks within grid
+      for (IntType colIdx = colStartIdx;
+           colIdx < std::min<IntType>(n, colStartIdx + descC.proc_grid_cols() *
+                                                           colsInBlock);
+           colIdx += colsInBlock) {
+        for (IntType rowIdx = rowStartIdx;
+             rowIdx <
+             std::min<IntType>(m, rowStartIdx +
+                                      descC.proc_grid_rows() * rowsInBlock);
+             rowIdx += rowsInBlock) {
+
+          blocks.emplace_back(BlockCoord{
+              rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
+              std::min<IntType>(colsInBlock, n - colIdx)});
+
+          // Prepare processing when there are enough blocks to form ring
+          if (blocks.size() == descC.comm().size()) {
+            tiles[tileIdx % numTiles].prepare(blocks.begin(), blocks.end());
+            blocks.resize(0);
+            ++tileIdx;
+          }
+
+          if (tileIdx == numTiles) {
+            // All tiles are prepared -> start processing
+            bool tileToProcess = true;
+            while (tileToProcess) {
+              tileToProcess = false;
+              // Interleave processing to hide communication cost
+              for (auto &t : tiles) {
+                tileToProcess |= t.process_step();
+              }
+            }
+            tileIdx = 0;
+          }
+        }
+      }
+    }
+  }
+
+  if (blocks.size()) {
+    // Prepare with remaining blocks
+    tiles[tileIdx].prepare(blocks.begin(), blocks.end());
+    blocks.resize(0);
+  }
+  // Process remaining blocks
+  bool tileToProcess = true;
+  while (tileToProcess) {
+    tileToProcess = false;
+    for (auto &t : tiles) {
+      tileToProcess |= t.process_step();
+    }
+  }
+}
 
 template <typename T>
 void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
@@ -75,178 +171,23 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
                         C + cRowStart + cColStart * ldc, ldc);
   }
 
-  bool useRingReduce = false;
-  std::shared_ptr<MatrixBlockGenerator> matrixDist;
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
-    matrixDist.reset(new BlockCyclicGenerator(
-        descC.row_block_size(), descC.col_block_size(), descC.proc_grid_rows(),
-        descC.proc_grid_cols(), m, n, cRowStart, cColStart));
+    BlockCyclicGenerator gen(descC.row_block_size(), descC.col_block_size(),
+                             descC.proc_grid_rows(), descC.proc_grid_cols(), m,
+                             n, cRowStart, cColStart);
 
-    // Use ring reduce if block size is at least a given size and most ranks
-    // hold result blocks
-    if (descC.row_block_size() * descC.col_block_size() >= 256 * 256 &&
-        descC.comm().size() >
-            (descC.proc_grid_rows() * descC.proc_grid_cols()) / 2) {
-      useRingReduce = true;
-    }
-  } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(),
-                                         ctx.tile_size_host(), m, n, cRowStart,
-                                         cColStart));
-  }
-
-  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE,
-                   matrixDist->local_rows(descC.comm().rank()),
-                   matrixDist->local_cols(descC.comm().rank()), kLocal, A, lda,
-                   B, ldb, C, ldc);
-
-  constexpr IntType numTiles = 2;
-
-  HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
-  HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
-  HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
-
-  if (useRingReduce) {
-
-    auto &buffers = ctx.mpi_buffers(2 * numTiles);
-    auto &comms = descC.get_comms(numTiles);
-
-    const IntType rowsInBlock = matrixDist->max_rows_in_block();
-    const IntType colsInBlock = matrixDist->max_cols_in_block();
-
-    std::array<RingReduceTileHost<T>, numTiles> tiles{
-        RingReduceTileHost<T>{
-            rowsInBlock * colsInBlock, ctx.num_threads(), comms[0], buffers[0],
-            buffers[1],
-            *reinterpret_cast<BlockCyclicGenerator *>(matrixDist.get()), opA,
-            alpha, viewA, viewB, beta, viewC},
-        RingReduceTileHost<T>{
-            rowsInBlock * colsInBlock, ctx.num_threads(), comms[1], buffers[2],
-            buffers[3],
-            *reinterpret_cast<BlockCyclicGenerator *>(matrixDist.get()), opA,
-            alpha, viewA, viewB, beta, viewC}};
-
-    std::vector<BlockCoord> blocks;
-    blocks.reserve(descC.comm().size());
-
-    IntType tileIdx = 0;
-
-    // iterate grid wise
-    for (IntType colStartIdx = 0; colStartIdx < n;
-         colStartIdx += descC.proc_grid_cols() * colsInBlock) {
-      for (IntType rowStartIdx = 0; rowStartIdx < m;
-           rowStartIdx += descC.proc_grid_rows() * rowsInBlock) {
-
-        // iterate through blocks within grid
-        for (IntType colIdx = colStartIdx;
-             colIdx <
-             std::min<IntType>(n, colStartIdx +
-                                      descC.proc_grid_cols() * colsInBlock);
-             colIdx += colsInBlock) {
-          for (IntType rowIdx = rowStartIdx;
-               rowIdx <
-               std::min<IntType>(m,
-                                 rowStartIdx + descC.proc_grid_rows() * rowsInBlock);
-               rowIdx += rowsInBlock) {
-
-            blocks.emplace_back(BlockCoord{
-                rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
-                std::min<IntType>(colsInBlock, n - colIdx)});
-
-            // Prepare processing when there are enough blocks to form ring
-            if (blocks.size() == descC.comm().size()) {
-              tiles[tileIdx % numTiles].prepare(blocks.begin(),
-                                                blocks.end());
-              blocks.resize(0);
-              ++tileIdx;
-            }
-
-            if (tileIdx == numTiles) {
-              // All tiles are prepared -> start processing
-              bool tileToProcess = true;
-              while (tileToProcess) {
-                tileToProcess = false;
-                // Interleave processing to hide communication cost
-                for (auto &t : tiles) {
-                  tileToProcess |= t.process_step();
-                }
-              }
-              tileIdx = 0;
-            }
-          }
-        }
-      }
-    }
-
-    if (blocks.size()) {
-      // Prepare with remaining blocks
-      tiles[tileIdx].prepare(blocks.begin(), blocks.end());
-      blocks.resize(0);
-    }
-    // Process remaining blocks
-    bool tileToProcess = true;
-    while (tileToProcess) {
-      tileToProcess = false;
-      for (auto &t : tiles) {
-        tileToProcess |= t.process_step();
-      }
-    }
+    pgemm_ssb_host_ring<T, BlockCyclicGenerator>(
+        m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
+        cColStart, descC, ctx, std::move(gen));
 
   } else {
-
-    const IntType numBlockRows = matrixDist->num_block_rows();
-    const IntType numBlockCols = matrixDist->num_block_cols();
-
-    const IntType numBlockRowsInTile =
-        (ctx.tile_size_host() + matrixDist->max_rows_in_block() - 1) /
-        matrixDist->max_rows_in_block();
-    const IntType numBlockColsInTile =
-        (ctx.tile_size_host() + matrixDist->max_cols_in_block() - 1) /
-        matrixDist->max_cols_in_block();
-
-    std::vector<AllReduceTileHost<T>> tiles;
-    tiles.reserve(numTiles);
-
-    // create tiles
-    {
-      auto &buffers = ctx.mpi_buffers(numTiles);
-      auto &comms = descC.get_comms(numTiles);
-      IntType idx = 0;
-      for (IntType tileIdx = 0; tileIdx < numTiles; ++tileIdx, ++idx) {
-        tiles.emplace_back(ctx.num_threads(), comms[idx], buffers[idx],
-                           matrixDist, opA, alpha, viewA, viewB, beta, viewC,
-                           numBlockRowsInTile, numBlockColsInTile);
-      }
-    }
-
-    IntType currentTileIdx = 0;
-    for (IntType blockRowIdx = 0; blockRowIdx < numBlockRows;
-         blockRowIdx += numBlockRowsInTile) {
-      for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-           blockColIdx += numBlockColsInTile) {
-        const IntType nextTileIdx = (currentTileIdx + 1) % numTiles;
-
-        if (tiles[nextTileIdx].state() == TileState::InExchange) {
-          tiles[nextTileIdx].finalize_exchange();
-          tiles[nextTileIdx].extract();
-        }
-
-        tiles[currentTileIdx].multiply(blockRowIdx, blockColIdx);
-        tiles[currentTileIdx].start_exchange();
-
-        currentTileIdx = nextTileIdx;
-      }
-    }
-    for (IntType i = 0; i < numTiles; ++i) {
-      if (tiles[i].state() == TileState::InExchange) {
-        tiles[i].finalize_exchange();
-      }
-
-      if (tiles[i].state() == TileState::Exchanged) {
-        tiles[i].extract();
-      }
-    }
+    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
+                        cRowStart, cColStart);
+    pgemm_ssb_host_ring<T, MirrorGenerator>(
+        m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
+        cColStart, descC, ctx, std::move(gen));
   }
+
 }
 
 template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA,

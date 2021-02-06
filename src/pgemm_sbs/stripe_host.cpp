@@ -27,6 +27,7 @@
  */
 #include "pgemm_sbs/stripe_host.hpp"
 #include "gemm/gemm_host.hpp"
+#include "block_generation/block_cyclic_generator.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -40,47 +41,44 @@
 
 namespace spla {
 
-template <typename T>
-StripeHost<T>::StripeHost(IntType numThreads, MPICommunicatorHandle comm,
-                          std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                          std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
-                          std::shared_ptr<MatrixBlockGenerator> matrixDist,
-                          ValueType alpha,
-                          const HostArrayConstView2D<ValueType> &A,
-                          const HostArrayConstView2D<ValueType> &B,
-                          ValueType beta, HostArrayView2D<ValueType> C,
-                          IntType numBlockCols)
+template <typename T, typename BLOCK_GEN>
+StripeHost<T, BLOCK_GEN>::StripeHost(
+    IntType numThreads, MPICommunicatorHandle comm,
+    std::shared_ptr<Buffer<MPIAllocator>> buffer,
+    std::shared_ptr<Buffer<MPIAllocator>> recvBuffer, BLOCK_GEN baseMatGen,
+    ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+    const HostArrayConstView2D<ValueType> &B, ValueType beta,
+    HostArrayView2D<ValueType> C, IntType numBlockCols)
     : state_(StripeState::Empty), localCounts_(comm.size()),
       recvDispls_(comm.size()), localRows_(comm.size()),
       localCols_(comm.size()), localRowOffsets_(comm.size()),
-      localColOffsets_(comm.size()),
-      matrixDist_(std::move(matrixDist)), buffer_(std::move(buffer)),
-      recvBuffer_(std::move(recvBuffer)), comm_(std::move(comm)),
-      numBlockCols_(numBlockCols), A_(A), B_(B), C_(C), alpha_(alpha),
-      beta_(beta), numThreads_(numThreads) {
+      localColOffsets_(comm.size()), baseMatGen_(std::move(baseMatGen)),
+      buffer_(std::move(buffer)), recvBuffer_(std::move(recvBuffer)),
+      comm_(std::move(comm)), numBlockCols_(numBlockCols), A_(A), B_(B), C_(C),
+      alpha_(alpha), beta_(beta), numThreads_(numThreads) {
   assert(A_.dim_inner() == C.dim_inner());
   assert(buffer_);
   buffer_->resize<ValueType>(A.dim_outer() * numBlockCols *
-                             matrixDist_->max_cols_in_block());
+                             baseMatGen_.max_cols_in_block());
   recvBuffer_->resize<ValueType>(A.dim_outer() * numBlockCols *
-                                 matrixDist_->max_cols_in_block());
+                                 baseMatGen_.max_cols_in_block());
 }
 
-template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
+template <typename T, typename BLOCK_GEN> auto StripeHost<T, BLOCK_GEN>::collect(IntType blockColIdx) -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
-  assert(blockColIdx < matrixDist_->num_block_cols());
+  assert(blockColIdx < baseMatGen_.num_block_cols());
   if (state_.get() != StripeState::Empty) {
     throw InternalError();
   }
   // get block informations
   blockInfos_.clear(); // leaves capacity unchanged
-  blockInfos_.reserve(matrixDist_->num_block_rows() * numBlockCols_);
+  blockInfos_.reserve(baseMatGen_.num_block_rows() * numBlockCols_);
   for (IntType c = blockColIdx;
        c < std::min<IntType>(blockColIdx + numBlockCols_,
-                             matrixDist_->num_block_cols());
+                             baseMatGen_.num_block_cols());
        ++c) {
-    for (IntType r = 0; r < matrixDist_->num_block_rows(); ++r) {
-      blockInfos_.emplace_back(matrixDist_->get_block_info(r, c));
+    for (IntType r = 0; r < baseMatGen_.num_block_rows(); ++r) {
+      blockInfos_.emplace_back(baseMatGen_.get_block_info(r, c));
     }
   }
 
@@ -141,7 +139,7 @@ template <typename T> auto StripeHost<T>::collect(IntType blockColIdx) -> void {
   state_.set(StripeState::Collected);
 }
 
-template <typename T> auto StripeHost<T>::start_exchange() -> void {
+template <typename T, typename BLOCK_GEN> auto StripeHost<T, BLOCK_GEN>::start_exchange() -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
   if (this->state_.get() != StripeState::Collected) {
     throw InternalError();
@@ -157,7 +155,7 @@ template <typename T> auto StripeHost<T>::start_exchange() -> void {
   this->state_.set(StripeState::InExchange);
 }
 
-template <typename T> auto StripeHost<T>::finalize_exchange() -> void {
+template <typename T, typename BLOCK_GEN> auto StripeHost<T, BLOCK_GEN>::finalize_exchange() -> void {
   assert(omp_get_thread_num() == 0); // only master thread should execute
   if (this->state_.get() != StripeState::InExchange) {
     throw InternalError();
@@ -168,7 +166,8 @@ template <typename T> auto StripeHost<T>::finalize_exchange() -> void {
   this->state_.set(StripeState::Exchanged);
 }
 
-template <typename T> auto StripeHost<T>::multiply() -> void {
+template <typename T, typename BLOCK_GEN>
+auto StripeHost<T, BLOCK_GEN>::multiply() -> void {
   if (this->state_.get() != StripeState::Exchanged) {
     throw InternalError();
   }
@@ -213,9 +212,9 @@ template <typename T> auto StripeHost<T>::multiply() -> void {
   this->state_.set(StripeState::Empty);
 }
 
-template class StripeHost<double>;
-template class StripeHost<float>;
-template class StripeHost<std::complex<double>>;
-template class StripeHost<std::complex<float>>;
+template class StripeHost<double, BlockCyclicGenerator>;
+template class StripeHost<float, BlockCyclicGenerator>;
+template class StripeHost<std::complex<double>, BlockCyclicGenerator>;
+template class StripeHost<std::complex<float>, BlockCyclicGenerator>;
 
 } // namespace spla

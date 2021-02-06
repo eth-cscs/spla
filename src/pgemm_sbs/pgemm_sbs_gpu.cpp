@@ -68,51 +68,29 @@ namespace spla {
  *    ------       ------
  *      A            B
  */
-template <typename T>
-void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+template <typename T, typename BLOCK_GEN>
+void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
                    int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
-                   int ldc, ContextInternal &ctx) {
-  if (n == 0 || k == 0) {
-    return;
-  }
-
-  if (n < 0 || k < 0 || bRowOffset < 0 || bColOffset < 0) {
-    throw InvalidParameterError();
-  }
-
-  if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
-                       alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
-  }
-
-  std::shared_ptr<MatrixBlockGenerator> matrixDist;
-  if (descB.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
-    matrixDist.reset(new BlockCyclicGenerator(descB.row_block_size(), descB.col_block_size(),
-                                              descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
-                                              bRowOffset, bColOffset));
-  } else {
-    matrixDist.reset(new MirrorGenerator(ctx.tile_size_host(), ctx.tile_size_host(), k, n,
-                                         bRowOffset, bColOffset));
-  }
+                   int ldc, ContextInternal &ctx, BLOCK_GEN gen) {
 
   check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
-                   matrixDist->local_cols(descB.comm().rank()),
-                   matrixDist->local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
+                   gen.local_cols(descB.comm().rank()),
+                   gen.local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
 
   GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
 
   // always synchronize with stream 0 as part of API requirement
   gpu::check_status(gpu::stream_synchronize(nullptr));
 
-  const IntType numBlockRows = matrixDist->num_block_rows();
-  const IntType numBlockCols = matrixDist->num_block_cols();
+  const IntType numBlockRows = gen.num_block_rows();
+  const IntType numBlockCols = gen.num_block_cols();
 
   const IntType numBlockColsInTile = std::max<IntType>(
       (ctx.tile_size_host() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
 
   const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
 
-  std::vector<StripeGPU<T>> stripes;
+  std::vector<StripeGPU<T, BLOCK_GEN>> stripes;
   stripes.reserve(ctx.num_tiles());
 
   auto &gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
@@ -152,7 +130,7 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
 
     stripes.emplace_back(descB.comm(), blasHandles[i], pinnedBuffers[2 * i],
                          pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], ctx.tile_size_gpu(),
-                         matrixDist, alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC,
+                         gen, alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC,
                          numBlockColsInTile);
   }
 
@@ -212,6 +190,32 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
   for (auto &t : stripes) {
     t.synchronize();
   }
+}
+
+template <typename T>
+void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
+                   int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
+                   int ldc, ContextInternal &ctx) {
+  if (n == 0 || k == 0) {
+    return;
+  }
+
+  if (n < 0 || k < 0 || bRowOffset < 0 || bColOffset < 0) {
+    throw InvalidParameterError();
+  }
+
+  if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
+    return gemm_gpu<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal, n, k,
+                       alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
+  }
+
+  BlockCyclicGenerator gen(descB.row_block_size(), descB.col_block_size(),
+                           descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
+                           bRowOffset, bColOffset);
+
+  pgemm_sbs_gpu_internal<T, BlockCyclicGenerator>(
+      mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset, descB, beta,
+      C, ldc, ctx, std::move(gen));
 }
 
 template void pgemm_sbs_gpu<float>(int mLocal, int n, int k, float alpha, const float *A, int lda,

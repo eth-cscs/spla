@@ -44,7 +44,7 @@
 #include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class StripeHost {
 public:
   using ValueType = T;
@@ -52,7 +52,7 @@ public:
   StripeHost(IntType numThreads, MPICommunicatorHandle comm,
              std::shared_ptr<Buffer<MPIAllocator>> buffer,
              std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
-             std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
+             BLOCK_GEN baseMatGen, ValueType alpha,
              const HostArrayConstView2D<ValueType> &A,
              const HostArrayConstView2D<ValueType> &B, ValueType beta,
              HostArrayView2D<ValueType> C, IntType numBlockCols);
@@ -85,7 +85,7 @@ protected:
   MPIRequestHandle mpiRequest_;
 
   // fixed
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   std::shared_ptr<Buffer<MPIAllocator>> recvBuffer_;
   MPICommunicatorHandle comm_;

@@ -47,7 +47,7 @@
 #include "gpu_util/gpu_blas_handle.hpp"
 
 namespace spla {
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class StripeGPU {
 public:
   using ValueType = T;
@@ -55,12 +55,13 @@ public:
   StripeGPU(MPICommunicatorHandle comm, GPUBlasHandle blasHandle,
             std::shared_ptr<Buffer<PinnedAllocator>> buffer,
             std::shared_ptr<Buffer<PinnedAllocator>> recvBuffer,
-            std::shared_ptr<Buffer<GPUAllocator>> bufferGPU, IntType maxGPUStripeSize,
-            std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
+            std::shared_ptr<Buffer<GPUAllocator>> bufferGPU,
+            IntType maxGPUStripeSize, BLOCK_GEN baseMatGen, ValueType alpha,
             GPUMatrixAccessor<GPUArrayConstView2D<T>> A,
             HostArrayConstView2D<ValueType> matBViewHost,
             GPUArrayConstView2D<ValueType> matBViewGPU, ValueType beta,
-            GPUMatrixAccessor<GPUArrayView2D<T>> C, HostArrayView2D<T> viewCHost, IntType numBlockCols);
+            GPUMatrixAccessor<GPUArrayView2D<T>> C,
+            HostArrayView2D<T> viewCHost, IntType numBlockCols);
 
   auto collect(IntType blockColIdx) -> void;
 
@@ -92,7 +93,7 @@ protected:
   std::vector<IntType> localColOffsets_; // Col offset of sub-matrix of B on each rank
 
   // fixed
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<PinnedAllocator>> buffer_;
   std::shared_ptr<Buffer<PinnedAllocator>> recvBuffer_;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_;

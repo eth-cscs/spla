@@ -26,7 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "pgemm_ssb/ring_reduce_tile_gpu.hpp"
-#include "block_generation/matrix_block_generator.hpp"
+#include "block_generation/block_cyclic_generator.hpp"
+#include "block_generation/mirror_generator.hpp"
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_helper.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
@@ -93,15 +94,14 @@ static auto call_gpu_geam(const gpu::blas::HandleType &handle,
                    C, ldc);
 }
 
-template <typename T>
-RingReduceTileGPU<T>::RingReduceTileGPU(
+template <typename T, typename BLOCK_GEN>
+RingReduceTileGPU<T, BLOCK_GEN>::RingReduceTileGPU(
     MPICommunicatorHandle comm, std::vector<RingBlock<T>> ringBlocks,
     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
-    std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
-    ValueType alpha, ValueType beta, HostArrayView2D<ValueType> HostMatC,
-    GPUArrayView2D<ValueType> GPUMatC)
+    BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha, ValueType beta,
+    HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC)
     : state_(TileState::Empty), comm_(std::move(comm)),
-      matrixDist_(std::move(matrixDist)), ringBlocks_(std::move(ringBlocks)),
+      baseMatGen_(std::move(baseMatGen)), ringBlocks_(std::move(ringBlocks)),
       resultBufferHost_(std::move(resultBufferHost)), HostMatC_(HostMatC),
       GPUMatC_(GPUMatC), alpha_(alpha), beta_(beta), opA_(opA) {
 
@@ -110,8 +110,8 @@ RingReduceTileGPU<T>::RingReduceTileGPU(
          opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
 }
 
-template <typename T>
-auto RingReduceTileGPU<T>::prepare(std::vector<BlockInfo>::const_iterator begin,
+template <typename T, typename BLOCK_GEN>
+auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<BlockInfo>::const_iterator begin,
                                    std::vector<BlockInfo>::const_iterator end)
     -> void {
   assert(state_ == TileState::Empty);
@@ -135,7 +135,7 @@ auto RingReduceTileGPU<T>::prepare(std::vector<BlockInfo>::const_iterator begin,
   }
 
   const auto maxBlockSize =
-      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+      baseMatGen_.max_cols_in_block() * baseMatGen_.max_rows_in_block();
 
   for (auto &b : ringBlocks_) {
     gpu::check_status(
@@ -212,7 +212,7 @@ auto RingReduceTileGPU<T>::prepare(std::vector<BlockInfo>::const_iterator begin,
   state_ = TileState::Prepared;
 }
 
-template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
+template <typename T, typename BLOCK_GEN> auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_ring() -> void {
   const IntType numBlocks = blockInfos_.size();
 
 
@@ -298,10 +298,10 @@ template <typename T> auto RingReduceTileGPU<T>::process_step_ring() -> void {
     state_ = TileState::Processed;
 }
 
-template <typename T>
-auto RingReduceTileGPU<T>::process_step_reduction() -> void {
+template <typename T, typename BLOCK_GEN>
+auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
   const auto maxBlockSize =
-      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+      baseMatGen_.max_cols_in_block() * baseMatGen_.max_rows_in_block();
 
   const BlockInfo &info = blockInfos_[currentBlockIdx];
   auto &block = ringBlocks_[currentBlockIdx % ringBlocks_.size()];
@@ -345,14 +345,14 @@ auto RingReduceTileGPU<T>::process_step_reduction() -> void {
     state_ = TileState::Processed;
 }
 
-template <typename T>
-auto RingReduceTileGPU<T>::finalize() -> void {
+template <typename T, typename BLOCK_GEN>
+auto RingReduceTileGPU<T, BLOCK_GEN>::finalize() -> void {
   assert(state_ == TileState::Processed);
 
   // add tile to result as final step
   const bool accumulateRequired = blockInfos_.size() != comm_.size();
   const auto maxBlockSize =
-      matrixDist_->max_cols_in_block() * matrixDist_->max_rows_in_block();
+      baseMatGen_.max_cols_in_block() * baseMatGen_.max_rows_in_block();
   const bool resultOnHost = GPUMatC_.empty();
   const IntType numBlocks = blockInfos_.size();
 
@@ -415,7 +415,7 @@ auto RingReduceTileGPU<T>::finalize() -> void {
   state_ = TileState::Empty;
 }
 
-template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
+template <typename T, typename BLOCK_GEN> auto RingReduceTileGPU<T, BLOCK_GEN>::process_step() -> bool {
   const bool accumulateRequired = blockInfos_.size() != comm_.size();
   const IntType numBlocks = blockInfos_.size();
 
@@ -431,9 +431,14 @@ template <typename T> auto RingReduceTileGPU<T>::process_step() -> bool {
   return currentBlockIdx <= numBlocks;
 }
 
-template class RingReduceTileGPU<double>;
-template class RingReduceTileGPU<float>;
-template class RingReduceTileGPU<gpu::blas::ComplexFloatType>;
-template class RingReduceTileGPU<gpu::blas::ComplexDoubleType>;
+template class RingReduceTileGPU<double, BlockCyclicGenerator>;
+template class RingReduceTileGPU<float, BlockCyclicGenerator>;
+template class RingReduceTileGPU<gpu::blas::ComplexFloatType, BlockCyclicGenerator>;
+template class RingReduceTileGPU<gpu::blas::ComplexDoubleType, BlockCyclicGenerator>;
+
+template class RingReduceTileGPU<double, MirrorGenerator>;
+template class RingReduceTileGPU<float, MirrorGenerator>;
+template class RingReduceTileGPU<gpu::blas::ComplexFloatType, MirrorGenerator>;
+template class RingReduceTileGPU<gpu::blas::ComplexDoubleType, MirrorGenerator>;
 
 } // namespace spla

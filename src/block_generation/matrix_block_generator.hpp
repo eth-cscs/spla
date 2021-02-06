@@ -32,6 +32,12 @@
 #include "util/common_types.hpp"
 
 namespace spla {
+
+template<typename T>
+struct IsDisjointGenerator {
+  static constexpr bool value = false;
+};
+
 struct BlockInfo {
   IntType globalRowIdx, globalColIdx; // Indices of first element in block in global matrix
   IntType globalSubRowIdx, globalSubColIdx; // Indices of first element in block in global matrix without offset
@@ -47,33 +53,5 @@ struct BlockCoord {
   IntType numCols;
 };
 
-class MatrixBlockGenerator {
-  public:
-
-  virtual auto get_block_info(IntType blockIdx) -> BlockInfo =0;
-
-  virtual auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo =0;
-
-  virtual auto get_mpi_rank(IntType blockIdx) -> IntType =0;
-
-  virtual auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType =0;
-
-  virtual auto num_blocks() -> IntType = 0;
-
-  virtual auto num_block_rows() -> IntType = 0;
-
-  virtual auto num_block_cols() -> IntType = 0;
-
-  virtual auto max_rows_in_block() -> IntType = 0;
-
-  virtual auto max_cols_in_block() -> IntType = 0;
-
-  virtual auto local_rows(IntType rank) -> IntType = 0;
-
-  virtual auto local_cols(IntType rank) -> IntType = 0;
-
-  virtual ~MatrixBlockGenerator() = default;
-};
 }
-
 #endif

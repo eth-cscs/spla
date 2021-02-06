@@ -32,9 +32,8 @@
 #include <memory>
 #include <vector>
 #include <utility>
-#include "block_generation/matrix_block_generator.hpp"
-#include "block_generation/block_cyclic_generator.hpp"
 #include "memory/buffer.hpp"
+#include "block_generation/matrix_block_generator.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "memory/mpi_allocator.hpp"
@@ -49,7 +48,7 @@
 
 namespace spla {
 
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class RingReduceTileHost {
 public:
   using ValueType = T;
@@ -58,7 +57,7 @@ public:
                      MPICommunicatorHandle comm,
                      std::shared_ptr<Buffer<MPIAllocator>> buffer,
                      std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
-                     BlockCyclicGenerator matrixDist, SplaOperation opA,
+                     BLOCK_GEN baseMatGen, SplaOperation opA,
                      ValueType alpha, const HostArrayConstView2D<ValueType> &A,
                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
                      HostArrayView2D<ValueType> C);
@@ -76,9 +75,12 @@ private:
 
   auto process_step_reduction() -> void;
 
-  auto process_step_finalize() -> void;
+  auto process_step_ring_finalize() -> void;
+
+  auto process_step_reduction_finalize() -> void;
 
   // state dependend
+  bool useRing_ = false;
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
   IntType myStartIdx_ = 0;
@@ -93,7 +95,7 @@ private:
   // fixed
   HostArrayView1D<ValueType> recvView_;
   HostArrayView1D<ValueType> sendView_;
-  BlockCyclicGenerator matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   std::shared_ptr<Buffer<MPIAllocator>> resultBuffer_;
   MPICommunicatorHandle comm_;

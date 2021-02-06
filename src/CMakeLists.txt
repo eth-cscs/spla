@@ -2,7 +2,6 @@ set(SPLA_SOURCE_FILES
 	block_generation/block_cyclic_generator.cpp
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
-	pgemm_ssb/all_reduce_tile_host.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
 	pgemm_ssb/ring_reduce_tile_host.cpp
 	pgemm_ssb/add_kernel.cpp
@@ -19,7 +18,6 @@ set(SPLA_SOURCE_FILES
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				pgemm_ssb/all_reduce_tile_gpu.cpp
 				pgemm_ssb/ring_reduce_tile_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
 				pgemm_sbs/stripe_gpu.cpp

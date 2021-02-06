@@ -88,7 +88,7 @@ template <typename T> struct RingBlock {
   GPUArrayView1D<T> recvViewGPU;
 };
 
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class RingReduceTileGPU {
 public:
   using ValueType = T;
@@ -96,7 +96,7 @@ public:
   RingReduceTileGPU(MPICommunicatorHandle comm,
                     std::vector<RingBlock<T>> ringBlocks,
                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
-                    std::shared_ptr<MatrixBlockGenerator> matrixDist,
+                    BLOCK_GEN baseMatGen,
                     SplaOperation opA, ValueType alpha, ValueType beta,
                     HostArrayView2D<ValueType> HostMatC,
                     GPUArrayView2D<ValueType> GPUMatC);
@@ -138,7 +138,7 @@ private:
 
   // fixed
   MPICommunicatorHandle comm_;
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::vector<RingBlock<T>> ringBlocks_;
   std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
   HostArrayView2D<ValueType> HostMatC_;
