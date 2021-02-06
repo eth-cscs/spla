@@ -40,12 +40,23 @@ struct BlockInfo {
   IntType mpiRank; // negative value indicates mirrored on all ranks
 };
 
+struct BlockCoord {
+  IntType row;
+  IntType col;
+  IntType numRows;
+  IntType numCols;
+};
+
 class MatrixBlockGenerator {
   public:
 
   virtual auto get_block_info(IntType blockIdx) -> BlockInfo =0;
 
   virtual auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo =0;
+
+  virtual auto get_mpi_rank(IntType blockIdx) -> IntType =0;
+
+  virtual auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType =0;
 
   virtual auto num_blocks() -> IntType = 0;
 

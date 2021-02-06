@@ -111,45 +111,53 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
     auto &buffers = ctx.mpi_buffers(2 * numTiles);
     auto &comms = descC.get_comms(numTiles);
 
-    std::array<RingReduceTileHost<T>, numTiles> tiles{
-        RingReduceTileHost<T>{ctx.num_threads(), comms[0], buffers[0],
-                              buffers[1], matrixDist, opA, alpha, viewA, viewB,
-                              beta, viewC},
-        RingReduceTileHost<T>{ctx.num_threads(), comms[1], buffers[2],
-                              buffers[3], matrixDist, opA, alpha, viewA, viewB,
-                              beta, viewC}};
+    const IntType rowsInBlock = matrixDist->max_rows_in_block();
+    const IntType colsInBlock = matrixDist->max_cols_in_block();
 
-    std::vector<BlockInfo> blockInfos;
-    blockInfos.reserve(descC.comm().size());
+    std::array<RingReduceTileHost<T>, numTiles> tiles{
+        RingReduceTileHost<T>{
+            rowsInBlock * colsInBlock, ctx.num_threads(), comms[0], buffers[0],
+            buffers[1],
+            *reinterpret_cast<BlockCyclicGenerator *>(matrixDist.get()), opA,
+            alpha, viewA, viewB, beta, viewC},
+        RingReduceTileHost<T>{
+            rowsInBlock * colsInBlock, ctx.num_threads(), comms[1], buffers[2],
+            buffers[3],
+            *reinterpret_cast<BlockCyclicGenerator *>(matrixDist.get()), opA,
+            alpha, viewA, viewB, beta, viewC}};
+
+    std::vector<BlockCoord> blocks;
+    blocks.reserve(descC.comm().size());
 
     IntType tileIdx = 0;
 
     // iterate grid wise
-    for (IntType colStartIdx = 0; colStartIdx < matrixDist->num_block_cols();
-         colStartIdx += descC.proc_grid_cols()) {
-      for (IntType rowStartIdx = 0; rowStartIdx < matrixDist->num_block_rows();
-           rowStartIdx += descC.proc_grid_rows()) {
+    for (IntType colStartIdx = 0; colStartIdx < n;
+         colStartIdx += descC.proc_grid_cols() * colsInBlock) {
+      for (IntType rowStartIdx = 0; rowStartIdx < m;
+           rowStartIdx += descC.proc_grid_rows() * rowsInBlock) {
 
         // iterate through blocks within grid
-        for (IntType blockColIdx = colStartIdx;
-             blockColIdx <
-             std::min<IntType>(matrixDist->num_block_cols(),
-                               colStartIdx + descC.proc_grid_cols());
-             ++blockColIdx) {
-          for (IntType blockRowIdx = rowStartIdx;
-               blockRowIdx <
-               std::min<IntType>(matrixDist->num_block_rows(),
-                                 rowStartIdx + descC.proc_grid_rows());
-               ++blockRowIdx) {
+        for (IntType colIdx = colStartIdx;
+             colIdx <
+             std::min<IntType>(n, colStartIdx +
+                                      descC.proc_grid_cols() * colsInBlock);
+             colIdx += colsInBlock) {
+          for (IntType rowIdx = rowStartIdx;
+               rowIdx <
+               std::min<IntType>(m,
+                                 rowStartIdx + descC.proc_grid_rows() * rowsInBlock);
+               rowIdx += rowsInBlock) {
 
-            blockInfos.emplace_back(
-                matrixDist->get_block_info(blockRowIdx, blockColIdx));
+            blocks.emplace_back(BlockCoord{
+                rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
+                std::min<IntType>(colsInBlock, n - colIdx)});
 
             // Prepare processing when there are enough blocks to form ring
-            if (blockInfos.size() == descC.comm().size()) {
-              tiles[tileIdx % numTiles].prepare(blockInfos.begin(),
-                                                blockInfos.end());
-              blockInfos.resize(0);
+            if (blocks.size() == descC.comm().size()) {
+              tiles[tileIdx % numTiles].prepare(blocks.begin(),
+                                                blocks.end());
+              blocks.resize(0);
               ++tileIdx;
             }
 
@@ -170,10 +178,10 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
       }
     }
 
-    if (blockInfos.size()) {
+    if (blocks.size()) {
       // Prepare with remaining blocks
-      tiles[tileIdx].prepare(blockInfos.begin(), blockInfos.end());
-      blockInfos.resize(0);
+      tiles[tileIdx].prepare(blocks.begin(), blocks.end());
+      blocks.resize(0);
     }
     // Process remaining blocks
     bool tileToProcess = true;

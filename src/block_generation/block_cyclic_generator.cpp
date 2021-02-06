@@ -96,6 +96,20 @@ auto BlockCyclicGenerator::get_block_info(IntType blockIdx) -> BlockInfo {
                    mpiRank};
 }
 
+auto BlockCyclicGenerator::get_mpi_rank(IntType blockIdx) -> IntType {
+  assert(blockIdx < num_blocks());
+  assert(blockIdx >= 0);
+  const IntType blockRowIdx = blockIdx % numBlockRows_;
+  const IntType globalBlockRowIdx = blockRowIdx + (globalRowOffset_ / rowsInBlock_);
+  const IntType blockColIdx = blockIdx / numBlockRows_;
+  const IntType globalBlockColIdx = blockColIdx + (globalColOffset_ / colsInBlock_);
+
+  const IntType mpiRank =
+      (globalBlockRowIdx % gridRows_) + (globalBlockColIdx % gridCols_) * gridRows_;
+
+  return mpiRank;
+}
+
 static auto local_size(IntType globalSize, IntType blockSize, IntType procIdx, IntType numProcs)
     -> IntType {
   const IntType numBlocks = globalSize / blockSize; // number of full blocks eually distributed

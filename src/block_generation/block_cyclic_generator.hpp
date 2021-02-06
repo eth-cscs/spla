@@ -42,12 +42,28 @@ public:
                        IntType globalNumRows, IntType globalNumCols, IntType globalRowOffset,
                        IntType globalColOffset);
 
+  auto create_sub_generator(BlockCoord block) -> BlockCyclicGenerator {
+    return BlockCyclicGenerator(rowsInBlock_, colsInBlock_, gridRows_,
+                                gridCols_, block.numRows, block.numCols,
+                                block.row + globalRowOffset_,
+                                block.col + globalColOffset_);
+  }
+
   auto get_block_info(IntType blockIdx) -> BlockInfo override;
 
-  auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo override {
+  auto get_block_info(IntType blockRowIdx, IntType blockColIdx)
+      -> BlockInfo override {
     assert(blockRowIdx < numBlockRows_);
     assert(blockColIdx < numBlockCols_);
     return this->get_block_info(blockRowIdx + blockColIdx * numBlockRows_);
+  }
+
+  auto get_mpi_rank(IntType blockIdx) -> IntType override;
+
+  auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType override {
+    assert(blockRowIdx < numBlockRows_);
+    assert(blockColIdx < numBlockCols_);
+    return this->get_mpi_rank(blockRowIdx + blockColIdx * numBlockRows_);
 
   }
 

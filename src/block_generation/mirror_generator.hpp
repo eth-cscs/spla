@@ -80,6 +80,12 @@ public:
     return info;
   }
 
+  auto get_mpi_rank(IntType blockIdx) -> IntType override { return -1; }
+
+  auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType override {
+    return -1;
+  }
+
   auto num_blocks() -> IntType override { return numBlockRows_ * numBlockCols_; }
 
   auto num_block_rows() -> IntType override { return numBlockRows_; }
