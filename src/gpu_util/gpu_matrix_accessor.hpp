@@ -45,8 +45,6 @@
 #include "gpu_util/gpu_transfer.hpp"
 
 
-#include <iostream>
-
 namespace spla {
 
 template<typename GPU_VIEW_TYPE>

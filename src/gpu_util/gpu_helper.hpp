@@ -35,8 +35,6 @@
 #include "gpu_util/gpu_runtime_api.hpp"
 
 
-#include <iostream>
-
 namespace spla {
 
 template<typename T>

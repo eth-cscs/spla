@@ -47,7 +47,7 @@ public:
     return ptr;
   }
 
-  static inline void deallocate(void* ptr) noexcept { 
+  static inline void deallocate(void* ptr) noexcept {
     // TODO: MPI might throw exception, remove noexcept?
     MPI_Free_mem(ptr);
   }

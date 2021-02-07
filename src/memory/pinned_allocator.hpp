@@ -49,7 +49,6 @@ public:
   }
 
   static inline void deallocate(void* ptr) noexcept { 
-    // TODO: MPI might throw exception, remove noexcept?
     gpu::free_host(ptr);
   }
 

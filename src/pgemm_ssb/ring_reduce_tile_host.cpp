@@ -39,7 +39,6 @@
 #include <cassert>
 #include <complex>
 #include <cstring>
-#include <iostream>
 #include <vector>
 
 namespace spla {
@@ -77,46 +76,50 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(
   assert(state_ == TileState::Empty);
   assert(begin != end);
 
-  blockInfos_.assign(begin, end);
+  blocks_.assign(begin, end);
 
   currentBlockIdx = 0;
   const IntType rankOffset =
-      baseMatGen_.create_sub_generator(blockInfos_.front()).get_mpi_rank(0);
-  myStartIdx_ = (rankOffset + comm_.rank()) % blockInfos_.size();
+      baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
+  myStartIdx_ = (rankOffset + comm_.rank()) % blocks_.size();
   sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
   recvRank_ = (comm_.rank() + 1) % comm_.size();
 
   useRing_ = IsDisjointGenerator<BLOCK_GEN>::value &&
-             blockInfos_.size() == comm_.size();
+             blocks_.size() == comm_.size();
 
   myBlockInfos_.resize(0);
-  for (IntType i = 0; i < blockInfos_.size(); ++i) {
-    auto gen = baseMatGen_.create_sub_generator(blockInfos_[i]);
+  std::size_t requiredBufferSize = 0;
+  for (IntType i = 0; i < blocks_.size(); ++i) {
+    auto gen = baseMatGen_.create_sub_generator(blocks_[i]);
     // Determine rank to receive result from by computing the rank, which
     // holds the block initially and substracting the number of steps in the
     // ring (blocks are send backwards)
     const auto originRank =
-        (i + 2 * comm_.size() - rankOffset - (blockInfos_.size() - 1)) %
+        (i + 2 * comm_.size() - rankOffset - (blocks_.size() - 1)) %
         comm_.size();
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       if (gen.get_mpi_rank(j) == comm_.rank()) {
-        myBlockInfos_.emplace_back(originRank, gen.get_block_info(j));
+        auto info = gen.get_block_info(j);
+        requiredBufferSize += info.numCols * info.numRows;
+        myBlockInfos_.emplace_back(originRank, info);
       }
     }
   }
 
   std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
-  resultBuffer_->resize<T>(std::max<std::size_t>(myBlockInfos_.size(), 1) *
-                           maxBlockSize_);
+  resultBuffer_->resize<T>(std::max<std::size_t>(requiredBufferSize, 1));
   resultRecvs_.resize(myBlockInfos_.size());
 
   if (useRing_) {
+    IntType offset = 0;
     for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
       const auto &pair = myBlockInfos_[i];
-      MPI_Irecv(resultBuffer_->data<T>() + i * maxBlockSize_,
+      MPI_Irecv(resultBuffer_->data<T>() + offset,
                 pair.second.numCols * pair.second.numRows,
                 MPIMatchElementaryType<T>::get(), pair.first, resultTag,
                 comm_.get(), resultRecvs_[i].get_and_activate());
+      offset += pair.second.numCols * pair.second.numRows;
     }
   } else {
     std::memset(resultBuffer_->data<T>(), 0,
@@ -128,12 +131,12 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(
 
 template <typename T, typename BLOCK_GEN>
 auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
-  const IntType numBlocks = blockInfos_.size();
+  const IntType numBlocks = blocks_.size();
 
   const auto &block =
-      blockInfos_[(myStartIdx_ + currentBlockIdx) % blockInfos_.size()];
+      blocks_[(myStartIdx_ + currentBlockIdx) % blocks_.size()];
   const auto &nextBlock =
-      blockInfos_[(myStartIdx_ + currentBlockIdx + 1) % blockInfos_.size()];
+      blocks_[(myStartIdx_ + currentBlockIdx + 1) % blocks_.size()];
 
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -172,12 +175,12 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction() -> void {
-  const auto &block = blockInfos_[currentBlockIdx];
+  const auto &block = blocks_[currentBlockIdx];
 
   sendReq_.wait_if_active();
 
   if (currentBlockIdx) {
-    const auto &previousBlock = blockInfos_[currentBlockIdx - 1];
+    const auto &previousBlock = blocks_[currentBlockIdx - 1];
     auto gen = baseMatGen_.create_sub_generator(previousBlock);
     HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
                                        previousBlock.numRows);
@@ -218,7 +221,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize()
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
 
-  const auto &previousBlock = blockInfos_.back();
+  const auto &previousBlock = blocks_.back();
   auto gen = baseMatGen_.create_sub_generator(previousBlock);
   HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
                                      previousBlock.numRows);
@@ -243,13 +246,15 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
 
+  IntType offset = 0;
   for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
     resultRecvs_[i].wait_if_active();
     const auto &info = myBlockInfos_[i].second;
 
-    add_kernel(info.numRows, info.numCols,
-               resultBuffer_->data<T>() + i * maxBlockSize_, info.numRows,
-               beta_, &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
+    add_kernel(info.numRows, info.numCols, resultBuffer_->data<T>() + offset,
+               info.numRows, beta_, &C_(info.localColIdx, info.localRowIdx),
+               C_.ld_inner());
+    offset += info.numCols * info.numRows;
   }
 
   state_ = TileState::Empty;
@@ -257,7 +262,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingReduceTileHost<T, BLOCK_GEN>::process_step() -> bool {
-  const IntType numBlocks = blockInfos_.size();
+  const IntType numBlocks = blocks_.size();
 
   if (currentBlockIdx < numBlocks) {
     if (useRing_)

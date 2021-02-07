@@ -133,6 +133,7 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<BlockCoord>::const_ite
              blocks_.size() == comm_.size();
 
   myBlockInfos_.resize(0);
+  std::size_t requiredBufferSize = 0;
   for (IntType i = 0; i < blocks_.size(); ++i) {
     auto gen = baseMatGen_.create_sub_generator(blocks_[i]);
     // Determine rank to receive result from by computing the rank, which
@@ -143,7 +144,9 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<BlockCoord>::const_ite
         comm_.size();
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       if (gen.get_mpi_rank(j) == comm_.rank()) {
-        myBlockInfos_.emplace_back(originRank, gen.get_block_info(j));
+        auto info = gen.get_block_info(j);
+        requiredBufferSize += info.numCols * info.numRows;
+        myBlockInfos_.emplace_back(originRank, info);
       }
     }
   }
@@ -153,18 +156,19 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<BlockCoord>::const_ite
         gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
   }
 
-  resultBufferHost_->resize<T>(std::max<std::size_t>(myBlockInfos_.size(), 1) *
-                               maxBlockSize_);
+  resultBufferHost_->resize<T>(std::max<std::size_t>(requiredBufferSize, 1));
 
   resultRecvs_.resize(myBlockInfos_.size());
 
   if (useRing_) {
+    IntType offset = 0;
     for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
       const auto &pair = myBlockInfos_[i];
-      MPI_Irecv(resultBufferHost_->data<T>() + i * maxBlockSize_,
+      MPI_Irecv(resultBufferHost_->data<T>() + offset,
                 pair.second.numCols * pair.second.numRows,
                 MPIMatchElementaryType<T>::get(), pair.first, resultTag,
                 comm_.get(), resultRecvs_[i].get_and_activate());
+      offset += pair.second.numCols * pair.second.numRows;
     }
   }
 
@@ -433,48 +437,53 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::finalize() -> void {
                datatType.get(), info.mpiRank, resultTag, comm_.get());
     }
 
-    if (resultOnHost) {
-      using hostType = typename TypeTranslationHost<T>::type;
-      auto matCHostConverted = HostArrayView2D<hostType>(
-          reinterpret_cast<hostType *>(HostMatC_.data()), HostMatC_.dim_outer(),
-          HostMatC_.dim_inner(), HostMatC_.ld_inner());
+    if(!myBlockInfos_.empty()) {
+      if (resultOnHost) {
+        using hostType = typename TypeTranslationHost<T>::type;
+        auto matCHostConverted = HostArrayView2D<hostType>(
+            reinterpret_cast<hostType *>(HostMatC_.data()),
+            HostMatC_.dim_outer(), HostMatC_.dim_inner(), HostMatC_.ld_inner());
 
-      auto betaHost = TypeTranslationHost<T>::convert(this->beta_);
+        auto betaHost = TypeTranslationHost<T>::convert(this->beta_);
 
-      for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
-        resultRecvs_[i].wait_if_active();
-        const auto &info = myBlockInfos_[i].second;
+        IntType offset = 0;
+        for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
+          resultRecvs_[i].wait_if_active();
+          const auto &info = myBlockInfos_[i].second;
 
-        add_kernel(info.numRows, info.numCols,
-                   resultBufferHost_->data<hostType>() + i * maxBlockSize_,
-                   info.numRows, betaHost,
-                   &matCHostConverted(info.localColIdx, info.localRowIdx),
-                   matCHostConverted.ld_inner());
-      }
+          add_kernel(info.numRows, info.numCols,
+                     resultBufferHost_->data<hostType>() + offset, info.numRows,
+                     betaHost,
+                     &matCHostConverted(info.localColIdx, info.localRowIdx),
+                     matCHostConverted.ld_inner());
+          offset += info.numCols * info.numRows;
+        }
 
-    } else {
-      // result should be placed in gpu memory
+      } else {
+        // result should be placed in gpu memory
 
-      for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
-        resultRecvs_[i].wait_if_active();
-        const auto &info = myBlockInfos_[i].second;
+        IntType offset = 0;
+        for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
+          resultRecvs_[i].wait_if_active();
+          const auto &info = myBlockInfos_[i].second;
 
-        copy_to_gpu_async<T, T>(
-            ringProcs_.back().blasHandle.stream_handle().get(),
-            HostArrayConstView1D<T>(resultBufferHost_->data<T>() +
-                                        i * maxBlockSize_,
-                                    info.numCols * info.numRows),
-            GPUArrayView1D<T>(ringProcs_.back().tileViewGPU.data(),
-                              info.numCols * info.numRows));
+          copy_to_gpu_async<T, T>(
+              ringProcs_.back().blasHandle.stream_handle().get(),
+              HostArrayConstView1D<T>(resultBufferHost_->data<T>() + offset,
+                                      info.numCols * info.numRows),
+              GPUArrayView1D<T>(ringProcs_.back().tileViewGPU.data(),
+                                info.numCols * info.numRows));
 
-        T *subMatPtr = GPUMatC_.data() +
-                       GPUMatC_.index(info.localColIdx, info.localRowIdx);
-        call_gpu_geam(ringProcs_.back().blasHandle.get(),
-                      gpu::blas::operation::None, gpu::blas::operation::None,
-                      info.numRows, info.numCols, RealValueGPU<T>::create(1.0),
-                      ringProcs_.back().tileViewGPU.data(), info.numRows, beta_,
-                      subMatPtr, GPUMatC_.ld_inner(), subMatPtr,
-                      GPUMatC_.ld_inner());
+          T *subMatPtr = GPUMatC_.data() +
+                         GPUMatC_.index(info.localColIdx, info.localRowIdx);
+          call_gpu_geam(
+              ringProcs_.back().blasHandle.get(), gpu::blas::operation::None,
+              gpu::blas::operation::None, info.numRows, info.numCols,
+              RealValueGPU<T>::create(1.0),
+              ringProcs_.back().tileViewGPU.data(), info.numRows, beta_,
+              subMatPtr, GPUMatC_.ld_inner(), subMatPtr, GPUMatC_.ld_inner());
+          offset += info.numCols * info.numRows;
+        }
       }
     }
   }

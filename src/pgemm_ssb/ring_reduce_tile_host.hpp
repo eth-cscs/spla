@@ -87,7 +87,7 @@ private:
   IntType currentBlockIdx = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
-  std::vector<BlockCoord> blockInfos_;
+  std::vector<BlockCoord> blocks_;
   std::vector<std::pair<IntType, BlockInfo>> myBlockInfos_;
   std::vector<MPIRequestHandle> resultRecvs_;
   TileState state_;
