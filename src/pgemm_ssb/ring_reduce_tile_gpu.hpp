@@ -53,8 +53,8 @@
 
 namespace spla {
 
-template <typename T> struct RingBlock {
-  RingBlock(IntType blockSize_, GPUBlasHandle blasHandle_,
+template <typename T> struct RingProcessor {
+  RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_,
             GPUEventHandle event_, GPUStreamHandle recvStream_,
             std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
             std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
@@ -93,16 +93,15 @@ class RingReduceTileGPU {
 public:
   using ValueType = T;
 
-  RingReduceTileGPU(MPICommunicatorHandle comm,
-                    std::vector<RingBlock<T>> ringBlocks,
+  RingReduceTileGPU(IntType maxBlockSize, MPICommunicatorHandle comm,
+                    std::vector<RingProcessor<T>> ringProcs,
                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
-                    BLOCK_GEN baseMatGen,
-                    SplaOperation opA, ValueType alpha, ValueType beta,
-                    HostArrayView2D<ValueType> HostMatC,
+                    BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
+                    ValueType beta, HostArrayView2D<ValueType> HostMatC,
                     GPUArrayView2D<ValueType> GPUMatC);
 
-  auto prepare(std::vector<BlockInfo>::const_iterator begin,
-               std::vector<BlockInfo>::const_iterator end) -> void;
+  auto prepare(std::vector<BlockCoord>::const_iterator begin,
+               std::vector<BlockCoord>::const_iterator end) -> void;
 
   auto process_step() -> bool;
 
@@ -111,7 +110,7 @@ public:
   inline auto state() -> TileState { return state_; }
 
   inline auto synchronize() -> void {
-    for(auto& b : ringBlocks_) {
+    for(auto& b : ringProcs_) {
       gpu::check_status(
           gpu::stream_synchronize(b.blasHandle.stream_handle().get()));
     }
@@ -124,27 +123,28 @@ private:
   auto process_step_reduction() -> void;
 
   // state dependend
+  bool useRing_ = false;
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
   IntType myStartIdx_ = 0;
   IntType currentBlockIdx = 0;
-  IntType numMyBlocksReduced_ = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
-  std::vector<BlockInfo> blockInfos_;
-  std::vector<IntType> myBlockIndices_;
+  std::vector<BlockCoord> blocks_;
+  std::vector<std::pair<IntType, BlockInfo>> myBlockInfos_;
   std::vector<MPIRequestHandle> resultRecvs_;
   TileState state_;
 
   // fixed
   MPICommunicatorHandle comm_;
   BLOCK_GEN baseMatGen_;
-  std::vector<RingBlock<T>> ringBlocks_;
+  std::vector<RingProcessor<T>> ringProcs_;
   std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
   HostArrayView2D<ValueType> HostMatC_;
   GPUArrayView2D<ValueType> GPUMatC_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
+  const IntType maxBlockSize_;
 };
 
 } // namespace spla
