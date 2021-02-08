@@ -53,7 +53,7 @@ namespace spla {
 template <typename T, typename BLOCK_GEN>
 void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
                          const T *A, int lda, const T *B, int ldb, T beta, T *C,
-                         int ldc, int cRowStart, int cColStart,
+                         int ldc, int, int cColStart,
                          MatrixDistributionInternal &descC,
                          ContextInternal &ctx, BLOCK_GEN gen) {
 
@@ -64,6 +64,48 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
 
   constexpr IntType numTiles = 2;
 
+
+  /*************************************
+   * Try to determine optimal block size
+   *************************************/
+  const IntType minBlockSize = 150;
+  const double deviationFactor = 0.2; // How much to deviate from target block size
+  const double shrinkageForRing = 0.5; // Maximum block size reduction factor to form ring
+
+  const double blockSkinnyFactor =
+      static_cast<double>(gen.max_rows_in_block()) /
+      static_cast<double>(gen.max_cols_in_block());
+  IntType rowsInBlock = ctx.tile_size_host() * blockSkinnyFactor;
+  IntType colsInBlock = ctx.tile_size_host() / blockSkinnyFactor;
+
+  // Use distribution block size if within 20% if target size
+  if ((1.0 - deviationFactor) * rowsInBlock * colsInBlock <
+          gen.max_rows_in_block() * gen.max_cols_in_block() &&
+      (1.0 + deviationFactor)* rowsInBlock * colsInBlock >
+          gen.max_rows_in_block() * gen.max_cols_in_block()) {
+    rowsInBlock = gen.max_rows_in_block();
+    colsInBlock = gen.max_cols_in_block();
+  }
+
+  // If ring may be used, lower block size by up to 50% if required to form ring
+  if (IsDisjointGenerator<BLOCK_GEN>::value) {
+    const double minBlockRows = (m / static_cast<double>(rowsInBlock));
+    const double minBlockCols = (n / static_cast<double>(colsInBlock));
+    if (minBlockRows * minBlockCols < descC.comm().size()) {
+      double factor = static_cast<double>(minBlockRows * minBlockCols) /
+                            static_cast<double>(descC.comm().size());
+      if(factor > 1.0 - shrinkageForRing) {
+        factor = std::sqrt(factor);
+        rowsInBlock = factor * rowsInBlock;
+        colsInBlock = factor * colsInBlock;
+      }
+    }
+  }
+
+  rowsInBlock = std::max<IntType>(rowsInBlock, minBlockSize);
+  colsInBlock = std::max<IntType>(colsInBlock, minBlockSize);
+
+
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
   HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
@@ -71,8 +113,6 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
   auto &buffers = ctx.mpi_buffers(2 * numTiles);
   auto &comms = descC.get_comms(numTiles);
 
-  const IntType rowsInBlock = gen.max_rows_in_block();
-  const IntType colsInBlock = gen.max_cols_in_block();
 
   std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
       RingReduceTileHost<T, BLOCK_GEN>{
