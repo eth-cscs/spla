@@ -54,6 +54,7 @@
 
 namespace spla {
 
+// Provides resources to proccess a block
 template <typename T>
 struct RingProcessor {
   RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
@@ -92,6 +93,8 @@ struct RingProcessor {
   GPUArrayView1D<T> recvViewGPU;
 };
 
+// Compute and reduce for pgemm_ssb. If number of input blocks is equal to comm size, a ring
+// communication pattern is used. Otherwise, each block is processed individually.
 template <typename T, typename BLOCK_GEN>
 class RingReduceTileGPU {
 public:

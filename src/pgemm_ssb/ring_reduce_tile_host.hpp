@@ -49,6 +49,8 @@
 
 namespace spla {
 
+// Compute and reduce for pgemm_ssb. If number of input blocks is equal to comm size, a ring
+// communication pattern is used. Otherwise, each block is processed individually.
 template <typename T, typename BLOCK_GEN>
 class RingReduceTileHost {
 public:
