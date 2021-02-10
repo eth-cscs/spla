@@ -113,6 +113,10 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
       IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n, gen.max_rows_in_block(),
       gen.max_cols_in_block(), ctx.tile_size_host(), deviationFactor, minBlockSize);
 
+  // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
+  const IntType maxBlockSize =
+      std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
+
   const IntType numRingProcs = 2;  // Must be at least 2 for ring to work
   const IntType numTiles =
       std::max<IntType>(1, (ctx.num_tiles() + numRingProcs - 1) / numRingProcs);
@@ -156,7 +160,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
                               std::move(matA), std::move(matB));
     }
 
-    tiles.emplace_back(rowsInBlock * colsInBlock, *(commsIt++), std::move(ringBlocks),
+    tiles.emplace_back(maxBlockSize, *(commsIt++), std::move(ringBlocks),
                        *(pinnedBuffersIt++), gen, opA, alpha, beta, hostMatC, gpuMatC);
   }
 

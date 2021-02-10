@@ -70,6 +70,10 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
       IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n, gen.max_rows_in_block(),
       gen.max_cols_in_block(), ctx.tile_size_host(), deviationFactor, minBlockSize);
 
+  // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
+  const IntType maxBlockSize =
+      std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
+
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
   HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
@@ -78,12 +82,10 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
   auto &comms = descC.get_comms(numTiles);
 
   std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
-      RingReduceTileHost<T, BLOCK_GEN>{rowsInBlock * colsInBlock, ctx.num_threads(), comms[0],
-                                       buffers[0], buffers[1], gen, opA, alpha, viewA, viewB, beta,
-                                       viewC},
-      RingReduceTileHost<T, BLOCK_GEN>{rowsInBlock * colsInBlock, ctx.num_threads(), comms[1],
-                                       buffers[2], buffers[3], gen, opA, alpha, viewA, viewB, beta,
-                                       viewC}};
+      RingReduceTileHost<T, BLOCK_GEN>{maxBlockSize, ctx.num_threads(), comms[0], buffers[0],
+                                       buffers[1], gen, opA, alpha, viewA, viewB, beta, viewC},
+      RingReduceTileHost<T, BLOCK_GEN>{maxBlockSize, ctx.num_threads(), comms[1], buffers[2],
+                                       buffers[3], gen, opA, alpha, viewA, viewB, beta, viewC}};
 
   std::vector<BlockCoord> blocks;
   blocks.reserve(descC.comm().size());
