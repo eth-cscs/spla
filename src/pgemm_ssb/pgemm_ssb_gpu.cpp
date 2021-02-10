@@ -44,6 +44,7 @@
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
+#include "pgemm_ssb/block_size_selection_ssb.hpp"
 #include "pgemm_ssb/ring_reduce_tile_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
