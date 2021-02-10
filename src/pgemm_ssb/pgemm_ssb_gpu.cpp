@@ -102,48 +102,16 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA,
   /*************************************
    * Try to determine optimal block size
    *************************************/
+  IntType rowsInBlock = 1;
+  IntType colsInBlock = 1;
+
   const IntType minBlockSize = 250;
-  const double deviationFactor = 0.2; // How much to deviate from target block size
-  const double shrinkageForRing =
-      gpuPtrA && gpuPtrB
-          ? 0.5
-          : 0.1; // Maximum block size reduction factor to form ring. If input
-                 // is on host, performance is best with large block sizes in
-                 // general -> low shrinkage at most
-
-  const double blockSkinnyFactor =
-      static_cast<double>(gen.max_rows_in_block()) /
-      static_cast<double>(gen.max_cols_in_block());
-  IntType rowsInBlock = ctx.tile_size_host() * blockSkinnyFactor;
-  IntType colsInBlock = ctx.tile_size_host() / blockSkinnyFactor;
-
-  // Use distribution block size if within 20% if target size
-  if ((1.0 - deviationFactor) * rowsInBlock * colsInBlock <
-          gen.max_rows_in_block() * gen.max_cols_in_block() &&
-      (1.0 + deviationFactor)* rowsInBlock * colsInBlock >
-          gen.max_rows_in_block() * gen.max_cols_in_block()) {
-    rowsInBlock = gen.max_rows_in_block();
-    colsInBlock = gen.max_cols_in_block();
-  }
-
-  // If ring may be used, lower block size by up to 50% if required to form ring
-  if (IsDisjointGenerator<BLOCK_GEN>::value) {
-    const double minBlockRows = (m / static_cast<double>(rowsInBlock));
-    const double minBlockCols = (n / static_cast<double>(colsInBlock));
-    if (minBlockRows * minBlockCols < descC.comm().size()) {
-      double factor = static_cast<double>(minBlockRows * minBlockCols) /
-                            static_cast<double>(descC.comm().size());
-      if(factor > 1.0 - shrinkageForRing) {
-        factor = std::sqrt(factor);
-        rowsInBlock = factor * rowsInBlock;
-        colsInBlock = factor * colsInBlock;
-      }
-    }
-  }
-
-  rowsInBlock = std::max<IntType>(rowsInBlock, minBlockSize);
-  colsInBlock = std::max<IntType>(colsInBlock, minBlockSize);
-
+  const double deviationFactor = 0.3; // How much to deviate from target block
+                                      // size to match distribution block size
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+      IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n,
+      gen.max_rows_in_block(), gen.max_cols_in_block(), ctx.tile_size_host(),
+      deviationFactor, minBlockSize);
 
   const IntType numRingProcs = 2; // Must be at least 2 for ring to work
   const IntType numTiles =
