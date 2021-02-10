@@ -102,7 +102,11 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
   IntType rowsInBlock = 1;
   IntType colsInBlock = 1;
 
-  const IntType minBlockSize = 250;
+  const IntType minBlockSize =
+      gpuPtrA && gpuPtrB
+          ? 250
+          : 500;  // If input is on host, smal block sizes lead to much more memory transfers
+                  // required. Therefore use larger block sizes in that case.
   const double deviationFactor = 0.3;  // How much to deviate from target block
                                        // size to match distribution block size
   std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
