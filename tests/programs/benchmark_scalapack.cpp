@@ -48,6 +48,10 @@ void pdgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, 
              int* JA, int* DESCA, double* B, int* IB, int* JB, int* DESCB, double* BETA, double* C,
              int* IC, int* JC, int* DESCC);
 
+void pzgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, void* ALPHA, void* A, int* IA,
+             int* JA, int* DESCA, void* B, int* IB, int* JB, int* DESCB, void* BETA, void* C,
+             int* IC, int* JC, int* DESCC);
+
 void pdgemr2d_(int* m, int* n, double* a, int* ia, int* ja, int* desca, double* b, int* ib, int* jb,
                int* descb, int* ictxt);
 
@@ -59,10 +63,18 @@ static auto call_descinit(int* desc, int m, int n, int mb, int nb, int irsrc, in
   descinit_(desc, &m, &n, &mb, &nb, &irsrc, &icsrc, &ictxt, &lld, info);
 }
 
-static auto call_pdgemm(char TRANSA, char TRANSB, int M, int N, int K, double ALPHA, double* A,
-                        int IA, int JA, int* DESCA, double* B, int IB, int JB, int* DESCB,
-                        double BETA, double* C, int IC, int JC, int* DESCC) -> void {
+static auto call_pgemm(char TRANSA, char TRANSB, int M, int N, int K, double ALPHA, double* A,
+                       int IA, int JA, int* DESCA, double* B, int IB, int JB, int* DESCB,
+                       double BETA, double* C, int IC, int JC, int* DESCC) -> void {
   pdgemm_(&TRANSA, &TRANSB, &M, &N, &K, &ALPHA, A, &IA, &JA, DESCA, B, &IB, &JB, DESCB, &BETA, C,
+          &IC, &JC, DESCC);
+}
+
+static auto call_pgemm(char TRANSA, char TRANSB, int M, int N, int K, std::complex<double> ALPHA,
+                       std::complex<double>* A, int IA, int JA, int* DESCA, std::complex<double>* B,
+                       int IB, int JB, int* DESCB, std::complex<double> BETA,
+                       std::complex<double>* C, int IC, int JC, int* DESCC) -> void {
+  pzgemm_(&TRANSA, &TRANSB, &M, &N, &K, &ALPHA, A, &IA, &JA, DESCA, B, &IB, &JB, DESCB, &BETA, C,
           &IC, &JC, DESCC);
 }
 
@@ -71,7 +83,7 @@ static void call_pdgemr2d(int m, int n, double* a, int ia, int ja, int* desca, d
   pdgemr2d_(&m, &n, a, &ia, &ja, desca, b, &ib, &jb, descb, &ictxt);
 }
 
-template <typename ALLOCATOR>
+template <typename T, typename ALLOCATOR>
 void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numThreads,
               int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
@@ -86,9 +98,9 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
   spla::Buffer<ALLOCATOR> A;
   spla::Buffer<ALLOCATOR> B;
   spla::Buffer<ALLOCATOR> C;
-  A.template resize<double>(maxRowsPerRank * colsA);
-  B.template resize<double>(maxRowsPerRank * colsB);
-  C.template resize<double>(maxRowsC * colsB);
+  A.template resize<T>(maxRowsPerRank * colsA);
+  B.template resize<T>(maxRowsPerRank * colsB);
+  C.template resize<T>(maxRowsC * colsB);
 
   rt_graph::Timer timer;
 
@@ -97,18 +109,18 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
   ctx.set_num_threads(numThreads);
 
   // run once to warm up
-  spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0,
-                  A.template data<double>(), localNumRows, B.template data<double>(), localNumRows,
-                  0.0, C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
+  spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.template data<T>(),
+                  localNumRows, B.template data<T>(), localNumRows, 0.0, C.template data<T>(),
+                  maxRowsC, 0, 0, arrayDesc, ctx);
 
-  START_TIMING("spla");
+  START_TIMING("spla - host memory");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0,
-                    A.template data<double>(), localNumRows, B.template data<double>(),
-                    localNumRows, 0.0, C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
+    spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.template data<T>(),
+                    localNumRows, B.template data<T>(), localNumRows, 0.0, C.template data<T>(),
+                    maxRowsC, 0, 0, arrayDesc, ctx);
   }
-  STOP_TIMING("spla");
+  STOP_TIMING("spla - host memory");
 
   std::array<int, 9> descA{0, 0, 0, 0, 0, 0, 0, 0, 0};
   std::array<int, 9> descB{0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -124,16 +136,16 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
   call_descinit(descC.data(), colsA, colsB, blacsBlockSize, blacsBlockSize, 0, 0, grid, maxRowsC,
                 &info);
 
-  call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<double>(), 1, 1,
-              descA.data(), B.template data<double>(), 1, 1, descB.data(), 0.0,
-              C.template data<double>(), 1, 1, descC.data());
+  call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<T>(), 1, 1, descA.data(),
+             B.template data<T>(), 1, 1, descB.data(), 0.0, C.template data<T>(), 1, 1,
+             descC.data());
 
   START_TIMING("ScaLAPACK");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<double>(), 1, 1,
-                descA.data(), B.template data<double>(), 1, 1, descB.data(), 0.0,
-                C.template data<double>(), 1, 1, descC.data());
+    call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<T>(), 1, 1, descA.data(),
+               B.template data<T>(), 1, 1, descB.data(), 0.0, C.template data<T>(), 1, 1,
+               descC.data());
   }
   STOP_TIMING("ScaLAPACK");
 
@@ -153,6 +165,7 @@ int main(int argc, char** argv) {
   int numThreads = 6;
   int blacsBlockSize = 256;
   std::string procName;
+  std::string typeName;
   int lengthTarget = 256;
 
   CLI::App app{"spla benchmark"};
@@ -164,6 +177,8 @@ int main(int argc, char** argv) {
   app.add_option("-b,--blocksize", blacsBlockSize, "ScaLAPACK block size of C")->required();
   app.add_set("-p", procName, std::set<std::string>{"cpu", "gpu"}, "Processing unit")->required();
   app.add_option("-l", lengthTarget, "Length target")->default_val("1024");
+  app.add_set("--type", typeName, std::set<std::string>{"scalar", "complex"}, "Data type")
+      ->default_val("complex");
   try {
     app.parse(argc, argv);
   } catch (const CLI::ParseError& e) {
@@ -179,12 +194,22 @@ int main(int argc, char** argv) {
 
   if (ctx.processing_unit() == SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    run_gemm<spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize, repeats);
+    if (typeName == "scalar")
+      run_gemm<double, spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
+                                              repeats);
+    else
+      run_gemm<std::complex<double>, spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads,
+                                                            blacsBlockSize, repeats);
 #else
     throw spla::GPUSupportError();
 #endif
   } else {
-    run_gemm<spla::MPIAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize, repeats);
+    if (typeName == "scalar")
+      run_gemm<double, spla::MPIAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
+                                           repeats);
+    else
+      run_gemm<std::complex<double>, spla::MPIAllocator>(ctx, rows, colsA, colsB, numThreads,
+                                                         blacsBlockSize, repeats);
   }
 
   return 0;
