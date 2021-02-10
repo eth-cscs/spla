@@ -43,7 +43,7 @@ public:
                        IntType globalNumRows, IntType globalNumCols, IntType globalRowOffset,
                        IntType globalColOffset);
 
-  auto create_sub_generator(BlockCoord block) -> BlockCyclicGenerator {
+  auto create_sub_generator(Block block) -> BlockCyclicGenerator {
     return BlockCyclicGenerator(rowsInBlock_, colsInBlock_, gridRows_, gridCols_, block.numRows,
                                 block.numCols, block.row + globalRowOffset_,
                                 block.col + globalColOffset_);

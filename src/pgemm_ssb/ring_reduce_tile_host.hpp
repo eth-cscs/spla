@@ -61,8 +61,8 @@ public:
                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
                      HostArrayView2D<ValueType> C);
 
-  auto prepare(std::vector<BlockCoord>::const_iterator begin,
-               std::vector<BlockCoord>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin,
+               std::vector<Block>::const_iterator end) -> void;
 
   auto process_step() -> bool;
 
@@ -85,7 +85,7 @@ private:
   IntType currentBlockIdx = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
-  std::vector<BlockCoord> blocks_;
+  std::vector<Block> blocks_;
   std::vector<std::pair<IntType, BlockInfo>> myBlockInfos_;
   std::vector<MPIRequestHandle> resultRecvs_;
   TileState state_;

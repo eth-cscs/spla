@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_MATRIX_BLOCK_GENERATOR_HPP
-#define SPLA_MATRIX_BLOCK_GENERATOR_HPP
+#ifndef SPLA_BLOCK_HPP
+#define SPLA_BLOCK_HPP
 
 #include "spla/config.h"
 #include "util/common_types.hpp"
@@ -47,7 +47,7 @@ struct BlockInfo {
   IntType mpiRank;                   // negative value indicates mirrored on all ranks
 };
 
-struct BlockCoord {
+struct Block {
   IntType row;
   IntType col;
   IntType numRows;

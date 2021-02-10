@@ -87,7 +87,7 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
       RingReduceTileHost<T, BLOCK_GEN>{maxBlockSize, ctx.num_threads(), comms[1], buffers[2],
                                        buffers[3], gen, opA, alpha, viewA, viewB, beta, viewC}};
 
-  std::vector<BlockCoord> blocks;
+  std::vector<Block> blocks;
   blocks.reserve(descC.comm().size());
 
   IntType tileIdx = 0;
@@ -104,7 +104,7 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
         for (IntType rowIdx = rowStartIdx;
              rowIdx < std::min<IntType>(m, rowStartIdx + descC.proc_grid_rows() * rowsInBlock);
              rowIdx += rowsInBlock) {
-          blocks.emplace_back(BlockCoord{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
+          blocks.emplace_back(Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
                                          std::min<IntType>(colsInBlock, n - colIdx)});
 
           // Prepare processing when there are enough blocks to form ring

@@ -77,8 +77,8 @@ RingReduceTileHost<T, BLOCK_GEN>::RingReduceTileHost(
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<BlockCoord>::const_iterator begin,
-                                               std::vector<BlockCoord>::const_iterator end)
+auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
+                                               std::vector<Block>::const_iterator end)
     -> void {
   assert(state_ == TileState::Empty);
   assert(begin != end);

@@ -50,7 +50,7 @@ public:
         numBlockRows_((globalNumRows + rowsInBlock - 1) / rowsInBlock),
         numBlockCols_((globalNumCols + colsInBlock - 1) / colsInBlock) {}
 
-  auto create_sub_generator(BlockCoord block) -> MirrorGenerator {
+  auto create_sub_generator(Block block) -> MirrorGenerator {
     return MirrorGenerator(rowsInBlock_, colsInBlock_, block.numRows, block.numCols,
                            block.row + globalRowOffset_, block.col + globalColOffset_);
   }
