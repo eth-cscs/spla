@@ -1,22 +1,24 @@
-#include <iostream>
-#include <vector>
-#include <sstream>
-#include <iomanip>
-#include <complex>
-#include <array>
 #include <mpi.h>
-#include "spla/matrix_distribution.hpp"
-#include "spla/spla.hpp"
-#include "mpi_util/mpi_init_handle.hpp"
-#include "timing/rt_graph.hpp"
+
+#include <array>
+#include <complex>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <vector>
+
 #include "CLI/CLI.hpp"
-#include "timing/timing.hpp"
 #include "memory/buffer.hpp"
 #include "memory/mpi_allocator.hpp"
+#include "mpi_util/mpi_init_handle.hpp"
+#include "spla/matrix_distribution.hpp"
+#include "spla/spla.hpp"
+#include "timing/rt_graph.hpp"
+#include "timing/timing.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "memory/pinned_allocator.hpp"
 #include "memory/gpu_allocator.hpp"
+#include "memory/pinned_allocator.hpp"
 #endif
 
 extern "C" {
@@ -39,18 +41,17 @@ void Cblacs_barrier(int ConTxt, const char* scope);
 
 void Cblacs_gridexit(int ConTxt);
 
-void descinit_(int* desc, const int* m, const int* n, const int* mb, const int* nb, const int* irsrc,
-              const int* icsrc, const int* ictxt, const int* lld, int* info);
+void descinit_(int* desc, const int* m, const int* n, const int* mb, const int* nb,
+               const int* irsrc, const int* icsrc, const int* ictxt, const int* lld, int* info);
 
-void pdgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A,
-             int* IA, int* JA, int* DESCA, double* B, int* IB, int* JB, int* DESCB, double* BETA,
-             double* C, int* IC, int* JC, int* DESCC);
+void pdgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A, int* IA,
+             int* JA, int* DESCA, double* B, int* IB, int* JB, int* DESCB, double* BETA, double* C,
+             int* IC, int* JC, int* DESCC);
 
-void pdgemr2d_(int* m, int* n, double* a, int* ia, int* ja, int* desca, double* b,
-              int* ib, int* jb, int* descb, int* ictxt);
+void pdgemr2d_(int* m, int* n, double* a, int* ia, int* ja, int* desca, double* b, int* ib, int* jb,
+               int* descb, int* ictxt);
 
 int numroc_(int const& n, int const& nb, int const& iproc, int const& isproc, int const& nprocs);
-
 }
 
 static auto call_descinit(int* desc, int m, int n, int mb, int nb, int irsrc, int icsrc, int ictxt,
@@ -65,20 +66,21 @@ static auto call_pdgemm(char TRANSA, char TRANSB, int M, int N, int K, double AL
           &IC, &JC, DESCC);
 }
 
-static void call_pdgemr2d(int m, int n, double* a, int ia, int ja, int* desca, double* b,
-              int ib, int jb, int* descb, int ictxt) {
+static void call_pdgemr2d(int m, int n, double* a, int ia, int ja, int* desca, double* b, int ib,
+                          int jb, int* descb, int ictxt) {
   pdgemr2d_(&m, &n, a, &ia, &ja, desca, b, &ib, &jb, descb, &ictxt);
 }
 
 template <typename ALLOCATOR>
-void run_gemm(spla::Context& ctx,int globalRows, int colsA, int colsB, int numThreads, int blacsBlockSize, int numRepeats) {
-
+void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numThreads,
+              int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
   const int maxRowsPerRank = (globalRows + worldSize - 1) / worldSize;
-  const int localNumRows = std::max(std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
+  const int localNumRows =
+      std::max(std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
   const int maxRowsC = (colsA / (blacsBlockSize * worldSize) + 1) * blacsBlockSize;
 
   spla::Buffer<ALLOCATOR> A;
@@ -96,17 +98,15 @@ void run_gemm(spla::Context& ctx,int globalRows, int colsA, int colsB, int numTh
 
   // run once to warm up
   spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0,
-                  A.template data<double>(), localNumRows,
-                  B.template data<double>(), localNumRows, 0.0,
-                  C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
+                  A.template data<double>(), localNumRows, B.template data<double>(), localNumRows,
+                  0.0, C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
     spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0,
-                    A.template data<double>(), localNumRows,
-                    B.template data<double>(), localNumRows, 0.0,
-                    C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
+                    A.template data<double>(), localNumRows, B.template data<double>(),
+                    localNumRows, 0.0, C.template data<double>(), maxRowsC, 0, 0, arrayDesc, ctx);
   }
   STOP_TIMING("spla");
 
@@ -117,24 +117,22 @@ void run_gemm(spla::Context& ctx,int globalRows, int colsA, int colsB, int numTh
   int grid = 0;
   int blacsCtx = Csys2blacs_handle(MPI_COMM_WORLD);
   Cblacs_gridinit(&grid, "r", worldSize, 1);
-  call_descinit(descA.data(), globalRows, colsA, maxRowsPerRank, colsA, 0, 0, grid,
-                maxRowsPerRank, &info);
-  call_descinit(descB.data(), globalRows, colsB, maxRowsPerRank, colsB, 0, 0, grid,
-                maxRowsPerRank, &info);
+  call_descinit(descA.data(), globalRows, colsA, maxRowsPerRank, colsA, 0, 0, grid, maxRowsPerRank,
+                &info);
+  call_descinit(descB.data(), globalRows, colsB, maxRowsPerRank, colsB, 0, 0, grid, maxRowsPerRank,
+                &info);
   call_descinit(descC.data(), colsA, colsB, blacsBlockSize, blacsBlockSize, 0, 0, grid, maxRowsC,
                 &info);
 
-  call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0,
-              A.template data<double>(), 1, 1, descA.data(),
-              B.template data<double>(), 1, 1, descB.data(), 0.0,
+  call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<double>(), 1, 1,
+              descA.data(), B.template data<double>(), 1, 1, descB.data(), 0.0,
               C.template data<double>(), 1, 1, descC.data());
 
   START_TIMING("ScaLAPACK");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0,
-                A.template data<double>(), 1, 1, descA.data(),
-                B.template data<double>(), 1, 1, descB.data(), 0.0,
+    call_pdgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<double>(), 1, 1,
+                descA.data(), B.template data<double>(), 1, 1, descB.data(), 0.0,
                 C.template data<double>(), 1, 1, descC.data());
   }
   STOP_TIMING("ScaLAPACK");
@@ -147,7 +145,6 @@ void run_gemm(spla::Context& ctx,int globalRows, int colsA, int colsB, int numTh
 
 int main(int argc, char** argv) {
   spla::MPIInitHandle initHandle(argc, argv, true);
-
 
   int repeats = 100;
   int colsA = 5;
@@ -173,14 +170,14 @@ int main(int argc, char** argv) {
     return app.exit(e);
   }
 
-
-  SplaProcessingUnit pu = procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
+  SplaProcessingUnit pu =
+      procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
   spla::Context ctx(pu);
   ctx.set_tile_size_host(lengthTarget);
   ctx.set_num_threads(numThreads);
   ctx.set_tile_size_gpu(4096);
 
-  if(ctx.processing_unit() == SPLA_PU_GPU) {
+  if (ctx.processing_unit() == SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     run_gemm<spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize, repeats);
 #else

@@ -36,8 +36,8 @@ namespace spla {
 // Computes
 // B <- A + beta * B
 template <typename T>
-void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A,
-                IntType lda, T beta, T *SPLA_RESTRICT_ATTR B, IntType ldb);
+void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A, IntType lda, T beta,
+                T *SPLA_RESTRICT_ATTR B, IntType ldb);
 
 }  // namespace spla
 #endif

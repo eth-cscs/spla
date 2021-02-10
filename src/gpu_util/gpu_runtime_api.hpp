@@ -43,6 +43,7 @@
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 
 #include <utility>
+
 #include "spla/exceptions.hpp"
 
 namespace spla {

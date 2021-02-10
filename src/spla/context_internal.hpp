@@ -28,6 +28,16 @@
 #ifndef SPLA_CONTEXT_INTERNAL_HPP
 #define SPLA_CONTEXT_INTERNAL_HPP
 
+#include <mpi.h>
+
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstring>
+#include <deque>
+#include <memory>
+#include <type_traits>
+
 #include "memory/buffer.hpp"
 #include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_check_status.hpp"
@@ -36,14 +46,6 @@
 #include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cstring>
-#include <deque>
-#include <memory>
-#include <cstddef>
-#include <mpi.h>
-#include <type_traits>
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_blas_handle.hpp"
@@ -77,9 +79,9 @@ public:
   }
 
   inline auto mpi_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<MPIAllocator>>> & {
+      -> std::deque<std::shared_ptr<Buffer<MPIAllocator>>>& {
     const IntType numMissing = numBuffers - static_cast<IntType>(mpiBuffers_.size());
-    for(IntType i = 0; i < numMissing; ++i) {
+    for (IntType i = 0; i < numMissing; ++i) {
       mpiBuffers_.emplace_back(new Buffer<MPIAllocator>());
     }
     return mpiBuffers_;
@@ -87,18 +89,18 @@ public:
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
   inline auto pinned_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<PinnedAllocator>>> & {
+      -> std::deque<std::shared_ptr<Buffer<PinnedAllocator>>>& {
     const IntType numMissing = numBuffers - static_cast<IntType>(pinnedBuffers_.size());
-    for(IntType i = 0; i < numMissing; ++i) {
+    for (IntType i = 0; i < numMissing; ++i) {
       pinnedBuffers_.emplace_back(new Buffer<PinnedAllocator>());
     }
     return pinnedBuffers_;
   }
 
   inline auto gpu_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<GPUAllocator>>> & {
+      -> std::deque<std::shared_ptr<Buffer<GPUAllocator>>>& {
     const IntType numMissing = numBuffers - static_cast<IntType>(gpuBuffers_.size());
-    for(IntType i = 0; i < numMissing; ++i) {
+    for (IntType i = 0; i < numMissing; ++i) {
       gpuBuffers_.emplace_back(new Buffer<GPUAllocator>());
     }
     return gpuBuffers_;
@@ -106,7 +108,7 @@ public:
 
   inline auto gpu_blas_handles(IntType numHandles) -> std::deque<GPUBlasHandle>& {
     const IntType numMissing = numHandles - static_cast<IntType>(gpuBlasHandles_.size());
-    if(static_cast<IntType>(gpuBlasHandles_.size()) < numHandles) {
+    if (static_cast<IntType>(gpuBlasHandles_.size()) < numHandles) {
       gpuBlasHandles_.resize(numHandles);
     }
     return gpuBlasHandles_;
@@ -114,7 +116,7 @@ public:
 
   inline auto gpu_event_handles(IntType numHandles) -> std::deque<GPUEventHandle>& {
     const IntType numMissing = numHandles - static_cast<IntType>(gpuEventHandles_.size());
-    if(static_cast<IntType>(gpuEventHandles_.size()) < numHandles) {
+    if (static_cast<IntType>(gpuEventHandles_.size()) < numHandles) {
       gpuEventHandles_.resize(numHandles);
     }
     return gpuEventHandles_;
@@ -122,7 +124,7 @@ public:
 
   inline auto gpu_stream_handles(IntType numHandles) -> std::deque<GPUStreamHandle>& {
     const IntType numMissing = numHandles - static_cast<IntType>(gpuStreamHandles_.size());
-    if(static_cast<IntType>(gpuStreamHandles_.size()) < numHandles) {
+    if (static_cast<IntType>(gpuStreamHandles_.size()) < numHandles) {
       gpuStreamHandles_.resize(numHandles);
     }
     return gpuStreamHandles_;
@@ -149,28 +151,30 @@ public:
 
   inline auto set_num_threads(IntType numThreads) -> void {
 #ifdef SPLA_OMP
-    if (numThreads > 0) numThreads_ = numThreads;
-    else numThreads_ = omp_get_max_threads();
+    if (numThreads > 0)
+      numThreads_ = numThreads;
+    else
+      numThreads_ = omp_get_max_threads();
 #endif
   }
 
   inline auto set_num_tiles(IntType numTilesPerThread) -> void {
-    if(numTilesPerThread < 1) throw InvalidParameterError();
+    if (numTilesPerThread < 1) throw InvalidParameterError();
     numTiles_ = numTilesPerThread;
   }
 
   inline auto set_tile_size_host(IntType tileSizeHost) -> void {
-    if(tileSizeHost < 1) throw InvalidParameterError();
+    if (tileSizeHost < 1) throw InvalidParameterError();
     tileSizeHost_ = tileSizeHost;
   }
 
   inline auto set_tile_size_gpu(IntType tileSizeGPU) -> void {
-    if(tileSizeGPU < 1) throw InvalidParameterError();
+    if (tileSizeGPU < 1) throw InvalidParameterError();
     tileSizeGPU_ = tileSizeGPU;
   }
 
   inline auto set_op_threshold_gpu(IntType opThresholdGPU) -> void {
-    if(opThresholdGPU < 0) throw InvalidParameterError();
+    if (opThresholdGPU < 0) throw InvalidParameterError();
     opThresholdGPU_ = opThresholdGPU;
   }
 
@@ -192,6 +196,6 @@ private:
   std::deque<GPUStreamHandle> gpuStreamHandles_;
 #endif
 };
-} // namespace spla
+}  // namespace spla
 
 #endif

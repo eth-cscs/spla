@@ -1,29 +1,31 @@
 #include <mpi.h>
-#include <vector>
-#include <random>
-#include <array>
-#include <sstream>
-#include <cmath>
-#include <utility>
-#include <tuple>
+
 #include <algorithm>
-#include "spla/spla.hpp"
+#include <array>
+#include <cmath>
+#include <random>
+#include <sstream>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "memory/buffer.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
-#include "memory/host_array_const_view.hpp"
+#include "spla/spla.hpp"
 #include "util/common_types.hpp"
-#include "memory/host_array_view.hpp"
-#include "memory/host_array_const_view.hpp"
-#include "memory/buffer.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "memory/gpu_allocator.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
+#include "memory/gpu_allocator.hpp"
 #endif
 
 // template<typename T>
-// static auto print_matrix(const T* A, const int rows, const int cols, const int ld, const std::string& label)
+// static auto print_matrix(const T* A, const int rows, const int cols, const int ld, const
+// std::string& label)
 //     -> void {
 //   int rank, size;
 //   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -69,26 +71,26 @@ void Cblacs_barrier(int ConTxt, const char* scope);
 
 void Cblacs_gridexit(int ConTxt);
 
-void descinit_(int* desc, const int* m, const int* n, const int* mb, const int* nb, const int* irsrc,
-              const int* icsrc, const int* ictxt, const int* lld, int* info);
+void descinit_(int* desc, const int* m, const int* n, const int* mb, const int* nb,
+               const int* irsrc, const int* icsrc, const int* ictxt, const int* lld, int* info);
 
-void pdgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A,
-             int* IA, int* JA, int* DESCA, double* B, int* IB, int* JB, int* DESCB, double* BETA,
-             double* C, int* IC, int* JC, int* DESCC);
+void pdgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A, int* IA,
+             int* JA, int* DESCA, double* B, int* IB, int* JB, int* DESCB, double* BETA, double* C,
+             int* IC, int* JC, int* DESCC);
 
-void pzgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, void* ALPHA, void* A,
-             int* IA, int* JA, int* DESCA, void* B, int* IB, int* JB, int* DESCB, void* BETA,
-             void* C, int* IC, int* JC, int* DESCC);
+void pzgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, void* ALPHA, void* A, int* IA,
+             int* JA, int* DESCA, void* B, int* IB, int* JB, int* DESCB, void* BETA, void* C,
+             int* IC, int* JC, int* DESCC);
 
-void pdgemr2d_(int* m, int* n, double* a, int* ia, int* ja, int* desca, double* b,
-              int* ib, int* jb, int* descb, int* ictxt);
+void pdgemr2d_(int* m, int* n, double* a, int* ia, int* ja, int* desca, double* b, int* ib, int* jb,
+               int* descb, int* ictxt);
 
-void pzgemr2d_(int* m, int* n, void* a, int* ia, int* ja, int* desca, void* b,
-              int* ib, int* jb, int* descb, int* ictxt);
+void pzgemr2d_(int* m, int* n, void* a, int* ia, int* ja, int* desca, void* b, int* ib, int* jb,
+               int* descb, int* ictxt);
 
 int numroc_(int const& n, int const& nb, int const& iproc, int const& isproc, int const& nprocs);
 
-} // extern C
+}  // extern C
 
 static auto call_descinit(int* desc, int m, int n, int mb, int nb, int irsrc, int icsrc, int ictxt,
                           int lld, int* info) -> void {
@@ -96,8 +98,8 @@ static auto call_descinit(int* desc, int m, int n, int mb, int nb, int irsrc, in
 }
 
 static auto call_pgemm(char TRANSA, char TRANSB, int M, int N, int K, double ALPHA, double* A,
-                        int IA, int JA, int* DESCA, double* B, int IB, int JB, int* DESCB,
-                        double BETA, double* C, int IC, int JC, int* DESCC) -> void {
+                       int IA, int JA, int* DESCA, double* B, int IB, int JB, int* DESCB,
+                       double BETA, double* C, int IC, int JC, int* DESCC) -> void {
   pdgemm_(&TRANSA, &TRANSB, &M, &N, &K, &ALPHA, A, &IA, &JA, DESCA, B, &IB, &JB, DESCB, &BETA, C,
           &IC, &JC, DESCC);
 }
@@ -110,13 +112,13 @@ static auto call_pgemm(char TRANSA, char TRANSB, int M, int N, int K, std::compl
           &IC, &JC, DESCC);
 }
 
-static void call_pgemr2d(int m, int n, double* a, int ia, int ja, int* desca, double* b,
-              int ib, int jb, int* descb, int ictxt) {
+static void call_pgemr2d(int m, int n, double* a, int ia, int ja, int* desca, double* b, int ib,
+                         int jb, int* descb, int ictxt) {
   pdgemr2d_(&m, &n, a, &ia, &ja, desca, b, &ib, &jb, descb, &ictxt);
 }
 
-static void call_pgemr2d(int m, int n, std::complex<double>* a, int ia, int ja, int* desca, std::complex<double>* b,
-              int ib, int jb, int* descb, int ictxt) {
+static void call_pgemr2d(int m, int n, std::complex<double>* a, int ia, int ja, int* desca,
+                         std::complex<double>* b, int ib, int jb, int* descb, int ictxt) {
   pzgemr2d_(&m, &n, a, &ia, &ja, desca, b, &ib, &jb, descb, &ictxt);
 }
 
@@ -126,14 +128,12 @@ static auto mpi_world_size() -> int {
   int worldSize;
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
   return worldSize;
-
 }
 
 static auto mpi_world_rank() -> int {
   int worldRank;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   return worldRank;
-
 }
 
 static auto find_rectangle(int n) -> std::pair<int, int> {
@@ -150,12 +150,11 @@ static auto find_rectangle(int n) -> std::pair<int, int> {
   return {n, 1};
 }
 
-
-
 // numThreads, rowBlockSize, colBlockSize, colsA, colsB, numLocalRows
 template <typename T>
-class GemmSSBTest : public ::testing::TestWithParam<
-                        std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>> {
+class GemmSSBTest
+    : public ::testing::TestWithParam<
+          std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>> {
 protected:
   GemmSSBTest()
       : rowBlockSize_(std::get<2>(GetParam())),
@@ -171,7 +170,7 @@ protected:
 
     // generate local k size within range
     kLocalPerRank_.resize(mpi_world_size());
-    for(auto& k : kLocalPerRank_) {
+    for (auto& k : kLocalPerRank_) {
       k = kLocalDistribution(staticRandGen_);
       k_ += k;
     }
@@ -181,38 +180,38 @@ protected:
   // }
 
   auto multiply(MatrixDistribution& desc, int rowOffset, int colOffset) -> void {
-
     std::uniform_real_distribution<double> valueDistribution(0.0, 100.0);
 
     // initialize values in matrices
     std::vector<T> vecA(m_ * k_);
-    for(auto& val : vecA) {
+    for (auto& val : vecA) {
       val = valueDistribution(staticRandGen_);
     }
     std::vector<T> vecB(n_ * k_);
-    for(auto& val : vecB) {
+    for (auto& val : vecB) {
       val = valueDistribution(staticRandGen_);
     }
     std::vector<T> vecC(m_ * n_);
-    for(auto& val : vecC) {
+    for (auto& val : vecC) {
       val = valueDistribution(staticRandGen_);
     }
-    std::vector<T> vecCRef = vecC; // copy C to compare with ScaLAPACK
+    std::vector<T> vecCRef = vecC;  // copy C to compare with ScaLAPACK
 
     int localRowOffset = 0;
-    for(int r =0; r < mpi_world_rank(); ++r) {
+    for (int r = 0; r < mpi_world_rank(); ++r) {
       localRowOffset += kLocalPerRank_[r];
     }
 
-    spla::HostArrayConstView2D<T> localViewA(vecA.data() + localRowOffset, m_, kLocalPerRank_[mpi_world_rank()], k_);
-    spla::HostArrayConstView2D<T> localViewB(vecB.data() + localRowOffset, n_, kLocalPerRank_[mpi_world_rank()], k_);
+    spla::HostArrayConstView2D<T> localViewA(vecA.data() + localRowOffset, m_,
+                                             kLocalPerRank_[mpi_world_rank()], k_);
+    spla::HostArrayConstView2D<T> localViewB(vecB.data() + localRowOffset, n_,
+                                             kLocalPerRank_[mpi_world_rank()], k_);
 
     int blacsCtx = Csys2blacs_handle(MPI_COMM_WORLD);
     int info;
 
     int grid = 0;
     Cblacs_gridinit(&grid, "r", desc.proc_grid_rows(), desc.proc_grid_cols());
-
 
     const int subMatrixRows = std::max<int>(1, m_ - rowOffset);
     const int subMatrixCols = std::max<int>(1, n_ - colOffset);
@@ -225,14 +224,14 @@ protected:
       colBlockSize_ = n_;
     }
 
-
     std::array<int, 9> descA;
     std::array<int, 9> descB;
     std::array<int, 9> descC;
 
-
-    call_descinit(descA.data(), k_, m_, std::max<int>(k_, 1), m_, 0, 0, grid, std::max<int>(k_, 1), &info);
-    call_descinit(descB.data(), k_, n_, std::max<int>(k_, 1), n_, 0, 0, grid, std::max<int>(k_, 1), &info);
+    call_descinit(descA.data(), k_, m_, std::max<int>(k_, 1), m_, 0, 0, grid, std::max<int>(k_, 1),
+                  &info);
+    call_descinit(descB.data(), k_, n_, std::max<int>(k_, 1), n_, 0, 0, grid, std::max<int>(k_, 1),
+                  &info);
     call_descinit(descC.data(), m_, n_, rowBlockSize_, colBlockSize_, 0, 0, grid, m_, &info);
 
     // multiply with pdgemm
@@ -247,14 +246,14 @@ protected:
 
     // if mirror distribution, broadcast reference result to all ranks
     if (desc.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-      MPI_Bcast(vecCRef.data(), vecCRef.size(), MPIMatchElementaryType<T>::get(), 0, MPI_COMM_WORLD);
+      MPI_Bcast(vecCRef.data(), vecCRef.size(), MPIMatchElementaryType<T>::get(), 0,
+                MPI_COMM_WORLD);
     }
-
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     std::vector<T> vecCFromGPU;
     // compare starting from device buffers if GPU enabled
-    if(ctx_.processing_unit() == SPLA_PU_GPU) {
+    if (ctx_.processing_unit() == SPLA_PU_GPU) {
       Buffer<GPUAllocator> gpuBufferA;
       gpuBufferA.resize<T>(vecA.size());
       Buffer<GPUAllocator> gpuBufferB;
@@ -267,13 +266,13 @@ protected:
                                       static_cast<const void*>(vecA.data()),
                                       vecA.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
       if (vecB.size())
-      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
-                                    static_cast<const void*>(vecB.data()), vecB.size() * sizeof(T),
-                                    gpu::flag::MemcpyHostToDevice));
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+                                      static_cast<const void*>(vecB.data()),
+                                      vecB.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
       if (vecC.size())
-      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
-                                    static_cast<const void*>(vecC.data()), vecC.size() * sizeof(T),
-                                    gpu::flag::MemcpyHostToDevice));
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+                                      static_cast<const void*>(vecC.data()),
+                                      vecC.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
 
       spla::pgemm_ssb(
           subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()], SPLA_OP_CONJ_TRANSPOSE,
@@ -285,14 +284,12 @@ protected:
 
       vecCFromGPU.resize(vecC.size());
 
-
       if (vecC.size())
         gpu::check_status(gpu::memcpy(
             static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data<T>()),
             vecCFromGPU.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
     }
 #endif
-
 
     // compute from host memory
     spla::pgemm_ssb(subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()],
@@ -322,10 +319,10 @@ protected:
   std::vector<int> kLocalPerRank_;
   spla::Context ctx_;
 
-  static std::mt19937 staticRandGen_; // must produce same numbers on each rank
+  static std::mt19937 staticRandGen_;  // must produce same numbers on each rank
 };
 
-template<typename T>
+template <typename T>
 std::mt19937 GemmSSBTest<T>::staticRandGen_(42);
 
 typedef GemmSSBTest<double> GemmSSBScalar;
@@ -451,10 +448,11 @@ TEST_P(GemmSSBComplex, MirrorOffset) {
 }
 
 static auto param_type_names(
-    const ::testing::TestParamInfo<std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int,int>>>&
-        info) -> std::string {
+    const ::testing::TestParamInfo<
+        std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>>& info)
+    -> std::string {
   std::stringstream stream;
-  if(std::get<0>(info.param) == SplaProcessingUnit::SPLA_PU_HOST) {
+  if (std::get<0>(info.param) == SplaProcessingUnit::SPLA_PU_HOST) {
     stream << "Host_";
   } else {
     stream << "GPU_";
@@ -482,7 +480,9 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBScalar,
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
                                            ::testing::Values(1, 13, 32, 263),  // n
-                                           ::testing::Values(std::pair<int, int>(0, 1), std::pair<int, int>(50, 400))),  // k range
+                                           ::testing::Values(std::pair<int, int>(0, 1),
+                                                             std::pair<int, int>(50,
+                                                                                 400))),  // k range
                         param_type_names);
 
 INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
@@ -497,5 +497,7 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
                                            ::testing::Values(1, 13, 32, 263),  // n
-                                           ::testing::Values(std::pair<int, int>(0, 1), std::pair<int, int>(50, 400))),  // k range
+                                           ::testing::Values(std::pair<int, int>(0, 1),
+                                                             std::pair<int, int>(50,
+                                                                                 400))),  // k range
                         param_type_names);

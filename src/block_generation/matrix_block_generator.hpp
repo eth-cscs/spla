@@ -33,17 +33,18 @@
 
 namespace spla {
 
-template<typename T>
+template <typename T>
 struct IsDisjointGenerator {
   static constexpr bool value = false;
 };
 
 struct BlockInfo {
-  IntType globalRowIdx, globalColIdx; // Indices of first element in block in global matrix
-  IntType globalSubRowIdx, globalSubColIdx; // Indices of first element in block in global matrix without offset
-  IntType localRowIdx, localColIdx; // Indices of first element in block on assigned mpi rank
-  IntType numRows, numCols; // Size of block
-  IntType mpiRank; // negative value indicates mirrored on all ranks
+  IntType globalRowIdx, globalColIdx;  // Indices of first element in block in global matrix
+  IntType globalSubRowIdx,
+      globalSubColIdx;  // Indices of first element in block in global matrix without offset
+  IntType localRowIdx, localColIdx;  // Indices of first element in block on assigned mpi rank
+  IntType numRows, numCols;          // Size of block
+  IntType mpiRank;                   // negative value indicates mirrored on all ranks
 };
 
 struct BlockCoord {
@@ -53,5 +54,5 @@ struct BlockCoord {
   IntType numCols;
 };
 
-}
+}  // namespace spla
 #endif

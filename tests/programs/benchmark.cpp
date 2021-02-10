@@ -1,13 +1,17 @@
 #include <mpi.h>
+
+#include <cmath>
 #include <complex>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <cmath>
-#include <fstream>
+
 #include "CLI/CLI.hpp"
+#include "memory/buffer.hpp"
+#include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_init_handle.hpp"
 #include "spla/context.hpp"
 #include "spla/exceptions.hpp"
@@ -16,12 +20,10 @@
 #include "spla/types.h"
 #include "timing/rt_graph.hpp"
 #include "timing/timing.hpp"
-#include "memory/buffer.hpp"
-#include "memory/mpi_allocator.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "memory/pinned_allocator.hpp"
 #include "memory/gpu_allocator.hpp"
+#include "memory/pinned_allocator.hpp"
 #endif
 
 template <typename T, typename ALLOCATOR>
@@ -69,8 +71,7 @@ void run_pgemm_ssb(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
 }
 
 template <typename T, typename ALLOCATOR>
-void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize,
-              int numRepeats) {
+void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -106,9 +107,9 @@ void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize,
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_sbs");
-  spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
-                  B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
-                  maxRowsB, ctx);
+    spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
+                    B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
+                    maxRowsB, ctx);
   }
   STOP_TIMING("spla");
 }
@@ -119,7 +120,6 @@ int main(int argc, char** argv) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
-
 
   int repeats = 100;
   int m = 5;
@@ -146,14 +146,16 @@ int main(int argc, char** argv) {
   app.add_set("-f, --func", funcName, std::set<std::string>{"ssb", "sbs"}, "Function to benchmark")
       ->default_val("ssb");
   app.add_option("-b,--blocksize", blacsBlockSize, "ScaLAPACK block size of C")->required();
-  app.add_set("-p", procName, std::set<std::string>{"cpu", "gpu", "gpu-gpu"}, "Processing unit")->required();
+  app.add_set("-p", procName, std::set<std::string>{"cpu", "gpu", "gpu-gpu"}, "Processing unit")
+      ->required();
   try {
     app.parse(argc, argv);
   } catch (const CLI::ParseError& e) {
     return app.exit(e);
   }
 
-  SplaProcessingUnit pu = procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
+  SplaProcessingUnit pu =
+      procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
   spla::Context ctx(pu);
   ctx.set_tile_size_host(lengthTarget);
   ctx.set_num_threads(numThreads);
@@ -172,28 +174,27 @@ int main(int argc, char** argv) {
     std::cout << "threads = " << ctx.num_threads() << std::endl;
   }
 
-  if(funcName == "ssb") {
+  if (funcName == "ssb") {
     if (procName == "cpu") {
       if (typeName == "scalar")
         run_pgemm_ssb<double, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k,
-                                                                blacsBlockSize, repeats);
+        run_pgemm_ssb<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                repeats);
     }
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     else if (procName == "gpu") {
       if (typeName == "scalar")
-        run_pgemm_ssb<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                     repeats);
+        run_pgemm_ssb<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k,
-                                                                   blacsBlockSize, repeats);
+        run_pgemm_ssb<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                   repeats);
     } else if (procName == "gpu-gpu") {
       if (typeName == "scalar")
         run_pgemm_ssb<double, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k,
-                                                                blacsBlockSize, repeats);
+        run_pgemm_ssb<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                repeats);
     }
 #else
     else {
@@ -205,23 +206,22 @@ int main(int argc, char** argv) {
       if (typeName == "scalar")
         run_pgemm_sbs<double, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k,
-                                                                blacsBlockSize, repeats);
+        run_pgemm_sbs<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                repeats);
     }
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     else if (procName == "gpu") {
       if (typeName == "scalar")
-        run_pgemm_sbs<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                     repeats);
+        run_pgemm_sbs<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k,
-                                                                   blacsBlockSize, repeats);
+        run_pgemm_sbs<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                   repeats);
     } else if (procName == "gpu-gpu") {
       if (typeName == "scalar")
         run_pgemm_sbs<double, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k,
-                                                                blacsBlockSize, repeats);
+        run_pgemm_sbs<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize,
+                                                                repeats);
     }
 #else
     else {

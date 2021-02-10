@@ -27,10 +27,12 @@
  */
 
 #include "spla/matrix_distribution_internal.hpp"
+
+#include <cstring>
 #include <functional>
 #include <set>
 #include <vector>
-#include <cstring>
+
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "spla/exceptions.hpp"
@@ -41,7 +43,6 @@ namespace spla {
 auto MatrixDistributionInternal::create_blacs_block_cyclic(
     MPI_Comm comm, char order, IntType procGridRows, IntType procGridCols, IntType rowBlockSize,
     IntType colBlockSize) -> MatrixDistributionInternal {
-
   if (order != 'R' && order != 'r' && order != 'C' && order != 'c') throw InvalidParameterError();
   if (procGridRows < 1 || procGridCols < 1 || rowBlockSize < 1 || colBlockSize < 1)
     throw InvalidParameterError();

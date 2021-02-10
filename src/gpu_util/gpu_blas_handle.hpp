@@ -30,8 +30,9 @@
 
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include <memory>
 #include <cassert>
+#include <memory>
+
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_stream_handle.hpp"
@@ -39,19 +40,18 @@
 namespace spla {
 class GPUBlasHandle {
 public:
-  explicit GPUBlasHandle(GPUStreamHandle stream): stream_(std::move(stream)) {
+  explicit GPUBlasHandle(GPUStreamHandle stream) : stream_(std::move(stream)) {
     gpu::check_status(gpu::get_device(&deviceId_));
     gpu::blas::HandleType rawHandle;
     gpu::blas::check_status(gpu::blas::create(&rawHandle));
 
-    handle_ =
-        std::shared_ptr<gpu::blas::HandleType>(new gpu::blas::HandleType(rawHandle), [](gpu::blas::HandleType* ptr) {
-          gpu::blas::destroy(*ptr);
-          delete ptr;
-        });
+    handle_ = std::shared_ptr<gpu::blas::HandleType>(new gpu::blas::HandleType(rawHandle),
+                                                     [](gpu::blas::HandleType* ptr) {
+                                                       gpu::blas::destroy(*ptr);
+                                                       delete ptr;
+                                                     });
 
     gpu::blas::set_stream(*handle_, stream_.get());
-
   }
 
   GPUBlasHandle() : GPUBlasHandle(GPUStreamHandle(false)) {}

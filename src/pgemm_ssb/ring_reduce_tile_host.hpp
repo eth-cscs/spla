@@ -30,10 +30,11 @@
 
 #include <atomic>
 #include <memory>
-#include <vector>
 #include <utility>
-#include "memory/buffer.hpp"
+#include <vector>
+
 #include "block_generation/matrix_block_generator.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "memory/mpi_allocator.hpp"
@@ -53,12 +54,10 @@ class RingReduceTileHost {
 public:
   using ValueType = T;
 
-  RingReduceTileHost(IntType maxBlockSize, IntType numThreads,
-                     MPICommunicatorHandle comm,
+  RingReduceTileHost(IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
                      std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
-                     BLOCK_GEN baseMatGen, SplaOperation opA,
-                     ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
+                     SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
                      HostArrayView2D<ValueType> C);
 
@@ -70,7 +69,6 @@ public:
   inline auto state() -> TileState { return state_; }
 
 private:
-
   auto process_step_ring() -> void;
 
   auto process_step_reduction() -> void;

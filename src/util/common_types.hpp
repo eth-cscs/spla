@@ -28,8 +28,9 @@
 #ifndef SPLA_COMMON_TYPES_HPP
 #define SPLA_COMMON_TYPES_HPP
 
-#include "spla/config.h"
 #include <cstddef>
+
+#include "spla/config.h"
 namespace spla {
 
 using IntType = std::ptrdiff_t;

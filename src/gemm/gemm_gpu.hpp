@@ -30,19 +30,19 @@
 
 #include <cmath>
 #include <vector>
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
+
 #include "gpu_util/gpu_blas_api.hpp"
-#include "spla/types.h"
+#include "gpu_util/gpu_matrix_accessor.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
 #include "spla/context_internal.hpp"
+#include "spla/types.h"
 
 namespace spla {
 template <typename T>
-void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntType k,
-              T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
-              IntType ldc, ContextInternal &ctx);
-
+void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntType k, T alpha,
+              const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C, IntType ldc,
+              ContextInternal &ctx);
 
 }  // namespace spla
 #endif

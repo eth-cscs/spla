@@ -31,48 +31,40 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <complex>
+
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 
-
 namespace spla {
 
-template<typename T>
+template <typename T>
 struct TypeTranslationHost;
 
-template<>
+template <>
 struct TypeTranslationHost<float> {
   using type = float;
-  static inline auto convert(const float& val) -> type {
-    return val;
-  }
+  static inline auto convert(const float& val) -> type { return val; }
 };
 
-template<>
+template <>
 struct TypeTranslationHost<double> {
   using type = double;
-  static inline auto convert(const double& val) -> type {
-    return val;
-  }
+  static inline auto convert(const double& val) -> type { return val; }
 };
 
-template<>
+template <>
 struct TypeTranslationHost<std::complex<float>> {
   using type = std::complex<float>;
-  static inline auto convert(const std::complex<float>& val) -> type {
-    return val;
-  }
+  static inline auto convert(const std::complex<float>& val) -> type { return val; }
 };
 
-template<>
+template <>
 struct TypeTranslationHost<std::complex<double>> {
   using type = std::complex<double>;
-  static inline auto convert(const std::complex<double>& val) -> type {
-    return val;
-  }
+  static inline auto convert(const std::complex<double>& val) -> type { return val; }
 };
 
-template<>
+template <>
 struct TypeTranslationHost<gpu::blas::ComplexFloatType> {
   using type = std::complex<float>;
   static inline auto convert(const gpu::blas::ComplexFloatType& val) -> type {
@@ -80,7 +72,7 @@ struct TypeTranslationHost<gpu::blas::ComplexFloatType> {
   }
 };
 
-template<>
+template <>
 struct TypeTranslationHost<gpu::blas::ComplexDoubleType> {
   using type = std::complex<double>;
   static inline auto convert(const gpu::blas::ComplexDoubleType& val) -> type {
@@ -111,9 +103,7 @@ struct RealValueGPU<gpu::blas::ComplexDoubleType> {
   static inline auto create(double val) -> gpu::blas::ComplexDoubleType { return {val, 0.}; }
 };
 
-
-
-}
+}  // namespace spla
 
 #endif
 #endif

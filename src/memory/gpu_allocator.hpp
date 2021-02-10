@@ -29,19 +29,15 @@
 #ifndef SPLA_GPU_ALLOCATOR_HPP
 #define SPLA_GPU_ALLOCATOR_HPP
 
-
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
-
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_runtime_api.hpp"
 
-
 namespace spla {
 class GPUAllocator {
 public:
-
   static inline void* allocate(std::size_t n) {
     void* ptr = nullptr;
     gpu::check_status(gpu::malloc(&ptr, n));
@@ -49,13 +45,9 @@ public:
     return ptr;
   }
 
-  static inline void deallocate(void* ptr) noexcept { 
-    gpu::free(ptr);
-  }
-
+  static inline void deallocate(void* ptr) noexcept { gpu::free(ptr); }
 };
 }  // namespace spla
 #endif
-
 
 #endif

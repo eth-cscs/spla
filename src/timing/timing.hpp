@@ -34,6 +34,7 @@
 #ifdef SPLA_TIMING
 #include <chrono>
 #include <string>
+
 #include "timing/rt_graph.hpp"
 
 namespace spla {
@@ -45,9 +46,9 @@ extern ::rt_graph::Timer GlobalTimer;
 #define HOST_TIMING_CONCAT_IMPL(x, y) x##y
 #define HOST_TIMING_MACRO_CONCAT(x, y) HOST_TIMING_CONCAT_IMPL(x, y)
 
-#define SCOPED_TIMING(identifier)                        \
-  ::rt_graph::ScopedTiming HOST_TIMING_MACRO_CONCAT( \
-      scopedHostTimerMacroGenerated, __COUNTER__)(identifier, ::spla::timing::GlobalTimer);
+#define SCOPED_TIMING(identifier)                                                                \
+  ::rt_graph::ScopedTiming HOST_TIMING_MACRO_CONCAT(scopedHostTimerMacroGenerated, __COUNTER__)( \
+      identifier, ::spla::timing::GlobalTimer);
 
 #define START_TIMING(identifier) ::spla::timing::GlobalTimer.start(identifier);
 

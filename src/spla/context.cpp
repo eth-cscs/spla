@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "spla/context.hpp"
+
 #include "spla/context.h"
 #include "spla/context_internal.hpp"
 #include "spla/errors.h"
@@ -248,4 +249,3 @@ SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU) {
   return SplaError::SPLA_SUCCESS;
 }
 }
-

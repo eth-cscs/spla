@@ -52,7 +52,6 @@ using ConstDoubleComplexPtr = const void *;
 #include <blis.h>
 #endif
 
-
 // use blas header if found
 #if defined(SPLA_BLAS_HEADER_NAME)
 
@@ -195,4 +194,3 @@ auto is_thread_safe() -> bool {
 
 }  // namespace blas
 }  // namespace spla
-

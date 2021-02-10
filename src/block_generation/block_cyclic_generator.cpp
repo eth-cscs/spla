@@ -25,11 +25,13 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <cassert>
+#include "block_generation/block_cyclic_generator.hpp"
+
 #include <algorithm>
+#include <cassert>
+
 #include "spla/config.h"
 #include "util/common_types.hpp"
-#include "block_generation/block_cyclic_generator.hpp"
 
 namespace spla {
 
@@ -112,31 +114,30 @@ auto BlockCyclicGenerator::get_mpi_rank(IntType blockIdx) -> IntType {
 
 static auto local_size(IntType globalSize, IntType blockSize, IntType procIdx, IntType numProcs)
     -> IntType {
-  const IntType numBlocks = globalSize / blockSize; // number of full blocks eually distributed
-  const IntType numOverhangBlocks = numBlocks % numProcs; // number of full blocks left
+  const IntType numBlocks = globalSize / blockSize;  // number of full blocks eually distributed
+  const IntType numOverhangBlocks = numBlocks % numProcs;  // number of full blocks left
   IntType localSize = (numBlocks / numProcs) * blockSize;
 
   if (procIdx + 1 < numOverhangBlocks) localSize += blockSize;
   // add partial block if required
-  if (procIdx  + 1 == numOverhangBlocks) localSize += globalSize % blockSize;
+  if (procIdx + 1 == numOverhangBlocks) localSize += globalSize % blockSize;
   return localSize;
 }
 
 auto BlockCyclicGenerator::local_rows(IntType rank) -> IntType {
   if (rank < gridRows_ * gridCols_)
     return local_size(globalNumRows_ + globalRowOffset_, rowsInBlock_, rank % gridRows_,
-                      gridRows_)
-      - local_size(globalRowOffset_, rowsInBlock_, rank % gridRows_, gridRows_);
+                      gridRows_) -
+           local_size(globalRowOffset_, rowsInBlock_, rank % gridRows_, gridRows_);
   return 0;
 }
 
 auto BlockCyclicGenerator::local_cols(IntType rank) -> IntType {
   if (rank < gridRows_ * gridCols_)
     return local_size(globalNumCols_ + globalColOffset_, colsInBlock_, rank / gridRows_,
-                      gridCols_) 
-      -   local_size(globalColOffset_, colsInBlock_, rank / gridRows_, gridCols_);
+                      gridCols_) -
+           local_size(globalColOffset_, colsInBlock_, rank / gridRows_, gridCols_);
   return 0;
 }
 
 }  // namespace spla
-

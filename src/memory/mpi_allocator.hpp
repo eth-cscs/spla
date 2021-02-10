@@ -29,20 +29,19 @@
 #ifndef SPLA_MPI_ALLOCATOR_HPP
 #define SPLA_MPI_ALLOCATOR_HPP
 
+#include <mpi.h>
+
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
-#include <mpi.h>
 
 namespace spla {
 
 class MPIAllocator {
 public:
-
   static inline void* allocate(std::size_t n) {
     void* ptr = nullptr;
 
-    if (MPI_Alloc_mem(n, MPI_INFO_NULL, &ptr) != MPI_SUCCESS)
-      throw MPIAllocError();
+    if (MPI_Alloc_mem(n, MPI_INFO_NULL, &ptr) != MPI_SUCCESS) throw MPIAllocError();
 
     return ptr;
   }
@@ -51,7 +50,6 @@ public:
     // TODO: MPI might throw exception, remove noexcept?
     MPI_Free_mem(ptr);
   }
-
 };
 
 }  // namespace spla

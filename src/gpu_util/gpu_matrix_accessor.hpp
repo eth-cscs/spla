@@ -30,24 +30,24 @@
 
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include <memory>
 #include <cassert>
+#include <memory>
+
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_stream_handle.hpp"
-#include "spla/exceptions.hpp"
-#include "util/common_types.hpp"
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
-#include "memory/host_array_const_view.hpp"
+#include "gpu_util/gpu_transfer.hpp"
 #include "memory/buffer.hpp"
 #include "memory/gpu_allocator.hpp"
-#include "gpu_util/gpu_transfer.hpp"
-
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "spla/exceptions.hpp"
+#include "util/common_types.hpp"
 
 namespace spla {
 
-template<typename GPU_VIEW_TYPE>
+template <typename GPU_VIEW_TYPE>
 class GPUMatrixAccessor {
 public:
   using ValueType = typename GPU_VIEW_TYPE::ValueType;
@@ -82,15 +82,16 @@ public:
     assert(colOffset + cols <= cols_);
     assert(rows * cols <= maxTileSize_);
     if (matrixGPU_.empty()) {
-      // grow buffer to twice the current required size to avoid reallocation for small size increases
+      // grow buffer to twice the current required size to avoid reallocation for small size
+      // increases
       if (buffer_->size<ValueType>() < cols * rows) {
         buffer_->resize<ValueType>(std::min<IntType>(2 * cols * rows, maxTileSize_));
       }
       assert(buffer_->size<ValueType>() >= cols * rows);
       GPUArrayView2D<ValueType> tile(buffer_->data<ValueType>(), cols, rows);
       copy_to_gpu_async(stream,
-                        HostArrayConstView2D<ValueType>(&matrixHost_(colOffset, rowOffset), cols, rows,
-                                                matrixHost_.ld_inner()),
+                        HostArrayConstView2D<ValueType>(&matrixHost_(colOffset, rowOffset), cols,
+                                                        rows, matrixHost_.ld_inner()),
                         tile);
       return tile;
     } else {
@@ -100,10 +101,11 @@ public:
     }
   }
 
-  auto sub_accessor(IntType rowOffset, IntType colOffset, IntType rows, IntType cols) -> GPUMatrixAccessor<GPU_VIEW_TYPE> {
+  auto sub_accessor(IntType rowOffset, IntType colOffset, IntType rows, IntType cols)
+      -> GPUMatrixAccessor<GPU_VIEW_TYPE> {
     assert(rowOffset + rows <= rows_);
     assert(colOffset + cols <= cols_);
-    if(matrixGPU_.empty()) {
+    if (matrixGPU_.empty()) {
       return GPUMatrixAccessor<GPU_VIEW_TYPE>(
           HostArrayConstView2D<ValueType>(
               (matrixHost_.data() + matrixHost_.index(colOffset, rowOffset)), cols, rows,

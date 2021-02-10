@@ -29,7 +29,9 @@
 #define SPLA_MPI_MATCH_ELEMENTARY_TYPE_HPP
 
 #include <mpi.h>
+
 #include <complex>
+
 #include "spla/config.h"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)

@@ -29,12 +29,14 @@
 #ifndef SPLA_GPU_POINTER_TRANSLATION_HPP
 #define SPLA_GPU_POINTER_TRANSLATION_HPP
 
-#include "spla/config.h"
-#include "gpu_util/gpu_runtime_api.hpp"
 #include <utility>
+
+#include "gpu_util/gpu_runtime_api.hpp"
+#include "spla/config.h"
 namespace spla {
 
-// Translate input pointer to host / device pointer pair. Managed memory is not considered for device pointer.
+// Translate input pointer to host / device pointer pair. Managed memory is not considered for
+// device pointer.
 template <typename T>
 auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T*> {
   gpu::PointerAttributes attr;
@@ -43,12 +45,11 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
   auto status = gpu::pointer_get_attributes(&attr, static_cast<const void*>(inputPointer));
 
   if (status != gpu::status::Success) {
-    gpu::get_last_error(); // clear error from cache
+    gpu::get_last_error();  // clear error from cache
 #ifndef SPLA_ROCM
     // Invalid value is always indicated before CUDA 11 for valid host pointers, which have not been
     // registered. -> Don't throw error in this case.
-    if (status != gpu::status::ErrorInvalidValue)
-      gpu::check_status(status);
+    if (status != gpu::status::ErrorInvalidValue) gpu::check_status(status);
 #endif
   }
 
@@ -57,11 +58,11 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
   // Workaround due to bug with HIP when parsing pointers with offset from allocated memory start
   // and memoryType of attributes
 #ifdef SPLA_ROCM
-  if(!attr.devicePointer) {
+  if (!attr.devicePointer) {
     // host
     ptrPair.first = inputPointer;
   } else {
-    //device
+    // device
     ptrPair.second = inputPointer;
   }
 #else
@@ -73,10 +74,10 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
   auto memoryType = attr.memoryType;
 #endif
 
-  if(memoryType != gpu::flag::MemoryTypeDevice) {
+  if (memoryType != gpu::flag::MemoryTypeDevice) {
     ptrPair.first = attr.hostPointer ? static_cast<const T*>(attr.hostPointer) : inputPointer;
   } else {
-    ptrPair.second =  static_cast<const T*>(attr.devicePointer);
+    ptrPair.second = static_cast<const T*>(attr.devicePointer);
   }
 #endif
 

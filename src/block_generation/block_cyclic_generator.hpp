@@ -28,25 +28,24 @@
 #ifndef SPLA_BLOCK_CYCLIC_GENERATOR_HPP
 #define SPLA_BLOCK_CYCLIC_GENERATOR_HPP
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+
+#include "block_generation/matrix_block_generator.hpp"
 #include "spla/config.h"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
 
 class BlockCyclicGenerator {
 public:
-  BlockCyclicGenerator(IntType rowsInBlock, IntType colsInBlock,
-                       IntType gridRows, IntType gridCols,
-                       IntType globalNumRows, IntType globalNumCols,
-                       IntType globalRowOffset, IntType globalColOffset);
+  BlockCyclicGenerator(IntType rowsInBlock, IntType colsInBlock, IntType gridRows, IntType gridCols,
+                       IntType globalNumRows, IntType globalNumCols, IntType globalRowOffset,
+                       IntType globalColOffset);
 
   auto create_sub_generator(BlockCoord block) -> BlockCyclicGenerator {
-    return BlockCyclicGenerator(rowsInBlock_, colsInBlock_, gridRows_,
-                                gridCols_, block.numRows, block.numCols,
-                                block.row + globalRowOffset_,
+    return BlockCyclicGenerator(rowsInBlock_, colsInBlock_, gridRows_, gridCols_, block.numRows,
+                                block.numCols, block.row + globalRowOffset_,
                                 block.col + globalColOffset_);
   }
 
@@ -89,11 +88,11 @@ private:
   IntType numBlockRows_, numBlockCols_;
 };
 
-template<>
+template <>
 struct IsDisjointGenerator<BlockCyclicGenerator> {
   static constexpr bool value = true;
 };
 
-} // namespace spla
+}  // namespace spla
 
 #endif

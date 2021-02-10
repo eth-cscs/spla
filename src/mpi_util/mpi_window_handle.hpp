@@ -29,15 +29,17 @@
 #define SPLA_MPI_WINDOW_HANDLE_HPP
 
 #include <mpi.h>
+
 #include <cassert>
 #include <memory>
+
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
 
 namespace spla {
-template <typename T> 
+template <typename T>
 class MPIWindowHandle {
 public:
   MPIWindowHandle() = default;
@@ -45,10 +47,8 @@ public:
   MPIWindowHandle(T *ptr, IntType size, MPI_Comm comm) {
     MPI_Win win;
 
-    mpi_check_status(MPI_Win_create(ptr, size * sizeof(T), sizeof(T),
-                                    MPI_INFO_NULL, comm, &win));
-    window_ = std::shared_ptr<MPI_Win>(new MPI_Win(win),
-                                       [](MPI_Win *ptr) { MPI_Win_free(ptr); });
+    mpi_check_status(MPI_Win_create(ptr, size * sizeof(T), sizeof(T), MPI_INFO_NULL, comm, &win));
+    window_ = std::shared_ptr<MPI_Win>(new MPI_Win(win), [](MPI_Win *ptr) { MPI_Win_free(ptr); });
   }
 
   inline auto get() const -> const MPI_Win & {
@@ -60,6 +60,6 @@ private:
   std::shared_ptr<MPI_Win> window_ = nullptr;
 };
 
-} // namespace spla
+}  // namespace spla
 
 #endif

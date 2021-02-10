@@ -35,8 +35,8 @@
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
-#include "pgemm_ssb/ring_reduce_tile_host.hpp"
 #include "pgemm_ssb/block_size_selection_ssb.hpp"
+#include "pgemm_ssb/ring_reduce_tile_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -52,32 +52,23 @@
 namespace spla {
 
 template <typename T, typename BLOCK_GEN>
-void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
-                         const T *A, int lda, const T *B, int ldb, T beta, T *C,
-                         int ldc, int, int cColStart,
-                         MatrixDistributionInternal &descC,
-                         ContextInternal &ctx, BLOCK_GEN gen) {
-
-  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE,
-                   gen.local_rows(descC.comm().rank()),
-                   gen.local_cols(descC.comm().rank()), kLocal, A, lda,
-                   B, ldb, C, ldc);
+void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
+                         const T *B, int ldb, T beta, T *C, int ldc, int, int cColStart,
+                         MatrixDistributionInternal &descC, ContextInternal &ctx, BLOCK_GEN gen) {
+  check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, gen.local_rows(descC.comm().rank()),
+                   gen.local_cols(descC.comm().rank()), kLocal, A, lda, B, ldb, C, ldc);
 
   constexpr IntType numTiles = 2;
-
-
-
 
   IntType rowsInBlock = 1;
   IntType colsInBlock = 1;
 
   const IntType minBlockSize = 150;
-  const double deviationFactor = 0.3; // How much to deviate from target block
-                                      // size to match distribution block size
+  const double deviationFactor = 0.3;  // How much to deviate from target block
+                                       // size to match distribution block size
   std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
-      IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n,
-      gen.max_rows_in_block(), gen.max_cols_in_block(), ctx.tile_size_host(),
-      deviationFactor, minBlockSize);
+      IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n, gen.max_rows_in_block(),
+      gen.max_cols_in_block(), ctx.tile_size_host(), deviationFactor, minBlockSize);
 
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
@@ -86,14 +77,13 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
   auto &buffers = ctx.mpi_buffers(2 * numTiles);
   auto &comms = descC.get_comms(numTiles);
 
-
   std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
-      RingReduceTileHost<T, BLOCK_GEN>{
-          rowsInBlock * colsInBlock, ctx.num_threads(), comms[0], buffers[0],
-          buffers[1], gen, opA, alpha, viewA, viewB, beta, viewC},
-      RingReduceTileHost<T, BLOCK_GEN>{
-          rowsInBlock * colsInBlock, ctx.num_threads(), comms[1], buffers[2],
-          buffers[3], gen, opA, alpha, viewA, viewB, beta, viewC}};
+      RingReduceTileHost<T, BLOCK_GEN>{rowsInBlock * colsInBlock, ctx.num_threads(), comms[0],
+                                       buffers[0], buffers[1], gen, opA, alpha, viewA, viewB, beta,
+                                       viewC},
+      RingReduceTileHost<T, BLOCK_GEN>{rowsInBlock * colsInBlock, ctx.num_threads(), comms[1],
+                                       buffers[2], buffers[3], gen, opA, alpha, viewA, viewB, beta,
+                                       viewC}};
 
   std::vector<BlockCoord> blocks;
   blocks.reserve(descC.comm().size());
@@ -105,21 +95,15 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
        colStartIdx += descC.proc_grid_cols() * colsInBlock) {
     for (IntType rowStartIdx = 0; rowStartIdx < m;
          rowStartIdx += descC.proc_grid_rows() * rowsInBlock) {
-
       // iterate through blocks within grid
       for (IntType colIdx = colStartIdx;
-           colIdx < std::min<IntType>(n, colStartIdx + descC.proc_grid_cols() *
-                                                           colsInBlock);
+           colIdx < std::min<IntType>(n, colStartIdx + descC.proc_grid_cols() * colsInBlock);
            colIdx += colsInBlock) {
         for (IntType rowIdx = rowStartIdx;
-             rowIdx <
-             std::min<IntType>(m, rowStartIdx +
-                                      descC.proc_grid_rows() * rowsInBlock);
+             rowIdx < std::min<IntType>(m, rowStartIdx + descC.proc_grid_rows() * rowsInBlock);
              rowIdx += rowsInBlock) {
-
-          blocks.emplace_back(BlockCoord{
-              rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
-              std::min<IntType>(colsInBlock, n - colIdx)});
+          blocks.emplace_back(BlockCoord{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
+                                         std::min<IntType>(colsInBlock, n - colIdx)});
 
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descC.comm().size()) {
@@ -161,16 +145,14 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha,
 }
 
 template <typename T>
-void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
-                    const T *A, int lda, const T *B, int ldb, T beta, T *C,
-                    int ldc, int cRowStart, int cColStart,
+void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
+                    const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
                     MatrixDistributionInternal &descC, ContextInternal &ctx) {
   SCOPED_TIMING("inner_host");
   if (m == 0 || n == 0) {
     return;
   }
-  if (opA != SplaOperation::SPLA_OP_TRANSPOSE &&
-      opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
+  if (opA != SplaOperation::SPLA_OP_TRANSPOSE && opA != SplaOperation::SPLA_OP_CONJ_TRANSPOSE) {
     throw InvalidParameterError();
   }
 
@@ -179,57 +161,44 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha,
   }
 
   if (descC.comm().size() == 1) {
-    return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal,
-                        alpha, A, lda, B, ldb, beta,
-                        C + cRowStart + cColStart * ldc, ldc);
+    return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
+                        beta, C + cRowStart + cColStart * ldc, ldc);
   }
 
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
-    BlockCyclicGenerator gen(descC.row_block_size(), descC.col_block_size(),
-                             descC.proc_grid_rows(), descC.proc_grid_cols(), m,
-                             n, cRowStart, cColStart);
+    BlockCyclicGenerator gen(descC.row_block_size(), descC.col_block_size(), descC.proc_grid_rows(),
+                             descC.proc_grid_cols(), m, n, cRowStart, cColStart);
 
-    pgemm_ssb_host_ring<T, BlockCyclicGenerator>(
-        m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
-        cColStart, descC, ctx, std::move(gen));
+    pgemm_ssb_host_ring<T, BlockCyclicGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C,
+                                                 ldc, cRowStart, cColStart, descC, ctx,
+                                                 std::move(gen));
 
   } else {
-    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n,
-                        cRowStart, cColStart);
-    pgemm_ssb_host_ring<T, MirrorGenerator>(
-        m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
-        cColStart, descC, ctx, std::move(gen));
+    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowStart, cColStart);
+    pgemm_ssb_host_ring<T, MirrorGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc,
+                                            cRowStart, cColStart, descC, ctx, std::move(gen));
   }
-
 }
 
-template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA,
-                                    float alpha, const float *A, int lda,
-                                    const float *B, int ldb, float beta,
-                                    float *C, int ldc, int cRowStart,
-                                    int cColStart,
-                                    MatrixDistributionInternal &descC,
-                                    ContextInternal &ctx);
+template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
+                                    const float *A, int lda, const float *B, int ldb, float beta,
+                                    float *C, int ldc, int cRowStart, int cColStart,
+                                    MatrixDistributionInternal &descC, ContextInternal &ctx);
 
-template void pgemm_ssb_host<double>(int m, int n, int kLocal,
-                                     SplaOperation opA, double alpha,
-                                     const double *A, int lda, const double *B,
-                                     int ldb, double beta, double *C, int ldc,
-                                     int cRowStart, int cColStart,
-                                     MatrixDistributionInternal &descC,
-                                     ContextInternal &ctx);
+template void pgemm_ssb_host<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
+                                     const double *A, int lda, const double *B, int ldb,
+                                     double beta, double *C, int ldc, int cRowStart, int cColStart,
+                                     MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<float>>(
     int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
-    const std::complex<float> *A, int lda, const std::complex<float> *B,
-    int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
-    int cRowStart, int cColStart, MatrixDistributionInternal &descC,
-    ContextInternal &ctx);
+    const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
+    std::complex<float> beta, std::complex<float> *C, int ldc, int cRowStart, int cColStart,
+    MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<double>>(
     int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
-    const std::complex<double> *A, int lda, const std::complex<double> *B,
-    int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
-    int cRowStart, int cColStart, MatrixDistributionInternal &descC,
-    ContextInternal &ctx);
-} // namespace spla
+    const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
+    std::complex<double> beta, std::complex<double> *C, int ldc, int cRowStart, int cColStart,
+    MatrixDistributionInternal &descC, ContextInternal &ctx);
+}  // namespace spla

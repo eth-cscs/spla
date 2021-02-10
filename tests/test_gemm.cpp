@@ -4,14 +4,15 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "spla/config.h"
-#include "spla/spla.hpp"
+
 #include "gtest/gtest.h"
 #include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
+#include "spla/config.h"
+#include "spla/spla.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
@@ -21,7 +22,6 @@
 #endif
 
 using namespace spla;
-
 
 static auto convert_op(SplaOperation op) -> ::spla::blas::Operation {
   if (op == SPLA_OP_TRANSPOSE) return ::spla::blas::Operation::TRANS;
@@ -155,7 +155,6 @@ typedef GemmTest<double> GemmScalar;
 
 typedef GemmTest<std::complex<double>> GemmComplex;
 
-
 TEST_P(GemmScalar, Host) {
   try {
     this->mulitply_host();
@@ -181,7 +180,6 @@ TEST_P(GemmScalar, GPUFromGPU) {
   }
 }
 #endif
-
 
 TEST_P(GemmComplex, Host) {
   try {
@@ -241,4 +239,3 @@ INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmComplex,
                                            ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
                                            ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
                         param_type_names);
-

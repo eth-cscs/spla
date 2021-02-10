@@ -26,19 +26,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "pgemm_sbs/pgemm_sbs_gpu.hpp"
+
 #include <algorithm>
 #include <memory>
 #include <vector>
+
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/matrix_block_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_gpu.hpp"
 #include "gpu_util/gpu_blas_api.hpp"
+#include "gpu_util/gpu_device_guard.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_pointer_translation.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_transfer.hpp"
-#include "gpu_util/gpu_device_guard.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
@@ -47,9 +49,9 @@
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/spla.hpp"
+#include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
-#include "util/check_gemm_param.hpp"
 
 namespace spla {
 /*
@@ -69,13 +71,13 @@ namespace spla {
  *      A            B
  */
 template <typename T, typename BLOCK_GEN>
-void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B, int ldb,
-                   int bRowOffset, int bColOffset, MatrixDistributionInternal &descB, T beta, T *C,
-                   int ldc, ContextInternal &ctx, BLOCK_GEN gen) {
-
+void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B,
+                            int ldb, int bRowOffset, int bColOffset,
+                            MatrixDistributionInternal &descB, T beta, T *C, int ldc,
+                            ContextInternal &ctx, BLOCK_GEN gen) {
   check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
-                   gen.local_cols(descB.comm().rank()),
-                   gen.local_rows(descB.comm().rank()), A, lda, B, ldb, C, ldc);
+                   gen.local_cols(descB.comm().rank()), gen.local_rows(descB.comm().rank()), A, lda,
+                   B, ldb, C, ldc);
 
   GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
 
@@ -109,17 +111,16 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   std::tie(hostPtrC, gpuPtrC) = translate_gpu_pointer(C);
 
   for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
-                        : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                              HostArrayConstView2D<T>(A, k, mLocal, lda), tileSizeGEMM,
-                              gpuBuffers[i * 3]);
+    auto matA =
+        gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                      GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
+                : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
+                      HostArrayConstView2D<T>(A, k, mLocal, lda), tileSizeGEMM, gpuBuffers[i * 3]);
 
     auto matC =
-        gpuPtrC
-            ? GPUMatrixAccessor<GPUArrayView2D<T>>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
-            : GPUMatrixAccessor<GPUArrayView2D<T>>(HostArrayView2D<T>(C, n, mLocal, ldc),
-                                                   tileSizeGEMM, gpuBuffers[i * 3 + 1]);
+        gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
+                : GPUMatrixAccessor<GPUArrayView2D<T>>(HostArrayView2D<T>(C, n, mLocal, ldc),
+                                                       tileSizeGEMM, gpuBuffers[i * 3 + 1]);
 
     auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n, mLocal, ldc);
 
@@ -129,9 +130,8 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
         gpuPtrB ? GPUArrayConstView2D<T>(B, n + bColOffset, ldb) : GPUArrayConstView2D<T>();
 
     stripes.emplace_back(descB.comm(), blasHandles[i], pinnedBuffers[2 * i],
-                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], ctx.tile_size_gpu(),
-                         gen, alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC,
-                         numBlockColsInTile);
+                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], ctx.tile_size_gpu(), gen,
+                         alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC, numBlockColsInTile);
   }
 
   if (ctx.num_threads() > 1) {
@@ -209,13 +209,12 @@ void pgemm_sbs_gpu(int mLocal, int n, int k, T alpha, const T *A, int lda, const
                        alpha, A, lda, B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc, ctx);
   }
 
-  BlockCyclicGenerator gen(descB.row_block_size(), descB.col_block_size(),
-                           descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
-                           bRowOffset, bColOffset);
+  BlockCyclicGenerator gen(descB.row_block_size(), descB.col_block_size(), descB.proc_grid_rows(),
+                           descB.proc_grid_cols(), k, n, bRowOffset, bColOffset);
 
-  pgemm_sbs_gpu_internal<T, BlockCyclicGenerator>(
-      mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset, descB, beta,
-      C, ldc, ctx, std::move(gen));
+  pgemm_sbs_gpu_internal<T, BlockCyclicGenerator>(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset,
+                                                  bColOffset, descB, beta, C, ldc, ctx,
+                                                  std::move(gen));
 }
 
 template void pgemm_sbs_gpu<float>(int mLocal, int n, int k, float alpha, const float *A, int lda,

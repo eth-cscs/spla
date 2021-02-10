@@ -28,16 +28,21 @@
 #ifndef SPLA_RING_REDUCE_TILE_GPU_HPP
 #define SPLA_RING_REDUCE_TILE_GPU_HPP
 
-#include <memory>
 #include <array>
+#include <memory>
 #include <vector>
+
+#include "block_generation/matrix_block_generator.hpp"
+#include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_event_handle.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
-#include "memory/host_array_const_view.hpp"
-#include "memory/host_array_view.hpp"
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
 #include "memory/buffer.hpp"
 #include "memory/gpu_allocator.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "memory/host_array_view.hpp"
 #include "memory/pinned_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
@@ -45,25 +50,25 @@
 #include "spla/config.h"
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_blas_handle.hpp"
-#include "gpu_util/gpu_event_handle.hpp"
 #include "util/tile_state.hpp"
 
 namespace spla {
 
-template <typename T> struct RingProcessor {
-  RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_,
-            GPUEventHandle event_, GPUStreamHandle recvStream_,
-            std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-            std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
-            GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
-            GPUMatrixAccessor<GPUArrayConstView2D<T>> matB_)
-      : blockSize(blockSize_), blasHandle(std::move(blasHandle_)),
-        event(std::move(event_)), recvStream(std::move(recvStream_)),
-        bufferHost(std::move(bufferHost_)), bufferGPU(std::move(bufferGPU_)),
-        matA(std::move(matA_)), matB(std::move(matB_)) {
+template <typename T>
+struct RingProcessor {
+  RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
+                GPUStreamHandle recvStream_, std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
+                std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
+                GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
+                GPUMatrixAccessor<GPUArrayConstView2D<T>> matB_)
+      : blockSize(blockSize_),
+        blasHandle(std::move(blasHandle_)),
+        event(std::move(event_)),
+        recvStream(std::move(recvStream_)),
+        bufferHost(std::move(bufferHost_)),
+        bufferGPU(std::move(bufferGPU_)),
+        matA(std::move(matA_)),
+        matB(std::move(matB_)) {
     assert(bufferHost);
     assert(bufferGPU);
     bufferHost->resize<T>(blockSize);
@@ -71,8 +76,7 @@ template <typename T> struct RingProcessor {
 
     tileViewHost = HostArrayView1D<T>(bufferHost->data<T>(), blockSize);
     tileViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>(), blockSize);
-    recvViewGPU =
-        GPUArrayView1D<T>(bufferGPU->data<T>() + blockSize, blockSize);
+    recvViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>() + blockSize, blockSize);
   }
 
   IntType blockSize;
@@ -95,10 +99,9 @@ public:
 
   RingReduceTileGPU(IntType maxBlockSize, MPICommunicatorHandle comm,
                     std::vector<RingProcessor<T>> ringProcs,
-                    std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
-                    BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
-                    ValueType beta, HostArrayView2D<ValueType> HostMatC,
-                    GPUArrayView2D<ValueType> GPUMatC);
+                    std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
+                    SplaOperation opA, ValueType alpha, ValueType beta,
+                    HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC);
 
   auto prepare(std::vector<BlockCoord>::const_iterator begin,
                std::vector<BlockCoord>::const_iterator end) -> void;
@@ -110,14 +113,12 @@ public:
   inline auto state() -> TileState { return state_; }
 
   inline auto synchronize() -> void {
-    for(auto& b : ringProcs_) {
-      gpu::check_status(
-          gpu::stream_synchronize(b.blasHandle.stream_handle().get()));
+    for (auto& b : ringProcs_) {
+      gpu::check_status(gpu::stream_synchronize(b.blasHandle.stream_handle().get()));
     }
   }
 
 private:
-
   auto process_step_ring() -> void;
 
   auto process_step_reduction() -> void;
@@ -147,5 +148,5 @@ private:
   const IntType maxBlockSize_;
 };
 
-} // namespace spla
+}  // namespace spla
 #endif

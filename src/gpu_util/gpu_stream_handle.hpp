@@ -31,6 +31,7 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <memory>
+
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "spla/exceptions.hpp"
 namespace spla {

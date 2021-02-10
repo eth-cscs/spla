@@ -45,9 +45,9 @@
 #include "spla/spla.hpp"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
+#include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
-#include "util/check_gemm_param.hpp"
 
 namespace spla {
 
@@ -68,16 +68,13 @@ namespace spla {
  *      A                         B
  */
 template <typename T, typename BLOCK_GEN>
-void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A,
-                             int lda, const T *B, int ldb, int bRowOffset,
-                             int bColOffset, MatrixDistributionInternal &descB,
-                             T beta, T *C, int ldc, ContextInternal &ctx,
-                             BLOCK_GEN gen) {
-
-  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-                   mLocal, gen.local_cols(descB.comm().rank()),
-                   gen.local_rows(descB.comm().rank()), A, lda, B, ldb,
-                   C, ldc);
+void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int lda, const T *B,
+                             int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, T beta, T *C, int ldc,
+                             ContextInternal &ctx, BLOCK_GEN gen) {
+  check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
+                   gen.local_cols(descB.comm().rank()), gen.local_rows(descB.comm().rank()), A, lda,
+                   B, ldb, C, ldc);
 
   HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
   HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
@@ -87,8 +84,8 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A,
   stripes.reserve(ctx.num_threads());
 
   const IntType numBlockCols = gen.num_block_cols();
-  const IntType numBlockColsInTile = std::max<IntType>(
-      (128 + descB.col_block_size() - 1) / descB.col_block_size(), 1);
+  const IntType numBlockColsInTile =
+      std::max<IntType>((128 + descB.col_block_size() - 1) / descB.col_block_size(), 1);
 
   // create stripes
   {
@@ -96,15 +93,13 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A,
     auto &comms = descB.get_comms(ctx.num_tiles());
     IntType idx = 0;
     for (IntType tileIdx = 0; tileIdx < ctx.num_tiles(); ++tileIdx, ++idx) {
-      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx],
-                           buffers[2 * idx + 1], gen, alpha, viewA,
-                           viewB, beta, viewC, numBlockColsInTile);
+      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx], buffers[2 * idx + 1],
+                           gen, alpha, viewA, viewB, beta, viewC, numBlockColsInTile);
     }
   }
 
   IntType currentTileIdx = 0;
-  for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-       blockColIdx += numBlockColsInTile) {
+  for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
     IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
 
     stripes[nextTileIdx].collect(blockColIdx);
@@ -145,20 +140,16 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
     throw InvalidParameterError();
   }
 
-  BlockCyclicGenerator gen(descB.row_block_size(), descB.col_block_size(),
-                           descB.proc_grid_rows(), descB.proc_grid_cols(), k, n,
-                           bRowOffset, bColOffset);
-  pgemm_sbs_host_internal<T, BlockCyclicGenerator>(
-      mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset, bColOffset, descB, beta,
-      C, ldc, ctx, gen);
+  BlockCyclicGenerator gen(descB.row_block_size(), descB.col_block_size(), descB.proc_grid_rows(),
+                           descB.proc_grid_cols(), k, n, bRowOffset, bColOffset);
+  pgemm_sbs_host_internal<T, BlockCyclicGenerator>(mLocal, n, k, alpha, A, lda, B, ldb, bRowOffset,
+                                                   bColOffset, descB, beta, C, ldc, ctx, gen);
+}
 
-  }
-
-template void pgemm_sbs_host(int mLocal, int n, int k, float alpha,
-                             const float *A, int lda, const float *B, int ldb,
-                             int bRowOffset, int bColOffset,
-                             MatrixDistributionInternal &descB, float beta,
-                             float *C, int ldc, ContextInternal &ctx);
+template void pgemm_sbs_host(int mLocal, int n, int k, float alpha, const float *A, int lda,
+                             const float *B, int ldb, int bRowOffset, int bColOffset,
+                             MatrixDistributionInternal &descB, float beta, float *C, int ldc,
+                             ContextInternal &ctx);
 
 template void pgemm_sbs_host(int mLocal, int n, int k, double alpha, const double *A, int lda,
                              const double *B, int ldb, int bRowOffset, int bColOffset,

@@ -31,26 +31,28 @@
 
 #include <algorithm>
 #include <cassert>
+
+#include "block_generation/matrix_block_generator.hpp"
 #include "spla/config.h"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
 class MirrorGenerator {
 public:
-  MirrorGenerator(IntType rowsInBlock, IntType colsInBlock,
-                  IntType globalNumRows, IntType globalNumCols,
-                  IntType globalRowOffset, IntType globalColOffset)
-      : rowsInBlock_(rowsInBlock), colsInBlock_(colsInBlock),
-        globalNumRows_(globalNumRows), globalNumCols_(globalNumCols),
-        globalRowOffset_(globalRowOffset), globalColOffset_(globalColOffset),
+  MirrorGenerator(IntType rowsInBlock, IntType colsInBlock, IntType globalNumRows,
+                  IntType globalNumCols, IntType globalRowOffset, IntType globalColOffset)
+      : rowsInBlock_(rowsInBlock),
+        colsInBlock_(colsInBlock),
+        globalNumRows_(globalNumRows),
+        globalNumCols_(globalNumCols),
+        globalRowOffset_(globalRowOffset),
+        globalColOffset_(globalColOffset),
         numBlockRows_((globalNumRows + rowsInBlock - 1) / rowsInBlock),
         numBlockCols_((globalNumCols + colsInBlock - 1) / colsInBlock) {}
 
   auto create_sub_generator(BlockCoord block) -> MirrorGenerator {
-    return MirrorGenerator(rowsInBlock_, colsInBlock_, block.numRows,
-                           block.numCols, block.row + globalRowOffset_,
-                           block.col + globalColOffset_);
+    return MirrorGenerator(rowsInBlock_, colsInBlock_, block.numRows, block.numCols,
+                           block.row + globalRowOffset_, block.col + globalColOffset_);
   }
 
   auto get_block_info(IntType blockIdx) -> BlockInfo {
@@ -66,10 +68,8 @@ public:
     const IntType globalRowIdx = blockRowIdx * rowsInBlock_ + globalRowOffset_;
     const IntType globalColIdx = blockColIdx * colsInBlock_ + globalColOffset_;
 
-    const IntType numRows =
-        std::min(globalNumRows_ - blockRowIdx * rowsInBlock_, rowsInBlock_);
-    const IntType numCols =
-        std::min(globalNumCols_ - blockColIdx * colsInBlock_, colsInBlock_);
+    const IntType numRows = std::min(globalNumRows_ - blockRowIdx * rowsInBlock_, rowsInBlock_);
+    const IntType numCols = std::min(globalNumCols_ - blockColIdx * colsInBlock_, colsInBlock_);
 
     const IntType mpiRank = -1;
 
@@ -87,9 +87,7 @@ public:
 
   auto get_mpi_rank(IntType blockIdx) -> IntType { return -1; }
 
-  auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType {
-    return -1;
-  }
+  auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType { return -1; }
 
   auto num_blocks() -> IntType { return numBlockRows_ * numBlockCols_; }
 
@@ -112,6 +110,6 @@ private:
 
   IntType numBlockRows_, numBlockCols_;
 };
-} // namespace spla
+}  // namespace spla
 
 #endif

@@ -29,6 +29,7 @@
 #define SPLA_MPI_CHECK_STATUS_HPP
 
 #include <mpi.h>
+
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 

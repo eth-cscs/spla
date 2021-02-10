@@ -26,18 +26,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "pgemm_ssb/add_kernel.hpp"
+
+#include <cassert>
 #include <complex>
 #include <cstring>
-#include <cassert>
+
 #include "spla/config.h"
 #include "spla/types.h"
-#include "pgemm_ssb/add_kernel.hpp"
 
 namespace spla {
 
 template <typename T>
-void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A,
-                IntType lda, T beta, T *SPLA_RESTRICT_ATTR B, IntType ldb) {
+void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A, IntType lda, T beta,
+                T *SPLA_RESTRICT_ATTR B, IntType ldb) {
   assert(lda >= rows);
   assert(ldb >= rows);
   if (beta == T(0.0)) {
@@ -59,19 +61,20 @@ void add_kernel(IntType rows, IntType cols, const T *SPLA_RESTRICT_ATTR A,
   }
 }
 
-template void add_kernel<float>(IntType rows, IntType cols, const float *A,
-                                IntType lda, float beta, float *B, IntType ldb);
+template void add_kernel<float>(IntType rows, IntType cols, const float *A, IntType lda, float beta,
+                                float *B, IntType ldb);
 
-template void add_kernel<double>(IntType rows, IntType cols, const double *A,
-                                 IntType lda, double beta, double *B,
-                                 IntType ldb);
+template void add_kernel<double>(IntType rows, IntType cols, const double *A, IntType lda,
+                                 double beta, double *B, IntType ldb);
 
-template void add_kernel<std::complex<float>>(
-    IntType rows, IntType cols, const std::complex<float> *A, IntType lda,
-    std::complex<float> beta, std::complex<float> *B, IntType ldb);
+template void add_kernel<std::complex<float>>(IntType rows, IntType cols,
+                                              const std::complex<float> *A, IntType lda,
+                                              std::complex<float> beta, std::complex<float> *B,
+                                              IntType ldb);
 
-template void add_kernel<std::complex<double>>(
-    IntType rows, IntType cols, const std::complex<double> *A, IntType lda,
-    std::complex<double> beta, std::complex<double> *B, IntType ldb);
+template void add_kernel<std::complex<double>>(IntType rows, IntType cols,
+                                               const std::complex<double> *A, IntType lda,
+                                               std::complex<double> beta, std::complex<double> *B,
+                                               IntType ldb);
 
-} // namespace spla
+}  // namespace spla

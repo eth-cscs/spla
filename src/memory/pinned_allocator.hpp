@@ -32,15 +32,12 @@
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 
-
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_runtime_api.hpp"
-
 
 namespace spla {
 class PinnedAllocator {
 public:
-
   static inline void* allocate(std::size_t n) {
     void* ptr = nullptr;
     gpu::check_status(gpu::malloc_host(&ptr, n));
@@ -48,10 +45,7 @@ public:
     return ptr;
   }
 
-  static inline void deallocate(void* ptr) noexcept { 
-    gpu::free_host(ptr);
-  }
-
+  static inline void deallocate(void* ptr) noexcept { gpu::free_host(ptr); }
 };
 }  // namespace spla
 #endif

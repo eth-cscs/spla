@@ -29,6 +29,7 @@
 #define SPLA_TILE_STATE_HPP
 
 #include <atomic>
+
 #include "spla/config.h"
 namespace spla {
 enum class TileState : int {

@@ -31,6 +31,7 @@
 
 #include <cassert>
 #include <type_traits>
+
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "gpu_util/gpu_stream_handle.hpp"
 #include "memory/gpu_array_const_view.hpp"
@@ -139,9 +140,9 @@ auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView1
                          HostArrayView1D<U>& target) -> void {
   static_assert(sizeof(T) == sizeof(U), "Size of types for GPU transfer must match!");
   assert(source.size() == static_cast<IntType>(target.size()));
-  gpu::check_status(gpu::memcpy_async(static_cast<void*>(target.data()),
-                                static_cast<const void*>(source.data()), source.size() * sizeof(T),
-                                gpu::flag::MemcpyDeviceToHost, stream));
+  gpu::check_status(
+      gpu::memcpy_async(static_cast<void*>(target.data()), static_cast<const void*>(source.data()),
+                        source.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost, stream));
 }
 
 template <typename T, typename U>
@@ -175,7 +176,7 @@ auto copy_from_gpu(const GPUArrayConstView2D<T>& source, HostArrayView2D<U>&& ta
 
 template <typename T, typename U>
 auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView2D<T>& source,
-                       HostArrayView2D<U>& target) -> void {
+                         HostArrayView2D<U>& target) -> void {
   static_assert(sizeof(T) == sizeof(U), "Size of types for GPU transfer must match!");
   assert(source.dim_inner() == static_cast<IntType>(target.dim_inner()));
   assert(source.dim_outer() == static_cast<IntType>(target.dim_outer()));
@@ -194,7 +195,7 @@ auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView2
 
 template <typename T, typename U>
 auto copy_from_gpu_async(const gpu::StreamType& stream, const GPUArrayConstView2D<T>& source,
-                       HostArrayView2D<U>&& target) -> void {
+                         HostArrayView2D<U>&& target) -> void {
   copy_from_gpu_async(stream, source, target);
 }
 

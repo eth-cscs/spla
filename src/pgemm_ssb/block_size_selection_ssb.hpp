@@ -28,32 +28,28 @@
 #ifndef SPLA_BLOCK_SIZE_SELECTION_SSB_HPP
 #define SPLA_BLOCK_SIZE_SELECTION_SSB_HPP
 
-#include <utility>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <utility>
+
 #include "spla/config.h"
 #include "spla/types.h"
 #include "util/common_types.hpp"
 
 namespace spla {
-inline auto block_size_selection_ssb(
-    bool isDisjointDistribution, IntType commSize, IntType m, IntType n,
-    IntType rowsInMatBlock, IntType colsInMatBlock, IntType targetBlockSize,
-    double deviationFactor, IntType minBlockSize)
-    -> std::pair<IntType, IntType> {
-
+inline auto block_size_selection_ssb(bool isDisjointDistribution, IntType commSize, IntType m,
+                                     IntType n, IntType rowsInMatBlock, IntType colsInMatBlock,
+                                     IntType targetBlockSize, double deviationFactor,
+                                     IntType minBlockSize) -> std::pair<IntType, IntType> {
   // Create initial sizes matching shape of matrix distribution block
   const double blockSkinnyFactor =
-      static_cast<double>(rowsInMatBlock) /
-      static_cast<double>(colsInMatBlock);
+      static_cast<double>(rowsInMatBlock) / static_cast<double>(colsInMatBlock);
   IntType rowsInBlock = targetBlockSize * blockSkinnyFactor;
   IntType colsInBlock = targetBlockSize / blockSkinnyFactor;
 
   // Use distribution block size if within given deviation of target size
-  if ((1.0 - deviationFactor) * rowsInBlock * colsInBlock <
-          rowsInMatBlock * colsInMatBlock &&
-      (1.0 + deviationFactor)* rowsInBlock * colsInBlock >
-          rowsInMatBlock * colsInMatBlock) {
+  if ((1.0 - deviationFactor) * rowsInBlock * colsInBlock < rowsInMatBlock * colsInMatBlock &&
+      (1.0 + deviationFactor) * rowsInBlock * colsInBlock > rowsInMatBlock * colsInMatBlock) {
     rowsInBlock = rowsInMatBlock;
     colsInBlock = colsInMatBlock;
   }
@@ -63,11 +59,10 @@ inline auto block_size_selection_ssb(
     const double minBlockRows = (m / static_cast<double>(rowsInBlock));
     const double minBlockCols = (n / static_cast<double>(colsInBlock));
     if (minBlockRows * minBlockCols < commSize) {
-      const double factor =
-          std::sqrt(static_cast<double>(minBlockRows * minBlockCols) /
-                    static_cast<double>(commSize));
+      const double factor = std::sqrt(static_cast<double>(minBlockRows * minBlockCols) /
+                                      static_cast<double>(commSize));
       rowsInBlock = factor * rowsInBlock;
-      rowsInBlock += (m % rowsInBlock != 0); // Increase size by one to avoid small overhang
+      rowsInBlock += (m % rowsInBlock != 0);  // Increase size by one to avoid small overhang
       colsInBlock = factor * colsInBlock;
       colsInBlock += (n % colsInBlock != 0);
     }

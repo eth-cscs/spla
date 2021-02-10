@@ -26,20 +26,22 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "pgemm_ssb/ring_reduce_tile_host.hpp"
-#include "gemm/gemm_host.hpp"
-#include "block_generation/mirror_generator.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <complex>
+#include <cstring>
+#include <vector>
+
 #include "block_generation/block_cyclic_generator.hpp"
+#include "block_generation/mirror_generator.hpp"
+#include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "pgemm_ssb/add_kernel.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
-#include <algorithm>
-#include <cassert>
-#include <complex>
-#include <cstring>
-#include <vector>
 
 namespace spla {
 
@@ -50,43 +52,46 @@ template <typename T, typename BLOCK_GEN>
 RingReduceTileHost<T, BLOCK_GEN>::RingReduceTileHost(
     IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
     std::shared_ptr<Buffer<MPIAllocator>> buffer,
-    std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
-    BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
-    const HostArrayConstView2D<ValueType> &A,
-    const HostArrayConstView2D<ValueType> &B, ValueType beta,
-    HostArrayView2D<ValueType> C)
-    : state_(TileState::Empty), baseMatGen_(std::move(baseMatGen)),
-      buffer_(std::move(buffer)), resultBuffer_(std::move(resultBuffer)),
-      comm_(std::move(comm)), A_(A), B_(B), C_(C), alpha_(alpha), beta_(beta),
-      opA_(opA), numThreads_(numThreads), maxBlockSize_(maxBlockSize) {
+    std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen, SplaOperation opA,
+    ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+    const HostArrayConstView2D<ValueType> &B, ValueType beta, HostArrayView2D<ValueType> C)
+    : state_(TileState::Empty),
+      baseMatGen_(std::move(baseMatGen)),
+      buffer_(std::move(buffer)),
+      resultBuffer_(std::move(resultBuffer)),
+      comm_(std::move(comm)),
+      A_(A),
+      B_(B),
+      C_(C),
+      alpha_(alpha),
+      beta_(beta),
+      opA_(opA),
+      numThreads_(numThreads),
+      maxBlockSize_(maxBlockSize) {
   assert(A_.dim_inner() == B_.dim_inner());
   assert(buffer_);
-  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE ||
-         opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
+  assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
   buffer_->resize<ValueType>(2 * maxBlockSize_);
   sendView_ = HostArrayView1D<T>(buffer_->data<T>(), maxBlockSize_);
-  recvView_ =
-      HostArrayView1D<T>(buffer_->data<T>() + maxBlockSize_, maxBlockSize_);
+  recvView_ = HostArrayView1D<T>(buffer_->data<T>() + maxBlockSize_, maxBlockSize_);
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::prepare(
-    std::vector<BlockCoord>::const_iterator begin,
-    std::vector<BlockCoord>::const_iterator end) -> void {
+auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<BlockCoord>::const_iterator begin,
+                                               std::vector<BlockCoord>::const_iterator end)
+    -> void {
   assert(state_ == TileState::Empty);
   assert(begin != end);
 
   blocks_.assign(begin, end);
 
   currentBlockIdx = 0;
-  const IntType rankOffset =
-      baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
+  const IntType rankOffset = baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
   myStartIdx_ = (rankOffset + comm_.rank()) % blocks_.size();
   sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
   recvRank_ = (comm_.rank() + 1) % comm_.size();
 
-  useRing_ = IsDisjointGenerator<BLOCK_GEN>::value &&
-             blocks_.size() == comm_.size();
+  useRing_ = IsDisjointGenerator<BLOCK_GEN>::value && blocks_.size() == comm_.size();
 
   myBlockInfos_.resize(0);
   std::size_t requiredBufferSize = 0;
@@ -96,8 +101,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(
     // holds the block initially and substracting the number of steps in the
     // ring (blocks are send backwards)
     const auto originRank =
-        (i + 2 * comm_.size() - rankOffset - (blocks_.size() - 1)) %
-        comm_.size();
+        (i + 2 * comm_.size() - rankOffset - (blocks_.size() - 1)) % comm_.size();
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       if (gen.get_mpi_rank(j) == comm_.rank()) {
         auto info = gen.get_block_info(j);
@@ -115,15 +119,13 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(
     IntType offset = 0;
     for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
       const auto &pair = myBlockInfos_[i];
-      MPI_Irecv(resultBuffer_->data<T>() + offset,
-                pair.second.numCols * pair.second.numRows,
-                MPIMatchElementaryType<T>::get(), pair.first, resultTag,
-                comm_.get(), resultRecvs_[i].get_and_activate());
+      MPI_Irecv(resultBuffer_->data<T>() + offset, pair.second.numCols * pair.second.numRows,
+                MPIMatchElementaryType<T>::get(), pair.first, resultTag, comm_.get(),
+                resultRecvs_[i].get_and_activate());
       offset += pair.second.numCols * pair.second.numRows;
     }
   } else {
-    std::memset(resultBuffer_->data<T>(), 0,
-                resultBuffer_->size<T>() * sizeof(T));
+    std::memset(resultBuffer_->data<T>(), 0, resultBuffer_->size<T>() * sizeof(T));
   }
 
   state_ = TileState::Prepared;
@@ -133,10 +135,8 @@ template <typename T, typename BLOCK_GEN>
 auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
   const IntType numBlocks = blocks_.size();
 
-  const auto &block =
-      blocks_[(myStartIdx_ + currentBlockIdx) % blocks_.size()];
-  const auto &nextBlock =
-      blocks_[(myStartIdx_ + currentBlockIdx + 1) % blocks_.size()];
+  const auto &block = blocks_[(myStartIdx_ + currentBlockIdx) % blocks_.size()];
+  const auto &nextBlock = blocks_[(myStartIdx_ + currentBlockIdx + 1) % blocks_.size()];
 
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -148,26 +148,22 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
               recvReq_.get_and_activate());
   }
   if (A_.dim_inner() != 0) {
-    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows,
-                 block.numCols, A_.dim_inner(), alpha_, &A_(block.row, 0),
-                 A_.ld_inner(), &B_(block.col, 0), B_.ld_inner(), 1.0,
-                 sendView_.data(), block.numRows);
+    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
+                 A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
+                 B_.ld_inner(), 1.0, sendView_.data(), block.numRows);
   }
-  if (currentBlockIdx < numBlocks - 1) { // continue sending around in ring
-    MPI_Isend(sendView_.data(), block.numRows * block.numCols,
-              MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get(),
-              sendReq_.get_and_activate());
-  } else { // send final result to target rank
+  if (currentBlockIdx < numBlocks - 1) {  // continue sending around in ring
+    MPI_Isend(sendView_.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
+              sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
+  } else {  // send final result to target rank
     auto gen = baseMatGen_.create_sub_generator(block);
     for (IntType i = 0; i < gen.num_blocks(); ++i) {
       auto info = gen.get_block_info(i);
-      auto datatType = MPIDatatypeHandle::create_vector(
-          info.numCols, info.numRows, block.numRows,
-          MPIMatchElementaryType<T>::get());
-      HostArrayConstView2D<T> resultView(sendView_.data(), block.numCols,
-                                         block.numRows);
-      MPI_Send(&resultView(info.globalSubColIdx, info.globalSubRowIdx), 1,
-               datatType.get(), info.mpiRank, resultTag, comm_.get());
+      auto datatType = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, block.numRows,
+                                                        MPIMatchElementaryType<T>::get());
+      HostArrayConstView2D<T> resultView(sendView_.data(), block.numCols, block.numRows);
+      MPI_Send(&resultView(info.globalSubColIdx, info.globalSubRowIdx), 1, datatType.get(),
+               info.mpiRank, resultTag, comm_.get());
     }
   }
   state_ = TileState::PartiallyProcessed;
@@ -190,9 +186,8 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction() -> void {
         const auto info = gen.get_block_info(i);
 
         add_kernel(info.numRows, info.numCols,
-                   &resultView(info.globalSubColIdx, info.globalSubRowIdx),
-                   resultView.ld_inner(), beta_,
-                   &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
+                   &resultView(info.globalSubColIdx, info.globalSubRowIdx), resultView.ld_inner(),
+                   beta_, &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
       }
     }
   }
@@ -200,23 +195,20 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   if (A_.dim_inner() == 0) {
     std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
   } else {
-    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows,
-                 block.numCols, A_.dim_inner(), alpha_, &A_(block.row, 0),
-                 A_.ld_inner(), &B_(block.col, 0), B_.ld_inner(), 0.0,
-                 sendView_.data(), block.numRows);
+    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
+                 A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
+                 B_.ld_inner(), 0.0, sendView_.data(), block.numRows);
   }
 
-  mpi_check_status(MPI_Iallreduce(
-      MPI_IN_PLACE, sendView_.data(), block.numCols * block.numRows,
-      MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get(),
-      sendReq_.get_and_activate()));
+  mpi_check_status(MPI_Iallreduce(MPI_IN_PLACE, sendView_.data(), block.numCols * block.numRows,
+                                  MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get(),
+                                  sendReq_.get_and_activate()));
 
   state_ = TileState::PartiallyProcessed;
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize()
-    -> void {
+auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -231,9 +223,8 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize()
       const auto info = gen.get_block_info(i);
 
       add_kernel(info.numRows, info.numCols,
-                 &resultView(info.globalSubColIdx, info.globalSubRowIdx),
-                 resultView.ld_inner(), beta_,
-                 &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
+                 &resultView(info.globalSubColIdx, info.globalSubRowIdx), resultView.ld_inner(),
+                 beta_, &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
     }
   }
 
@@ -251,9 +242,8 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
     resultRecvs_[i].wait_if_active();
     const auto &info = myBlockInfos_[i].second;
 
-    add_kernel(info.numRows, info.numCols, resultBuffer_->data<T>() + offset,
-               info.numRows, beta_, &C_(info.localColIdx, info.localRowIdx),
-               C_.ld_inner());
+    add_kernel(info.numRows, info.numCols, resultBuffer_->data<T>() + offset, info.numRows, beta_,
+               &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
     offset += info.numCols * info.numRows;
   }
 
@@ -290,5 +280,4 @@ template class RingReduceTileHost<float, MirrorGenerator>;
 template class RingReduceTileHost<std::complex<double>, MirrorGenerator>;
 template class RingReduceTileHost<std::complex<float>, MirrorGenerator>;
 
-
-} // namespace spla
+}  // namespace spla

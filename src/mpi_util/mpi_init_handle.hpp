@@ -29,6 +29,7 @@
 #define SPLA_MPI_INIT_HANDLE_HPP
 
 #include <mpi.h>
+
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
@@ -46,7 +47,7 @@ public:
       // MPI_Init(&argc, &argv);
       int provided;
       mpi_check_status(MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided));
-      if(provided < MPI_THREAD_FUNNELED) {
+      if (provided < MPI_THREAD_FUNNELED) {
         throw MPIError();
       }
     }
