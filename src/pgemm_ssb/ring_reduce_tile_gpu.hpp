@@ -32,7 +32,7 @@
 #include <memory>
 #include <vector>
 
-#include "block_generation/matrix_block_generator.hpp"
+#include "block_generation/block.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
 #include "gpu_util/gpu_event_handle.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"

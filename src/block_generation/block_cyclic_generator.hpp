@@ -31,7 +31,7 @@
 #include <algorithm>
 #include <cassert>
 
-#include "block_generation/matrix_block_generator.hpp"
+#include "block_generation/block.hpp"
 #include "spla/config.h"
 #include "util/common_types.hpp"
 

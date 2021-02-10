@@ -32,7 +32,7 @@
 #include <vector>
 
 #include "block_generation/block_cyclic_generator.hpp"
-#include "block_generation/matrix_block_generator.hpp"
+#include "block_generation/block.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "memory/host_array_const_view.hpp"
