@@ -92,11 +92,9 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterato
   stepIdx_ = 0;
   const IntType rankOffset = baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0) + 1;
   myStartIdx_ = (rankOffset + comm_.rank()) % comm_.size();
-  // useRing_ =
-  //     IsDisjointGenerator<BLOCK_GEN>::value &&
-  //     static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
   useRing_ =
-      IsDisjointGenerator<BLOCK_GEN>::value;
+      IsDisjointGenerator<BLOCK_GEN>::value &&
+      static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
 
   myBlockInfos_.resize(0);
   std::size_t requiredBufferSize = 0;
@@ -146,16 +144,15 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
   recvReq_.wait_if_active();
   std::swap(sendView_, recvView_);
 
-
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
-    const auto &nextBlock = blocks_[(myStartIdx_ + stepIdx_ + 1) % blocks_.size()];
+    const auto &nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(recvView_.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
               recvReq_.get_and_activate());
   }
 
   if (blockIdx < blocks_.size()) {
-    const auto &block = blocks_[(myStartIdx_ + stepIdx_) % blocks_.size()];
+    const auto &block = blocks_[blockIdx];
     if (A_.dim_inner() != 0) {
       gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
                    A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
