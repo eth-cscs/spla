@@ -63,6 +63,7 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
   IntType rowsInBlock = 1;
   IntType colsInBlock = 1;
 
+  const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
   const double deviationFactor = 0.3;  // How much to deviate from target block
                                        // size to match distribution block size
@@ -82,10 +83,12 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
   auto &comms = descC.get_comms(numTiles);
 
   std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
-      RingReduceTileHost<T, BLOCK_GEN>{maxBlockSize, ctx.num_threads(), comms[0], buffers[0],
-                                       buffers[1], gen, opA, alpha, viewA, viewB, beta, viewC},
-      RingReduceTileHost<T, BLOCK_GEN>{maxBlockSize, ctx.num_threads(), comms[1], buffers[2],
-                                       buffers[3], gen, opA, alpha, viewA, viewB, beta, viewC}};
+      RingReduceTileHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
+                                       buffers[0], buffers[1], gen, opA, alpha, viewA, viewB, beta,
+                                       viewC},
+      RingReduceTileHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
+                                       buffers[2], buffers[3], gen, opA, alpha, viewA, viewB, beta,
+                                       viewC}};
 
   std::vector<Block> blocks;
   blocks.reserve(descC.comm().size());

@@ -103,6 +103,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
   IntType rowsInBlock = 1;
   IntType colsInBlock = 1;
 
+  const double ringThreshold = 0.65;
   const IntType minBlockSize =
       gpuPtrA && gpuPtrB
           ? 250
@@ -156,12 +157,12 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
                           : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
                                 HostArrayConstView2D<T>(B, n, kLocal, ldb), tileSizeGEMM,
                                 *(gpuBuffersIt++));
-      ringBlocks.emplace_back(rowsInBlock * colsInBlock, *(blasHandlesIt++), *(eventHandlesIt++),
+      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(eventHandlesIt++),
                               *(streamHandlesIt++), *(pinnedBuffersIt++), *(gpuBuffersIt++),
                               std::move(matA), std::move(matB));
     }
 
-    tiles.emplace_back(maxBlockSize, *(commsIt++), std::move(ringBlocks),
+    tiles.emplace_back(ringThreshold, maxBlockSize, *(commsIt++), std::move(ringBlocks),
                        *(pinnedBuffersIt++), gen, opA, alpha, beta, hostMatC, gpuMatC);
   }
 

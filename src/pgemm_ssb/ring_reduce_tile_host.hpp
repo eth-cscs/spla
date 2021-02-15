@@ -56,8 +56,8 @@ class RingReduceTileHost {
 public:
   using ValueType = T;
 
-  RingReduceTileHost(IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
-                     std::shared_ptr<Buffer<MPIAllocator>> buffer,
+  RingReduceTileHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
+                     MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
                      std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
                      SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
                      const HostArrayConstView2D<ValueType> &B, ValueType beta,
@@ -84,7 +84,7 @@ private:
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
   IntType myStartIdx_ = 0;
-  IntType currentBlockIdx = 0;
+  IntType stepIdx_ = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
   std::vector<Block> blocks_;
@@ -106,6 +106,7 @@ private:
   const SplaOperation opA_;
   const IntType numThreads_;
   const IntType maxBlockSize_;
+  const double ringThreshold_;
 };
 
 }  // namespace spla

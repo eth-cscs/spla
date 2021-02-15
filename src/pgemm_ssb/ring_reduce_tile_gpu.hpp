@@ -100,7 +100,7 @@ class RingReduceTileGPU {
 public:
   using ValueType = T;
 
-  RingReduceTileGPU(IntType maxBlockSize, MPICommunicatorHandle comm,
+  RingReduceTileGPU(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
                     std::vector<RingProcessor<T>> ringProcs,
                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
                     SplaOperation opA, ValueType alpha, ValueType beta,
@@ -131,7 +131,9 @@ private:
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
   IntType myStartIdx_ = 0;
-  IntType currentBlockIdx = 0;
+  IntType stepIdx_ = 0;
+  IntType procIdx_ = 0;
+  IntType numMultipliedBlocks_ = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
   std::vector<Block> blocks_;
@@ -149,6 +151,7 @@ private:
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
   const IntType maxBlockSize_;
+  const double ringThreshold_;
 };
 
 }  // namespace spla
