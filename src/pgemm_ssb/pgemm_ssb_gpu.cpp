@@ -109,11 +109,9 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
           ? 250
           : 500;  // If input is on host, smal block sizes lead to much more memory transfers
                   // required. Therefore use larger block sizes in that case.
-  const double deviationFactor = 0.3;  // How much to deviate from target block
-                                       // size to match distribution block size
-  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
-      IsDisjointGenerator<BLOCK_GEN>::value, descC.comm().size(), m, n, gen.max_rows_in_block(),
-      gen.max_cols_in_block(), ctx.tile_size_host(), deviationFactor, minBlockSize);
+  std::tie(rowsInBlock, colsInBlock) =
+      block_size_selection_ssb(IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
+                               descC.comm().size(), m, n, ctx.tile_size_host(), minBlockSize);
 
   // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =

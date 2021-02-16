@@ -37,48 +37,87 @@
 #include "util/common_types.hpp"
 
 namespace spla {
-inline auto block_size_selection_ssb(bool isDisjointDistribution, IntType commSize, IntType m,
-                                     IntType n, IntType rowsInMatBlock, IntType colsInMatBlock,
-                                     IntType targetBlockSize, double deviationFactor,
-                                     IntType minBlockSize) -> std::pair<IntType, IntType> {
 
-  if (m * n <= minBlockSize * minBlockSize) return {m, n};  // single block if too small
+inline auto find_optimal_proc_grid(IntType commSize, IntType lowerDeviation, IntType upperDeviation)
+    -> std::pair<IntType, IntType> {
 
-  // Create initial sizes matching shape of matrix
-  const double blockSkinnyFactor =
-      static_cast<double>(m) / static_cast<double>(n);
-  IntType rowsInBlock = targetBlockSize * blockSkinnyFactor;
-  IntType colsInBlock = targetBlockSize / blockSkinnyFactor;
+  const IntType sqrtCommSize = std::sqrt(commSize);
 
-  // Use distribution block size if within given deviation of target size
-  if ((1.0 - deviationFactor) * rowsInBlock * colsInBlock < rowsInMatBlock * colsInMatBlock &&
-      (1.0 + deviationFactor) * rowsInBlock * colsInBlock > rowsInMatBlock * colsInMatBlock) {
-    rowsInBlock = rowsInMatBlock;
-    colsInBlock = colsInMatBlock;
-  }
-
-  rowsInBlock = std::min<IntType>(rowsInBlock, m);
-  colsInBlock = std::min<IntType>(colsInBlock, n);
-
-  // Decrease block size to form ring if neccessary
-  if (isDisjointDistribution) {
-    const double minBlockRows = (m / static_cast<double>(rowsInBlock));
-    const double minBlockCols = (n / static_cast<double>(colsInBlock));
-    if (minBlockRows * minBlockCols < commSize) {
-      const double factor =
-          std::sqrt(static_cast<double>(minBlockRows * minBlockCols) / static_cast<double>(commSize));
-      rowsInBlock = factor * rowsInBlock;
-      if (rowsInBlock > 0)
-        rowsInBlock += (m % rowsInBlock != 0);  // Increase size by one to avoid small overhang
-      colsInBlock = factor * colsInBlock;
-      if (colsInBlock > 0) colsInBlock += (n % colsInBlock != 0);
+  for(IntType rows = sqrtCommSize; rows <= commSize; ++rows) {
+    for (IntType cols = sqrtCommSize; cols > 0; --cols) {
+      if(rows*cols <= commSize + upperDeviation && rows*cols >= commSize - lowerDeviation) {
+        return {rows, cols};
+      }
     }
   }
 
+  return {commSize, 1};
+}
 
-  // Make sure block is within bounds
-  rowsInBlock = std::min<IntType>(std::max<IntType>(rowsInBlock, minBlockSize), m);
-  colsInBlock = std::min<IntType>(std::max<IntType>(colsInBlock, minBlockSize), n);
+inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviationFactor,
+                                     IntType commSize, IntType m, IntType n,
+                                     IntType targetBlockSize, IntType minBlockSize)
+    -> std::pair<IntType, IntType> {
+  if (m * n <= minBlockSize * minBlockSize) return {m, n};  // single block if too small
+
+  if (!isDisjointDistribution) { // No ring can be formed for non-disjoint
+                                 // distributions -> use target size
+    return {std::min<IntType>(targetBlockSize, m), std::min<IntType>(targetBlockSize, n)};
+  }
+
+  // Try to find grid, such that the number of blocks is devisable by the comm
+  // size, allowing for a given deviation
+  auto grid = find_optimal_proc_grid(commSize, deviationFactor * commSize, 0);
+  if(m > n && grid.first < grid.second) std::swap(grid.first, grid.second);
+
+  IntType rowsInBlock = (m + grid.first - 1) / grid.first;
+  IntType colsInBlock = (n + grid.second - 1) / grid.second;
+
+  // If the required block size to have enough blocks is too small, use the minimum block size
+  if (rowsInBlock * colsInBlock < minBlockSize * minBlockSize) {
+    return {std::min<IntType>(minBlockSize, m),
+            std::min<IntType>(minBlockSize, n)};
+  }
+
+  double factor = static_cast<double>(rowsInBlock * colsInBlock) /
+                  static_cast<double>(targetBlockSize * targetBlockSize);
+
+  if (factor >= 1.5) {
+    // If current block sizes are too large relative to the target block size,
+    // reduce size by multiplying the number of blocks with an integer
+    IntType rowFactor = std::sqrt(factor);
+    IntType colFactor = std::ceil(factor / rowFactor);
+
+    if (m > n && rowFactor < colFactor)
+      std::swap(rowFactor, colFactor);
+
+    grid.first *= rowFactor;
+    grid.second *= colFactor;
+
+    rowsInBlock = (m + grid.first - 1) / grid.first;
+    colsInBlock = (n + grid.second - 1) / grid.second;
+  }
+
+  // It's possible that the number of blocks can still be closer to a multiple
+  // of the comm size
+  IntType excessBlocks = (grid.first * grid.second) % commSize;
+  if (excessBlocks > 0) {
+    IntType missingBlocks = commSize - (excessBlocks);
+    if (grid.first > grid.second) {
+      if (grid.first <= missingBlocks)
+        grid.second += 1;
+      else if (grid.second <= missingBlocks)
+        grid.first += 1;
+    } else {
+      if (grid.second <= missingBlocks)
+        grid.first += 1;
+      else if (grid.first <= missingBlocks)
+        grid.second += 1;
+    }
+
+    rowsInBlock = (m + grid.first - 1) / grid.first;
+    colsInBlock = (n + grid.second - 1) / grid.second;
+  }
 
   return {rowsInBlock, colsInBlock};
 }
