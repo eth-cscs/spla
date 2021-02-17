@@ -201,4 +201,3 @@ SplaError spla_mat_dis_comm(SplaMatrixDistribution matDis, MPI_Comm* comm) {
   return SplaError::SPLA_SUCCESS;
 }
 }
-

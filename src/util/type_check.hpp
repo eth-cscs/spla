@@ -29,6 +29,7 @@
 #define SPLA_TYPE_CHECK
 
 #include <type_traits>
+
 #include "spla/config.h"
 
 namespace spla {

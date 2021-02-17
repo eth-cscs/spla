@@ -29,6 +29,7 @@
 #define SPLA_EXCEPTIONS_HPP
 
 #include <stdexcept>
+
 #include "spla/config.h"
 #include "spla/errors.h"
 

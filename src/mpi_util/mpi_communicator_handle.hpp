@@ -29,9 +29,11 @@
 #define SPLA_MPI_COMMUNICATOR_HANDLE_HPP
 
 #include <mpi.h>
+
 #include <cassert>
-#include <memory>
 #include <cstring>
+#include <memory>
+
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"

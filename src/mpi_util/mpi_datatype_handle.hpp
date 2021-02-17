@@ -29,8 +29,10 @@
 #define SPLA_MPI_DATATYPE_HANDLE_HPP
 
 #include <mpi.h>
+
 #include <memory>
 #include <vector>
+
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 

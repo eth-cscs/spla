@@ -29,14 +29,14 @@
 #define SPLA_GEMM_HOST_HPP
 
 #include "spla/config.h"
-#include "spla/types.h"
 #include "spla/context_internal.hpp"
+#include "spla/types.h"
 
 namespace spla {
 template <typename T>
-void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
-               IntType m, IntType n, IntType k, T alpha, const T *A,
-               IntType lda, const T *B, IntType ldb, T beta, T *C, IntType ldc);
+void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m, IntType n,
+               IntType k, T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
+               IntType ldc);
 
 }  // namespace spla
 #endif

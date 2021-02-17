@@ -31,14 +31,13 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <memory>
+
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "spla/exceptions.hpp"
 namespace spla {
 class GPUStreamHandle {
 public:
-  GPUStreamHandle() : stream_(new gpu::StreamType(0)), deviceId_(0) {
-    gpu::check_status(gpu::get_device(&deviceId_));
-  }
+  GPUStreamHandle() : GPUStreamHandle(false) {}
 
   explicit GPUStreamHandle(const bool blockedByDefaultStream) : deviceId_(0) {
     gpu::check_status(gpu::get_device(&deviceId_));

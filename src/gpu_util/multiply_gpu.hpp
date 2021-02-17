@@ -30,21 +30,21 @@
 
 #include <cmath>
 #include <vector>
-#include "memory/gpu_array_view.hpp"
-#include "memory/gpu_array_const_view.hpp"
-#include "gpu_util/gpu_blas_handle.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_helper.hpp"
+
 #include "gpu_util/gpu_blas_api.hpp"
+#include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_helper.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
+#include "memory/gpu_array_const_view.hpp"
+#include "memory/gpu_array_view.hpp"
 
 namespace spla {
 template <typename T>
-auto multiply_gpu(const gpu::blas::HandleType &handle,
-                  gpu::blas::OperationType transa,
+auto multiply_gpu(const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
                   gpu::blas::OperationType transb, T alpha,
                   const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileA,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB,
-                  T beta, GPUArrayView2D<T> result) -> void;
+                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB, T beta,
+                  GPUArrayView2D<T> result) -> void;
 
 }  // namespace spla
 #endif

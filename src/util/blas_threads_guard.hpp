@@ -38,7 +38,7 @@ public:
       : orignalNumThreads_(blas::get_num_threads()), numThreadsSet_(false) {
     if (orignalNumThreads_ != numThreadsTarget) {
       blas::set_num_threads(numThreadsTarget);
-      numThreadsSet_ =true;
+      numThreadsSet_ = true;
     }
   }
 
@@ -53,8 +53,7 @@ public:
   auto operator=(BlasThreadsGuard&&) -> BlasThreadsGuard& = delete;
 
   ~BlasThreadsGuard() {
-    if (numThreadsSet_)
-      blas::set_num_threads(orignalNumThreads_);
+    if (numThreadsSet_) blas::set_num_threads(orignalNumThreads_);
   }
 
 private:

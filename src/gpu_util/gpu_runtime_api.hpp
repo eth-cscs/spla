@@ -43,6 +43,7 @@
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 
 #include <utility>
+
 #include "spla/exceptions.hpp"
 
 namespace spla {
@@ -162,6 +163,11 @@ inline auto event_destroy(ARGS&&... args) -> StatusType {
 template <typename... ARGS>
 inline auto event_record(ARGS&&... args) -> StatusType {
   return GPU_PREFIX(EventRecord)(std::forward<ARGS>(args)...);
+}
+
+template <typename... ARGS>
+inline auto event_synchronize(ARGS&&... args) -> StatusType {
+  return GPU_PREFIX(EventSynchronize)(std::forward<ARGS>(args)...);
 }
 
 template <typename... ARGS>

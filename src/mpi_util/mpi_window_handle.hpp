@@ -25,44 +25,41 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_MATRIX_BLOCK_GENERATOR_HPP
-#define SPLA_MATRIX_BLOCK_GENERATOR_HPP
+#ifndef SPLA_MPI_WINDOW_HANDLE_HPP
+#define SPLA_MPI_WINDOW_HANDLE_HPP
 
+#include <mpi.h>
+
+#include <cassert>
+#include <memory>
+
+#include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
+#include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
 
 namespace spla {
-struct BlockInfo {
-  IntType globalRowIdx, globalColIdx; // Indices of first element in block in global matrix
-  IntType globalSubRowIdx, globalSubColIdx; // Indices of first element in block in global matrix without offset
-  IntType localRowIdx, localColIdx; // Indices of first element in block on assigned mpi rank
-  IntType numRows, numCols; // Size of block
-  IntType mpiRank; // negative value indicates mirrored on all ranks
+template <typename T>
+class MPIWindowHandle {
+public:
+  MPIWindowHandle() = default;
+
+  MPIWindowHandle(T *ptr, IntType size, MPI_Comm comm) {
+    MPI_Win win;
+
+    mpi_check_status(MPI_Win_create(ptr, size * sizeof(T), sizeof(T), MPI_INFO_NULL, comm, &win));
+    window_ = std::shared_ptr<MPI_Win>(new MPI_Win(win), [](MPI_Win *ptr) { MPI_Win_free(ptr); });
+  }
+
+  inline auto get() const -> const MPI_Win & {
+    assert(window_);
+    return *window_;
+  }
+
+private:
+  std::shared_ptr<MPI_Win> window_ = nullptr;
 };
 
-class MatrixBlockGenerator {
-  public:
-
-  virtual auto get_block_info(IntType blockIdx) -> BlockInfo =0;
-
-  virtual auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo =0;
-
-  virtual auto num_blocks() -> IntType = 0;
-
-  virtual auto num_block_rows() -> IntType = 0;
-
-  virtual auto num_block_cols() -> IntType = 0;
-
-  virtual auto max_rows_in_block() -> IntType = 0;
-
-  virtual auto max_cols_in_block() -> IntType = 0;
-
-  virtual auto local_rows(IntType rank) -> IntType = 0;
-
-  virtual auto local_cols(IntType rank) -> IntType = 0;
-
-  virtual ~MatrixBlockGenerator() = default;
-};
-}
+}  // namespace spla
 
 #endif
