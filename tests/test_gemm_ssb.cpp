@@ -468,7 +468,7 @@ static auto param_type_names(
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBScalar,
+INSTANTIATE_TEST_CASE_P(gemmSSB, GemmSSBScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
@@ -485,7 +485,7 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBScalar,
                                                                                  400))),  // k range
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
+INSTANTIATE_TEST_CASE_P(gemmSSB, GemmSSBComplex,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
@@ -501,3 +501,20 @@ INSTANTIATE_TEST_CASE_P(FullGemmSSBTest, GemmSSBComplex,
                                                              std::pair<int, int>(50,
                                                                                  400))),  // k range
                         param_type_names);
+
+INSTANTIATE_TEST_CASE_P(
+    LargeGemmSSB, GemmSSBScalar,
+    ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+                                         ,
+                                         SplaProcessingUnit::SPLA_PU_GPU
+#endif
+                                         ),
+                       ::testing::Values(2),     // number of threads
+                       ::testing::Values(64),    // coloumn block size
+                       ::testing::Values(128),   // row block size
+                       ::testing::Values(3000),  // m
+                       ::testing::Values(4000),  // n
+                       ::testing::Values(std::pair<int, int>(500,
+                                                             6000))),  // k range
+    param_type_names);
