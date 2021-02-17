@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "pgemm_ssb/ring_reduce_tile_gpu.hpp"
+#include "pgemm_ssb/ring_gpu.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -91,7 +91,7 @@ static auto call_gpu_geam(const gpu::blas::HandleType &handle,
 }
 
 template <typename T, typename BLOCK_GEN>
-RingReduceTileGPU<T, BLOCK_GEN>::RingReduceTileGPU(
+RingGPU<T, BLOCK_GEN>::RingGPU(
     double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
     std::vector<RingProcessor<T>> ringProcs,
     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
@@ -115,7 +115,7 @@ RingReduceTileGPU<T, BLOCK_GEN>::RingReduceTileGPU(
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
+auto RingGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                               std::vector<Block>::const_iterator end) -> void {
   assert(state_ == TileState::Empty);
 
@@ -213,7 +213,7 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_ring() -> void {
+auto RingGPU<T, BLOCK_GEN>::process_step_ring() -> void {
   const IntType numBlocks = blocks_.size();
 
   assert(ringProcs_.size() >= 2);
@@ -301,7 +301,7 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_ring() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
+auto RingGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
   const auto &block = blocks_[stepIdx_];
   auto &proc = ringProcs_[stepIdx_ % ringProcs_.size()];
 
@@ -391,7 +391,7 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileGPU<T, BLOCK_GEN>::finalize() -> void {
+auto RingGPU<T, BLOCK_GEN>::finalize() -> void {
   assert(state_ == TileState::Processed);
 
   // add tile to result as final step
@@ -471,7 +471,7 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileGPU<T, BLOCK_GEN>::process_step() -> bool {
+auto RingGPU<T, BLOCK_GEN>::process_step() -> bool {
   const IntType numSteps = useRing_ ? comm_.size() : blocks_.size();
 
   if (stepIdx_ < numSteps) {
@@ -486,14 +486,14 @@ auto RingReduceTileGPU<T, BLOCK_GEN>::process_step() -> bool {
   return stepIdx_ < numSteps;
 }
 
-template class RingReduceTileGPU<double, BlockCyclicGenerator>;
-template class RingReduceTileGPU<float, BlockCyclicGenerator>;
-template class RingReduceTileGPU<gpu::blas::ComplexFloatType, BlockCyclicGenerator>;
-template class RingReduceTileGPU<gpu::blas::ComplexDoubleType, BlockCyclicGenerator>;
+template class RingGPU<double, BlockCyclicGenerator>;
+template class RingGPU<float, BlockCyclicGenerator>;
+template class RingGPU<gpu::blas::ComplexFloatType, BlockCyclicGenerator>;
+template class RingGPU<gpu::blas::ComplexDoubleType, BlockCyclicGenerator>;
 
-template class RingReduceTileGPU<double, MirrorGenerator>;
-template class RingReduceTileGPU<float, MirrorGenerator>;
-template class RingReduceTileGPU<gpu::blas::ComplexFloatType, MirrorGenerator>;
-template class RingReduceTileGPU<gpu::blas::ComplexDoubleType, MirrorGenerator>;
+template class RingGPU<double, MirrorGenerator>;
+template class RingGPU<float, MirrorGenerator>;
+template class RingGPU<gpu::blas::ComplexFloatType, MirrorGenerator>;
+template class RingGPU<gpu::blas::ComplexDoubleType, MirrorGenerator>;
 
 }  // namespace spla

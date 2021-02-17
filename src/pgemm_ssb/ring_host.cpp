@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "pgemm_ssb/ring_reduce_tile_host.hpp"
+#include "pgemm_ssb/ring_host.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -49,7 +49,7 @@ static constexpr int resultTag = 1;
 static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
-RingReduceTileHost<T, BLOCK_GEN>::RingReduceTileHost(
+RingHost<T, BLOCK_GEN>::RingHost(
     double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
     std::shared_ptr<Buffer<MPIAllocator>> buffer,
     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen, SplaOperation opA,
@@ -81,7 +81,7 @@ RingReduceTileHost<T, BLOCK_GEN>::RingReduceTileHost(
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
+auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                                std::vector<Block>::const_iterator end)
     -> void {
   assert(state_ == TileState::Empty);
@@ -134,7 +134,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterato
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
+auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
   const IntType numBlocks = blocks_.size();
 
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
@@ -177,7 +177,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction() -> void {
+auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   const auto &block = blocks_[stepIdx_];
 
   sendReq_.wait_if_active();
@@ -215,7 +215,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
+auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -239,7 +239,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
+auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -258,7 +258,7 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingReduceTileHost<T, BLOCK_GEN>::process_step() -> bool {
+auto RingHost<T, BLOCK_GEN>::process_step() -> bool {
   if(blocks_.empty()) return false;
 
   if (useRing_) {
@@ -283,14 +283,14 @@ auto RingReduceTileHost<T, BLOCK_GEN>::process_step() -> bool {
 
 }
 
-template class RingReduceTileHost<double, BlockCyclicGenerator>;
-template class RingReduceTileHost<float, BlockCyclicGenerator>;
-template class RingReduceTileHost<std::complex<double>, BlockCyclicGenerator>;
-template class RingReduceTileHost<std::complex<float>, BlockCyclicGenerator>;
+template class RingHost<double, BlockCyclicGenerator>;
+template class RingHost<float, BlockCyclicGenerator>;
+template class RingHost<std::complex<double>, BlockCyclicGenerator>;
+template class RingHost<std::complex<float>, BlockCyclicGenerator>;
 
-template class RingReduceTileHost<double, MirrorGenerator>;
-template class RingReduceTileHost<float, MirrorGenerator>;
-template class RingReduceTileHost<std::complex<double>, MirrorGenerator>;
-template class RingReduceTileHost<std::complex<float>, MirrorGenerator>;
+template class RingHost<double, MirrorGenerator>;
+template class RingHost<float, MirrorGenerator>;
+template class RingHost<std::complex<double>, MirrorGenerator>;
+template class RingHost<std::complex<float>, MirrorGenerator>;
 
 }  // namespace spla

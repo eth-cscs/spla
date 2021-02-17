@@ -36,7 +36,7 @@
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "pgemm_ssb/block_size_selection_ssb.hpp"
-#include "pgemm_ssb/ring_reduce_tile_host.hpp"
+#include "pgemm_ssb/ring_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -80,11 +80,11 @@ void pgemm_ssb_host_ring(int m, int n, int kLocal, SplaOperation opA, T alpha, c
   auto &buffers = ctx.mpi_buffers(2 * numTiles);
   auto &comms = descC.get_comms(numTiles);
 
-  std::array<RingReduceTileHost<T, BLOCK_GEN>, numTiles> tiles{
-      RingReduceTileHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
+  std::array<RingHost<T, BLOCK_GEN>, numTiles> tiles{
+      RingHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
                                        buffers[0], buffers[1], gen, opA, alpha, viewA, viewB, beta,
                                        viewC},
-      RingReduceTileHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
+      RingHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
                                        buffers[2], buffers[3], gen, opA, alpha, viewA, viewB, beta,
                                        viewC}};
 

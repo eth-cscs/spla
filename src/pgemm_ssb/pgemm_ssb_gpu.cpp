@@ -45,7 +45,7 @@
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "pgemm_ssb/block_size_selection_ssb.hpp"
-#include "pgemm_ssb/ring_reduce_tile_gpu.hpp"
+#include "pgemm_ssb/ring_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -132,7 +132,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
   auto streamHandlesIt = ctx.gpu_stream_handles(numTiles * numRingProcs).begin();
   auto commsIt = descC.get_comms(numTiles).begin();
 
-  std::vector<RingReduceTileGPU<T, BLOCK_GEN>> tiles;
+  std::vector<RingGPU<T, BLOCK_GEN>> tiles;
   tiles.reserve(numTiles);
 
   auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);
