@@ -92,6 +92,15 @@ SplaError spla_mat_dis_create_block_cyclic(SplaMatrixDistribution* matDis, MPI_C
   return SplaError::SPLA_SUCCESS;
 }
 
+SPLA_EXPORT SplaError spla_mat_dis_create_block_cyclic_fortran(SplaMatrixDistribution* matDis,
+                                                               int commFortran, char order,
+                                                               int procGridRows, int procGridCols,
+                                                               int rowBlockSize, int colBlockSize) {
+  MPI_Comm comm = MPI_Comm_f2c(commFortran);
+  return spla_mat_dis_create_block_cyclic(matDis, comm, order, procGridRows, procGridCols,
+                                          rowBlockSize, colBlockSize);
+}
+
 SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping(SplaMatrixDistribution* matDis,
                                                               MPI_Comm comm, const int* mapping,
                                                               int procGridRows, int procGridCols,
@@ -106,6 +115,14 @@ SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping(SplaMatrixDistribu
     return SplaError::SPLA_UNKNOWN_ERROR;
   }
   return SplaError::SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping_fortran(
+    SplaMatrixDistribution* matDis, int commFortran, const int* mapping, int procGridRows,
+    int procGridCols, int rowBlockSize, int colBlockSize) {
+  MPI_Comm comm = MPI_Comm_f2c(commFortran);
+  return spla_mat_dis_create_blacs_block_cyclic_from_mapping(
+      matDis, comm, mapping, procGridRows, procGridCols, rowBlockSize, colBlockSize);
 }
 
 SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis) {
@@ -123,7 +140,7 @@ SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis) {
   return SplaError::SPLA_SUCCESS;
 }
 
-SplaError spla_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm) {
+SplaError spla_mat_dis_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm) {
   try {
     *matDis = reinterpret_cast<void*>(
         new spla::MatrixDistribution(spla::MatrixDistribution::create_mirror(comm)));
@@ -133,6 +150,12 @@ SplaError spla_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm) {
     return SplaError::SPLA_UNKNOWN_ERROR;
   }
   return SplaError::SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_mat_dis_create_mirror_fortran(SplaMatrixDistribution* matDis,
+                                                         int commFortran) {
+  MPI_Comm comm = MPI_Comm_f2c(commFortran);
+  return spla_mat_dis_create_mirror(matDis, comm);
 }
 
 SplaError spla_mat_dis_proc_grid_rows(SplaMatrixDistribution matDis, int* procGridRows) {
@@ -193,6 +216,17 @@ SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistributionType*
 SplaError spla_mat_dis_comm(SplaMatrixDistribution matDis, MPI_Comm* comm) {
   try {
     *comm = reinterpret_cast<spla::MatrixDistribution*>(matDis)->comm();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_mat_dis_comm_fortran(SplaMatrixDistribution matDis, int* commFortran) {
+  try {
+    *commFortran = MPI_Comm_c2f(reinterpret_cast<spla::MatrixDistribution*>(matDis)->comm());
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

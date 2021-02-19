@@ -135,15 +135,6 @@ SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads);
 SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
 
 /**
- * Set the number of streams on GPU.
- *
- * @param[in] ctx Context handle.
- * @param[in] numGPUStreams Number of streams on GPU.
- * @return Error code or SPLA_SUCCESS.
- */
-SplaError spla_ctx_set_num_gpu_streams(SplaContext ctx, int numGPUStreams);
-
-/**
  * Set the tile size used for computations on host and partitioning communication.
  *
  * @param[in] ctx Context handle.
