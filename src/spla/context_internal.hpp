@@ -63,7 +63,7 @@ public:
       : pu_(pu),
         numThreads_(omp_get_max_threads()),
         numTiles_(4),
-        tileSizeHost_(pu == SplaProcessingUnit::SPLA_PU_HOST ? 256 : 1024),
+        tileSizeHost_(pu == SplaProcessingUnit::SPLA_PU_HOST ? 500 : 1500),
         tileSizeGPU_(2048),
         opThresholdGPU_(2000000),
         gpuDeviceId_(0) {
