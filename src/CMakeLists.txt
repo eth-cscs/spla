@@ -35,8 +35,14 @@ add_library(spla ${SPLA_LIBRARY_TYPE}
 	${SPLA_SOURCE_FILES}
 	)
 
-# only enforces minimum standard
-# target_compile_features(spla PUBLIC cxx_std_11)
+set_property(TARGET spla PROPERTY VERSION ${SPLA_VERSION})
+set_property(TARGET spla PROPERTY SOVERSION ${SPLA_SO_VERSION})
+
+
+# build fortran module
+if(SPLA_FORTRAN)
+	add_library(spla_fortran OBJECT ${PROJECT_SOURCE_DIR}/include/spla/spla.f90)
+endif()
 
 # Don't export any symbols of external static libaries. Only works on linux.
 if(UNIX AND NOT APPLE)

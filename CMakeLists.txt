@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(spla LANGUAGES CXX VERSION 1.2.1)
+set(SPLA_SO_VERSION 1)
+set(SPLA_VERSION ${PROJECT_VERSION})
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
@@ -33,6 +35,7 @@ option(SPLA_STATIC "Compile as static library" OFF)
 option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
+option(SPLA_FORTRAN "Compile fortran module" OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
@@ -58,6 +61,11 @@ endif()
 
 if(NOT ${SPLA_HOST_BLAS} IN_LIST _SPLA_HOST_BLAS_LIST)
 	message(FATAL_ERROR "Invalid Host BLAS backend")
+endif()
+
+# Fortran
+if(SPLA_FORTRAN)
+	enable_language(Fortran)
 endif()
 
 # set preferred library type

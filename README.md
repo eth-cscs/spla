@@ -77,6 +77,7 @@ make -j8 install
 | SPLA_GPU_BACKEND      |  OFF, CUDA, ROCM                                         | OFF     | Select GPU backend                               |
 | SPLA_BUILD_TESTS      |  ON, OFF                                                 | OFF     | Build test executables                           |
 | SPLA_INSTALL          |  ON, OFF                                                 | ON      | Add library to install target                    |
+| SPLA_FORTRAN          |  ON, OFF                                                 | OFF     | Build Fortan module                              |
 
 ## Acknowledgements
 This work was supported by:
