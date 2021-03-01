@@ -31,8 +31,9 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <complex>
-#include "gpu_util/gpu_runtime_api.hpp"
+
 #include "gpu_util/gpu_blas_api.hpp"
+#include "gpu_util/gpu_runtime_api.hpp"
 
 namespace spla {
 
@@ -40,22 +41,22 @@ template <typename T>
 struct ComplexTypeGPU;
 
 template <>
-struct ComplexTypeGPU<float>{ 
+struct ComplexTypeGPU<float> {
   using type = float;
 };
 
 template <>
-struct ComplexTypeGPU<double>{ 
+struct ComplexTypeGPU<double> {
   using type = double;
 };
 
 template <>
-struct ComplexTypeGPU<std::complex<float>>{ 
-  using type =gpu::blas::ComplexFloatType ;
+struct ComplexTypeGPU<std::complex<float>> {
+  using type = gpu::blas::ComplexFloatType;
 };
 
 template <>
-struct ComplexTypeGPU<std::complex<double>>{
+struct ComplexTypeGPU<std::complex<double>> {
   using type = gpu::blas::ComplexDoubleType;
 };
 

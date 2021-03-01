@@ -28,9 +28,10 @@
 #ifndef SPLA_GPU_DEVICE_GUARD_HPP
 #define SPLA_GPU_DEVICE_GUARD_HPP
 
-#include "spla/config.h"
 #include <memory>
+
 #include "gpu_util/gpu_runtime_api.hpp"
+#include "spla/config.h"
 #include "spla/exceptions.hpp"
 namespace spla {
 class GPUDeviceGuard {
@@ -46,7 +47,7 @@ public:
   GPUDeviceGuard(const GPUDeviceGuard&) = delete;
   GPUDeviceGuard(GPUDeviceGuard&&) = delete;
   auto operator=(const GPUDeviceGuard&) -> GPUDeviceGuard& = delete;
-  auto operator=(GPUDeviceGuard &&) -> GPUDeviceGuard& = delete;
+  auto operator=(GPUDeviceGuard&&) -> GPUDeviceGuard& = delete;
 
   ~GPUDeviceGuard() {
     if (targetDeviceId_ != originalDeviceId_) {

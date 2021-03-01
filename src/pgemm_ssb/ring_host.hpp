@@ -25,19 +25,22 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_TILE_HOST_HPP
-#define SPLA_TILE_HOST_HPP
+#ifndef SPLA_RING_HOST_HPP
+#define SPLA_RING_HOST_HPP
 
 #include <atomic>
 #include <memory>
+#include <utility>
 #include <vector>
-#include "block_generation/matrix_block_generator.hpp"
+
+#include "block_generation/block.hpp"
 #include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
+#include "mpi_util/mpi_window_handle.hpp"
 #include "spla/config.h"
 #include "spla/spla.hpp"
 #include "spla/types.h"
@@ -45,51 +48,69 @@
 #include "util/tile_state.hpp"
 
 namespace spla {
-template <typename T>
-class TileHost {
+
+// Compute and reduce for pgemm_ssb. If number of input blocks is equal to comm size, a ring
+// communication pattern is used. Otherwise, each block is processed individually.
+template <typename T, typename BLOCK_GEN>
+class RingHost {
 public:
   using ValueType = T;
 
-  TileHost(IntType numThreads, MPICommunicatorHandle comm,
-           std::shared_ptr<Buffer<MPIAllocator>> buffer,
-           std::shared_ptr<MatrixBlockGenerator> matrixDist, SplaOperation opA,
-           ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-           const HostArrayConstView2D<ValueType> &B, ValueType beta,
-           HostArrayView2D<ValueType> C, IntType numBlockRows,
-           IntType numBlockCols);
+  RingHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
+                     MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
+                     SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+                     const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                     HostArrayView2D<ValueType> C);
 
-  // Multiply tile starting from given indices.
-  auto multiply(IntType blockRowIdx, IntType blockColIdx) -> void;
+  // Prepare to process input blocks
+  auto prepare(std::vector<Block>::const_iterator begin,
+               std::vector<Block>::const_iterator end) -> void;
 
-  // Start exchange data with MPI.
-  auto start_exchange() -> void;
+  // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
+  // otherwise.
+  auto process_step() -> bool;
 
-  // Finalize exchange data with MPI.
-  auto finalize_exchange() -> void;
+  // Must be called after all processing steps are done and before preparing for more blocks.
+  inline auto state() -> TileState { return state_; }
 
-  // Add tile to C.
-  auto extract() -> void;
+private:
+  auto process_step_ring() -> void;
 
-  inline auto state() -> TileState { return state_.get(); }
+  auto process_step_reduction() -> void;
 
-protected:
-  // state dependent
-  AtomicTileState state_;
-  HostArrayView2D<ValueType> tile_;
-  std::vector<BlockInfo> blockInfos_;
-  MPIRequestHandle mpiRequest_;
+  auto process_step_ring_finalize() -> void;
+
+  auto process_step_reduction_finalize() -> void;
+
+  // state dependend
+  bool useRing_ = false;
+  IntType sendRank_ = 0;
+  IntType recvRank_ = 0;
+  IntType myStartIdx_ = 0;
+  IntType stepIdx_ = 0;
+  MPIRequestHandle sendReq_;
+  MPIRequestHandle recvReq_;
+  std::vector<Block> blocks_;
+  std::vector<std::pair<IntType, BlockInfo>> myBlockInfos_;
+  std::vector<MPIRequestHandle> resultRecvs_;
+  TileState state_;
 
   // fixed
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  HostArrayView1D<ValueType> recvView_;
+  HostArrayView1D<ValueType> sendView_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
+  std::shared_ptr<Buffer<MPIAllocator>> resultBuffer_;
   MPICommunicatorHandle comm_;
-  const IntType numBlockRows_, numBlockCols_;
   HostArrayConstView2D<ValueType> A_;
   HostArrayConstView2D<ValueType> B_;
   HostArrayView2D<ValueType> C_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
   const IntType numThreads_;
+  const IntType maxBlockSize_;
+  const double ringThreshold_;
 };
 
 }  // namespace spla

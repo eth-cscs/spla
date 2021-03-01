@@ -190,7 +190,7 @@ public:
   ScopedTiming(const ScopedTiming&) = delete;
   ScopedTiming(ScopedTiming&&) = delete;
   auto operator=(const ScopedTiming&) -> ScopedTiming& = delete;
-  auto operator=(ScopedTiming &&) -> ScopedTiming& = delete;
+  auto operator=(ScopedTiming&&) -> ScopedTiming& = delete;
 
   ~ScopedTiming() {
     if (identifierPtr_) {

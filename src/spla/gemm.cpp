@@ -27,6 +27,7 @@
  */
 
 #include "spla/gemm.hpp"
+
 #include "gemm/gemm_host.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/gemm.h"
@@ -173,4 +174,3 @@ SplaError spla_zgemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, 
   return SplaError::SPLA_SUCCESS;
 }
 }
-

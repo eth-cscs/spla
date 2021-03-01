@@ -2,8 +2,9 @@ set(SPLA_SOURCE_FILES
 	block_generation/block_cyclic_generator.cpp
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
-	pgemm_ssb/tile_host.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
+	pgemm_ssb/ring_host.cpp
+	pgemm_ssb/add_kernel.cpp
 	pgemm_sbs/pgemm_sbs_host.cpp
 	pgemm_sbs/stripe_host.cpp
 	gemm/gemm_host.cpp
@@ -17,7 +18,7 @@ set(SPLA_SOURCE_FILES
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				pgemm_ssb/tile_gpu.cpp
+				pgemm_ssb/ring_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
 				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp
@@ -34,8 +35,14 @@ add_library(spla ${SPLA_LIBRARY_TYPE}
 	${SPLA_SOURCE_FILES}
 	)
 
-# only enforces minimum standard
-# target_compile_features(spla PUBLIC cxx_std_11)
+set_property(TARGET spla PROPERTY VERSION ${SPLA_VERSION})
+set_property(TARGET spla PROPERTY SOVERSION ${SPLA_SO_VERSION})
+
+
+# build fortran module
+if(SPLA_FORTRAN)
+	add_library(spla_fortran OBJECT ${PROJECT_SOURCE_DIR}/include/spla/spla.f90)
+endif()
 
 # Don't export any symbols of external static libaries. Only works on linux.
 if(UNIX AND NOT APPLE)

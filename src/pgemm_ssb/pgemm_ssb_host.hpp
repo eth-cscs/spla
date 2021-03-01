@@ -29,10 +29,10 @@
 #define SPLA_PGEMM_SSB_HOST_HPP
 
 #include "spla/config.h"
-#include "spla/types.h"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/pgemm_ssb.hpp"
+#include "spla/types.h"
 
 namespace spla {
 /*

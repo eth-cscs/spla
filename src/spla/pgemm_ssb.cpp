@@ -27,10 +27,12 @@
  */
 
 #include "spla/pgemm_ssb.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <memory>
 #include <vector>
+
 #include "pgemm_ssb/pgemm_ssb_host.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/pgemm_ssb.h"
@@ -192,4 +194,3 @@ SplaError spla_pzgemm_ssb(int m, int n, int kLocal, SplaOperation opA, const voi
   return SplaError::SPLA_SUCCESS;
 }
 }
-

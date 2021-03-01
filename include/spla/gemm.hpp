@@ -63,18 +63,18 @@ namespace spla {
  * @param[in] ctx Context, which provides configuration settings and reusable
  * resources.
  */
-SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-                      float alpha, const float *A, int lda, const float *B,
-                      int ldb, float beta, float *C, int ldc, Context &ctx);
+SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha,
+                      const float *A, int lda, const float *B, int ldb, float beta, float *C,
+                      int ldc, Context &ctx);
 
 /**
  * Computes a local general matrix multiplication of the form \f$ C
  * \leftarrow \alpha OP(A) OP(B) + \beta C \f$ in double precision. See
  * documentation above.
  */
-SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-                      double alpha, const double *A, int lda, const double *B,
-                      int ldb, double beta, double *C, int ldc, Context &ctx);
+SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, double alpha,
+                      const double *A, int lda, const double *B, int ldb, double beta, double *C,
+                      int ldc, Context &ctx);
 
 /**
  * Computes a local general matrix multiplication of the form \f$ C
@@ -82,10 +82,9 @@ SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
  * types. See documentation above.
  */
 SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-                      std::complex<float> alpha, const std::complex<float> *A,
-                      int lda, const std::complex<float> *B, int ldb,
-                      std::complex<float> beta, std::complex<float> *C, int ldc,
-                      Context &ctx);
+                      std::complex<float> alpha, const std::complex<float> *A, int lda,
+                      const std::complex<float> *B, int ldb, std::complex<float> beta,
+                      std::complex<float> *C, int ldc, Context &ctx);
 
 /**
  * Computes a local general matrix multiplication of the form \f$ C
@@ -93,10 +92,9 @@ SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
  * types. See documentation above.
  */
 SPLA_EXPORT void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k,
-                      std::complex<double> alpha, const std::complex<double> *A,
-                      int lda, const std::complex<double> *B, int ldb,
-                      std::complex<double> beta, std::complex<double> *C,
-                      int ldc, Context &ctx);
+                      std::complex<double> alpha, const std::complex<double> *A, int lda,
+                      const std::complex<double> *B, int ldb, std::complex<double> beta,
+                      std::complex<double> *C, int ldc, Context &ctx);
 
 /*! \cond PRIVATE */
 }  // namespace spla

@@ -29,8 +29,8 @@
 #define SPLA_PGEMM_SBS_GPU_HPP
 
 #include "spla/config.h"
-#include "spla/matrix_distribution_internal.hpp"
 #include "spla/context_internal.hpp"
+#include "spla/matrix_distribution_internal.hpp"
 namespace spla {
 /*
  *    ------ H     ------

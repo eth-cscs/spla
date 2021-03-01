@@ -31,23 +31,24 @@
 #include <atomic>
 #include <memory>
 #include <vector>
-#include "memory/host_array_const_view.hpp"
-#include "memory/host_array_view.hpp"
+
+#include "block_generation/block.hpp"
+#include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
 #include "memory/buffer.hpp"
 #include "memory/gpu_allocator.hpp"
+#include "memory/host_array_const_view.hpp"
+#include "memory/host_array_view.hpp"
 #include "memory/pinned_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "spla/config.h"
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 #include "util/stripe_state.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_blas_handle.hpp"
 
 namespace spla {
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class StripeGPU {
 public:
   using ValueType = T;
@@ -56,11 +57,11 @@ public:
             std::shared_ptr<Buffer<PinnedAllocator>> buffer,
             std::shared_ptr<Buffer<PinnedAllocator>> recvBuffer,
             std::shared_ptr<Buffer<GPUAllocator>> bufferGPU, IntType maxGPUStripeSize,
-            std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-            GPUMatrixAccessor<GPUArrayConstView2D<T>> A,
+            BLOCK_GEN baseMatGen, ValueType alpha, GPUMatrixAccessor<GPUArrayConstView2D<T>> A,
             HostArrayConstView2D<ValueType> matBViewHost,
             GPUArrayConstView2D<ValueType> matBViewGPU, ValueType beta,
-            GPUMatrixAccessor<GPUArrayView2D<T>> C, HostArrayView2D<T> viewCHost, IntType numBlockCols);
+            GPUMatrixAccessor<GPUArrayView2D<T>> C, HostArrayView2D<T> viewCHost,
+            IntType numBlockCols);
 
   auto collect(IntType blockColIdx) -> void;
 
@@ -86,13 +87,13 @@ protected:
   std::vector<BlockInfo> blockInfos_;
   std::vector<int> localCounts_;
   std::vector<int> recvDispls_;
-  std::vector<IntType> localRows_; // number of rows of B each rank has stored
-  std::vector<IntType> localCols_; // number of cols of B each rank has stored
-  std::vector<IntType> localRowOffsets_; // Row offset of sub-matrix of B on each rank
-  std::vector<IntType> localColOffsets_; // Col offset of sub-matrix of B on each rank
+  std::vector<IntType> localRows_;        // number of rows of B each rank has stored
+  std::vector<IntType> localCols_;        // number of cols of B each rank has stored
+  std::vector<IntType> localRowOffsets_;  // Row offset of sub-matrix of B on each rank
+  std::vector<IntType> localColOffsets_;  // Col offset of sub-matrix of B on each rank
 
   // fixed
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<PinnedAllocator>> buffer_;
   std::shared_ptr<Buffer<PinnedAllocator>> recvBuffer_;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_;

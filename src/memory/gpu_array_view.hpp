@@ -31,6 +31,7 @@
 
 #include <cassert>
 #include <limits>
+
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
@@ -137,7 +138,9 @@ public:
 
   __host__ __device__ inline auto ld_inner() const noexcept -> int { return ldInner_; }
 
-  __host__ __device__ inline auto contiguous() const noexcept -> bool { return ldInner_ == dims_[1]; }
+  __host__ __device__ inline auto contiguous() const noexcept -> bool {
+    return ldInner_ == dims_[1];
+  }
 
 #else
 
@@ -192,8 +195,8 @@ public:
     return data_[(idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner];
   }
 
-  __device__ inline auto operator()(const int idxOuter, const int idxMid, const int idxInner) const
-      noexcept -> const ValueType& {
+  __device__ inline auto operator()(const int idxOuter, const int idxMid,
+                                    const int idxInner) const noexcept -> const ValueType& {
     assert(idxOuter < dims_[0]);
     assert(idxMid < dims_[1]);
     assert(idxInner < dims_[2]);

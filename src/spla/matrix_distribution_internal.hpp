@@ -29,17 +29,17 @@
 #define SPLA_MATRIX_DISTRIBUTION_INTERNAL_HPP
 
 #include <deque>
-#include "spla/context.hpp"
+
 #include "mpi_util/mpi_communicator_handle.hpp"
+#include "spla/context.hpp"
 #include "spla/exceptions.hpp"
-#include "util/common_types.hpp"
 #include "spla/matrix_distribution.hpp"
+#include "util/common_types.hpp"
 
 namespace spla {
 
 class MatrixDistributionInternal {
 public:
-
   inline auto proc_grid_rows() const -> IntType { return procGridRows_; }
 
   inline auto proc_grid_cols() const -> IntType { return procGridCols_; }
@@ -48,7 +48,7 @@ public:
 
   inline auto col_block_size() const -> IntType { return colBlockSize_; }
 
-  inline auto comm() const -> const MPICommunicatorHandle & { return comms_.front(); }
+  inline auto comm() const -> const MPICommunicatorHandle& { return comms_.front(); }
 
   inline auto get_comms(IntType numComms) -> const std::deque<MPICommunicatorHandle>& {
     if (comms_.size() < numComms) {
@@ -73,8 +73,8 @@ public:
   static auto create_mirror(MPI_Comm comm) -> MatrixDistributionInternal;
 
 private:
-  MatrixDistributionInternal(MPI_Comm comm, const int* mapping, IntType procGridRows, IntType procGridCols,
-                  IntType rowBlockSize, IntType colBlockSize);
+  MatrixDistributionInternal(MPI_Comm comm, const int* mapping, IntType procGridRows,
+                             IntType procGridCols, IntType rowBlockSize, IntType colBlockSize);
 
   explicit MatrixDistributionInternal(MPI_Comm comm);
 

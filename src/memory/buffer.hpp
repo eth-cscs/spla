@@ -29,15 +29,16 @@
 #ifndef SPLA_BUFFER_HPP
 #define SPLA_BUFFER_HPP
 
-#include "spla/config.h"
-#include <cstddef>
 #include <cassert>
+#include <cstddef>
+
+#include "spla/config.h"
 #include "spla/exceptions.hpp"
 
 namespace spla {
 
 // Strictly growing memory buffer for trivial types
-template<class ALLOCATOR>
+template <class ALLOCATOR>
 class Buffer {
 public:
   Buffer() noexcept : data_(nullptr), sizeInBytes_(0) {}
@@ -69,7 +70,7 @@ public:
                   "called!");
     if (sizeInBytes_ < size * sizeof(T)) {
       this->deallocate();
-      const auto targetSize= size * sizeof(T);
+      const auto targetSize = size * sizeof(T);
       data_ = ALLOCATOR::allocate(targetSize);
       assert(data_);
       sizeInBytes_ = targetSize;

@@ -29,8 +29,10 @@
 #define SPLA_MPI_REQUEST_HANDLE_HPP
 
 #include <mpi.h>
+
 #include <memory>
 #include <vector>
+
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 
@@ -54,9 +56,7 @@ public:
     return &mpiRequest_;
   }
 
-  inline auto is_active() -> bool {
-    return activated_;
-  }
+  inline auto is_active() -> bool { return activated_; }
 
   inline auto is_ready_and_active() -> bool {
     if (activated_) {

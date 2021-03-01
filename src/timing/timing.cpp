@@ -26,8 +26,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "spla/config.h"
 #include "timing/timing.hpp"
+
+#include "spla/config.h"
 
 #ifdef SPLA_TIMING
 namespace spla {

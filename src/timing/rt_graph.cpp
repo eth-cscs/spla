@@ -27,6 +27,7 @@
  */
 
 #include "rt_graph.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iomanip>

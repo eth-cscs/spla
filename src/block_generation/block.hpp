@@ -25,51 +25,34 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_GPU_EVENT_HANDLE_HPP
-#define SPLA_GPU_EVENT_HANDLE_HPP
+#ifndef SPLA_BLOCK_HPP
+#define SPLA_BLOCK_HPP
 
 #include "spla/config.h"
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include <memory>
-
-#include "gpu_util/gpu_runtime_api.hpp"
-#include "spla/exceptions.hpp"
+#include "util/common_types.hpp"
 
 namespace spla {
-class GPUEventHandle {
-public:
-  explicit GPUEventHandle(const bool enableTiming) : deviceId_(0) {
-    gpu::check_status(gpu::get_device(&deviceId_));
-    gpu::EventType event;
 
-    const auto flag = enableTiming ? gpu::flag::EventDefault : gpu::flag::EventDisableTiming;
-    gpu::check_status(gpu::event_create_with_flags(&event, flag));
-
-    event_ = std::shared_ptr<gpu::EventType>(new gpu::EventType(event), [](gpu::EventType* ptr) {
-      gpu::event_destroy(*ptr);
-      delete ptr;
-    });
-  };
-
-  GPUEventHandle() : GPUEventHandle(false) {}
-
-  inline auto get() const -> gpu::EventType { return *event_; }
-
-  inline auto device_id() const noexcept -> int { return deviceId_; }
-
-  inline auto record(const gpu::StreamType& stream) const -> void {
-    gpu::check_status(gpu::event_record(*event_, stream));
-  }
-
-  inline auto stream_wait(const gpu::StreamType& stream) const -> void {
-    gpu::check_status(gpu::stream_wait_event(stream, *event_, 0));
-  }
-
-private:
-  std::shared_ptr<gpu::EventType> event_;
-  int deviceId_ = 0;
+template <typename T>
+struct IsDisjointGenerator {
+  static constexpr bool value = false;
 };
-}  // namespace spla
 
-#endif
+struct BlockInfo {
+  IntType globalRowIdx, globalColIdx;  // Indices of first element in block in global matrix
+  IntType globalSubRowIdx,
+      globalSubColIdx;  // Indices of first element in block in global matrix without offset
+  IntType localRowIdx, localColIdx;  // Indices of first element in block on assigned mpi rank
+  IntType numRows, numCols;          // Size of block
+  IntType mpiRank;                   // negative value indicates mirrored on all ranks
+};
+
+struct Block {
+  IntType row;
+  IntType col;
+  IntType numRows;
+  IntType numCols;
+};
+
+}  // namespace spla
 #endif

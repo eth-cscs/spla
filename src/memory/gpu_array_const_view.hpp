@@ -31,6 +31,7 @@
 
 #include <cassert>
 #include <limits>
+
 #include "memory/gpu_array_view.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"

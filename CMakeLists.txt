@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.2.1)
+project(spla LANGUAGES CXX VERSION 1.3.0)
+set(SPLA_SO_VERSION 1)
+set(SPLA_VERSION ${PROJECT_VERSION})
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
@@ -33,6 +35,7 @@ option(SPLA_STATIC "Compile as static library" OFF)
 option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
+option(SPLA_FORTRAN "Compile fortran module" OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
@@ -60,6 +63,11 @@ if(NOT ${SPLA_HOST_BLAS} IN_LIST _SPLA_HOST_BLAS_LIST)
 	message(FATAL_ERROR "Invalid Host BLAS backend")
 endif()
 
+# Fortran
+if(SPLA_FORTRAN)
+	enable_language(Fortran)
+endif()
+
 # set preferred library type
 if (SPLA_STATIC)
 	set(SPLA_LIBRARY_TYPE STATIC)
@@ -78,6 +86,7 @@ set(SPLA_BLAS_MKL OFF)
 set(SPLA_BLAS_BLIS OFF)
 set(SPLA_BLAS_SCI OFF)
 set(SPLA_BLAS_ATLAS OFF)
+set(SPLA_RESTRICT_ATTR " ")
 
 # Hide symbols by default if tests are not build
 if(NOT SPLA_BUILD_TESTS)
@@ -88,6 +97,41 @@ else()
 	list(APPEND SPLA_DEFINITIONS -DSPLA_STATIC_DEFINE)
 	set(CMAKE_CXX_VISIBILITY_PRESET default)
 	set(CMAKE_VISIBILITY_INLINES_HIDDEN 0)
+endif()
+
+# check if restrict attribute is available
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles(
+	"
+			int f(double *__restrict__ x);
+			int main(void) {return 0;}
+	"
+	HAVE___RESTRICT__
+	)
+if(${HAVE___RESTRICT__})
+	set(SPLA_RESTRICT_ATTR "__restrict__")
+else()
+	check_cxx_source_compiles(
+			"
+					int f(double *__restrict x);
+					int main(void) {return 0;}
+			"
+			HAVE___RESTRICT
+		)
+	if(HAVE___RESTRICT)
+		set(SPLA_RESTRICT_ATTR "__restrict")
+	else()
+		check_cxx_source_compiles(
+			"
+					int f(double *restrict x);
+					int main(void) {return 0;}
+			"
+			HAVE_RESTRICT
+			)
+		if(${HAVE_RESTRICT})
+			set(SPLA_RESTRICT_ATTR "restrict")
+		endif()
+	endif()
 endif()
 
 

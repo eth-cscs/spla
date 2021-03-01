@@ -31,9 +31,11 @@
 #include <atomic>
 #include <memory>
 #include <vector>
+
+#include "block_generation/block.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/buffer.hpp"
 #include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
@@ -41,21 +43,19 @@
 #include "spla/spla.hpp"
 #include "util/common_types.hpp"
 #include "util/stripe_state.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
-template <typename T>
+template <typename T, typename BLOCK_GEN>
 class StripeHost {
 public:
   using ValueType = T;
 
   StripeHost(IntType numThreads, MPICommunicatorHandle comm,
              std::shared_ptr<Buffer<MPIAllocator>> buffer,
-             std::shared_ptr<Buffer<MPIAllocator>> recvBuffer,
-             std::shared_ptr<MatrixBlockGenerator> matrixDist, ValueType alpha,
-             const HostArrayConstView2D<ValueType> &A,
-             const HostArrayConstView2D<ValueType> &B, ValueType beta,
-             HostArrayView2D<ValueType> C, IntType numBlockCols);
+             std::shared_ptr<Buffer<MPIAllocator>> recvBuffer, BLOCK_GEN baseMatGen,
+             ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+             const HostArrayConstView2D<ValueType> &B, ValueType beta, HostArrayView2D<ValueType> C,
+             IntType numBlockCols);
 
   // Assemble send buffer for MPI exchange.
   auto collect(IntType blockColIdx) -> void;
@@ -78,14 +78,14 @@ protected:
   std::vector<BlockInfo> blockInfos_;
   std::vector<int> localCounts_;
   std::vector<int> recvDispls_;
-  std::vector<IntType> localRows_; // number of rows of B each rank has stored
-  std::vector<IntType> localCols_; // number of cols of B each rank has stored
-  std::vector<IntType> localRowOffsets_; // Row offset of sub-matrix of B on each rank
-  std::vector<IntType> localColOffsets_; // Col offset of sub-matrix of B on each rank
+  std::vector<IntType> localRows_;        // number of rows of B each rank has stored
+  std::vector<IntType> localCols_;        // number of cols of B each rank has stored
+  std::vector<IntType> localRowOffsets_;  // Row offset of sub-matrix of B on each rank
+  std::vector<IntType> localColOffsets_;  // Col offset of sub-matrix of B on each rank
   MPIRequestHandle mpiRequest_;
 
   // fixed
-  std::shared_ptr<MatrixBlockGenerator> matrixDist_;
+  BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
   std::shared_ptr<Buffer<MPIAllocator>> recvBuffer_;
   MPICommunicatorHandle comm_;

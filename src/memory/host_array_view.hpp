@@ -31,6 +31,7 @@
 
 #include <array>
 #include <cassert>
+
 #include "spla/config.h"
 #include "util/common_types.hpp"
 
@@ -112,8 +113,7 @@ public:
     return data_[(idxOuter * ldInner_) + idxInner];
   }
 
-  inline auto operator()(const IntType idxOuter, const IntType idxInner) const
-      -> const ValueType& {
+  inline auto operator()(const IntType idxOuter, const IntType idxInner) const -> const ValueType& {
     assert(idxOuter < dims_[0]);
     assert(idxOuter >= 0);
     assert(idxInner < dims_[1]);
@@ -198,8 +198,8 @@ public:
     return data_[(idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner];
   }
 
-  inline auto index(const IntType idxOuter, const IntType idxMid, const IntType idxInner) const
-      noexcept -> IntType {
+  inline auto index(const IntType idxOuter, const IntType idxMid,
+                    const IntType idxInner) const noexcept -> IntType {
     return (idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner;
   }
 
@@ -255,15 +255,14 @@ HostArrayView1D<T>::HostArrayView1D(ValueType* data, const IntType size)
 }
 
 template <typename T>
-HostArrayView2D<T>::HostArrayView2D(ValueType* data, const IntType dimOuter,
-                                    const IntType dimInner, const IntType ldInner)
+HostArrayView2D<T>::HostArrayView2D(ValueType* data, const IntType dimOuter, const IntType dimInner,
+                                    const IntType ldInner)
     : dims_({dimOuter, dimInner}), ldInner_(ldInner), data_(data) {
   assert(dimInner <= ldInner);
 }
 
 template <typename T>
-HostArrayView2D<T>::HostArrayView2D(ValueType* data, const IntType dimOuter,
-                                    const IntType dimInner)
+HostArrayView2D<T>::HostArrayView2D(ValueType* data, const IntType dimOuter, const IntType dimInner)
     : HostArrayView2D<T>(data, dimOuter, dimInner, dimInner) {}
 
 template <typename T>

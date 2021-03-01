@@ -31,15 +31,16 @@
 
 #include <algorithm>
 #include <cassert>
+
+#include "block_generation/block.hpp"
 #include "spla/config.h"
 #include "util/common_types.hpp"
-#include "block_generation/matrix_block_generator.hpp"
 
 namespace spla {
-class MirrorGenerator : public MatrixBlockGenerator{
+class MirrorGenerator {
 public:
   MirrorGenerator(IntType rowsInBlock, IntType colsInBlock, IntType globalNumRows,
-                       IntType globalNumCols, IntType globalRowOffset, IntType globalColOffset)
+                  IntType globalNumCols, IntType globalRowOffset, IntType globalColOffset)
       : rowsInBlock_(rowsInBlock),
         colsInBlock_(colsInBlock),
         globalNumRows_(globalNumRows),
@@ -49,14 +50,18 @@ public:
         numBlockRows_((globalNumRows + rowsInBlock - 1) / rowsInBlock),
         numBlockCols_((globalNumCols + colsInBlock - 1) / colsInBlock) {}
 
-  auto get_block_info(IntType blockIdx) -> BlockInfo override {
+  auto create_sub_generator(Block block) -> MirrorGenerator {
+    return MirrorGenerator(rowsInBlock_, colsInBlock_, block.numRows, block.numCols,
+                           block.row + globalRowOffset_, block.col + globalColOffset_);
+  }
+
+  auto get_block_info(IntType blockIdx) -> BlockInfo {
     const IntType blockRowIdx = blockIdx % numBlockRows_;
     const IntType blockColIdx = blockIdx / numBlockRows_;
     return this->get_block_info(blockRowIdx, blockColIdx);
-
   }
 
-  auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo override {
+  auto get_block_info(IntType blockRowIdx, IntType blockColIdx) -> BlockInfo {
     assert(blockRowIdx < rowsInBlock_);
     assert(blockColIdx < colsInBlock_);
 
@@ -69,30 +74,34 @@ public:
     const IntType mpiRank = -1;
 
     BlockInfo info{globalRowIdx,
-                     globalColIdx,
-                     globalRowIdx - globalRowOffset_,
-                     globalColIdx - globalColOffset_,
-                     globalRowIdx,
-                     globalColIdx,
-                     numRows,
-                     numCols,
-                     mpiRank};
+                   globalColIdx,
+                   globalRowIdx - globalRowOffset_,
+                   globalColIdx - globalColOffset_,
+                   globalRowIdx,
+                   globalColIdx,
+                   numRows,
+                   numCols,
+                   mpiRank};
     return info;
   }
 
-  auto num_blocks() -> IntType override { return numBlockRows_ * numBlockCols_; }
+  auto get_mpi_rank(IntType blockIdx) -> IntType { return -1; }
 
-  auto num_block_rows() -> IntType override { return numBlockRows_; }
+  auto get_mpi_rank(IntType blockRowIdx, IntType blockColIdx) -> IntType { return -1; }
 
-  auto num_block_cols() -> IntType override { return numBlockCols_; }
+  auto num_blocks() -> IntType { return numBlockRows_ * numBlockCols_; }
 
-  auto max_rows_in_block() -> IntType override { return rowsInBlock_; }
+  auto num_block_rows() -> IntType { return numBlockRows_; }
 
-  auto max_cols_in_block() -> IntType override { return colsInBlock_; }
+  auto num_block_cols() -> IntType { return numBlockCols_; }
 
-  auto local_rows(IntType rank) -> IntType override { return globalNumRows_; }
+  auto max_rows_in_block() -> IntType { return rowsInBlock_; }
 
-  auto local_cols(IntType rank) -> IntType override { return globalNumCols_; }
+  auto max_cols_in_block() -> IntType { return colsInBlock_; }
+
+  auto local_rows(IntType rank) -> IntType { return globalNumRows_; }
+
+  auto local_cols(IntType rank) -> IntType { return globalNumCols_; }
 
 private:
   IntType rowsInBlock_, colsInBlock_;

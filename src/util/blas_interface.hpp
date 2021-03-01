@@ -29,6 +29,7 @@
 #define SPLA_BLAS_INTERFACE_HPP
 
 #include <complex>
+
 #include "spla/config.h"
 #include "util/common_types.hpp"
 

@@ -25,13 +25,15 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#include "gpu_util/multiply_gpu.hpp"
+
 #include <cmath>
 #include <vector>
-#include "gpu_util/multiply_gpu.hpp"
-#include "gpu_util/gpu_blas_handle.hpp"
-#include "gpu_util/gpu_matrix_accessor.hpp"
-#include "gpu_util/gpu_helper.hpp"
+
 #include "gpu_util/gpu_blas_api.hpp"
+#include "gpu_util/gpu_blas_handle.hpp"
+#include "gpu_util/gpu_helper.hpp"
+#include "gpu_util/gpu_matrix_accessor.hpp"
 
 namespace spla {
 
@@ -74,110 +76,99 @@ static auto call_gpu_gemm(gpu::blas::HandleType handle, gpu::blas::OperationType
 }
 
 template <typename T>
-auto multiply_gpu(const gpu::blas::HandleType &handle,
-                  gpu::blas::OperationType transa,
+auto multiply_gpu(const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
                   gpu::blas::OperationType transb, T alpha,
                   const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileA,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB,
-                  T beta, GPUArrayView2D<T> result) -> void {
+                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB, T beta,
+                  GPUArrayView2D<T> result) -> void {
   assert(transa == gpu::blas::operation::None || tileA.cols() == result.dim_inner());
   assert(transa != gpu::blas::operation::None || tileA.rows() == result.dim_inner());
   assert(transb == gpu::blas::operation::None || tileB.rows() == result.dim_outer());
   assert(transb != gpu::blas::operation::None || tileB.cols() == result.dim_outer());
-  assert(tileA.rows() * tileA.cols() / result.dim_inner() == tileB.rows() * tileB.cols() / result.dim_outer());
+  assert(tileA.rows() * tileA.cols() / result.dim_inner() ==
+         tileB.rows() * tileB.cols() / result.dim_outer());
 
   gpu::StreamType stream;
   gpu::blas::get_stream(handle, &stream);
 
-  if(result.size() == 0) return;
-  if(tileA.rows() * tileA.cols() == 0) {
+  if (result.size() == 0) return;
+  if (tileA.rows() * tileA.cols() == 0) {
     // Scale C only
-    call_gpu_gemm(handle, transa, transb, result.dim_inner(), result.dim_outer(), 0, alpha,
-                  nullptr, 1, nullptr, 1, beta, result.data(), result.ld_inner());
+    call_gpu_gemm(handle, transa, transb, result.dim_inner(), result.dim_outer(), 0, alpha, nullptr,
+                  1, nullptr, 1, beta, result.data(), result.ld_inner());
     return;
   }
 
-  IntType innerBlockSize = transa == gpu::blas::operation::None ? tileA.cols(): tileA.rows() ;
-  if(tileA.max_tile_size() < tileA.rows() * tileA.cols()) {
+  IntType innerBlockSize = transa == gpu::blas::operation::None ? tileA.cols() : tileA.rows();
+  if (tileA.max_tile_size() < tileA.rows() * tileA.cols()) {
     // if not fully on GPU, try square size
     innerBlockSize = std::min<IntType>(std::sqrt(tileA.max_tile_size()), innerBlockSize);
   }
 
-  if(tileB.max_tile_size() < tileB.rows() * tileB.cols()) {
+  if (tileB.max_tile_size() < tileB.rows() * tileB.cols()) {
     // if not fully on GPU, try square size
     innerBlockSize = std::min<IntType>(std::sqrt(tileB.max_tile_size()), innerBlockSize);
   }
 
-  const IntType outerBlockSizeA = std::min(
-      tileA.max_tile_size() / innerBlockSize,
-      transa == gpu::blas::operation::None ? tileA.rows() : tileA.cols());
-  const IntType outerBlockSizeB = std::min(
-      tileB.max_tile_size() / innerBlockSize,
-      transb == gpu::blas::operation::None ? tileB.cols() : tileB.rows());
+  const IntType outerBlockSizeA =
+      std::min(tileA.max_tile_size() / innerBlockSize,
+               transa == gpu::blas::operation::None ? tileA.rows() : tileA.cols());
+  const IntType outerBlockSizeB =
+      std::min(tileB.max_tile_size() / innerBlockSize,
+               transb == gpu::blas::operation::None ? tileB.cols() : tileB.rows());
 
   const auto innerSize = transa == gpu::blas::operation::None ? tileA.cols() : tileA.rows();
 
   for (IntType inner = 0; inner < innerSize; inner += innerBlockSize) {
     const IntType numInner = std::min<IntType>(innerSize - inner, innerBlockSize);
 
-    for(IntType outerA = 0; outerA < result.dim_inner(); outerA += outerBlockSizeA) {
+    for (IntType outerA = 0; outerA < result.dim_inner(); outerA += outerBlockSizeA) {
       const IntType numOuterA = std::min<IntType>(result.dim_inner() - outerA, outerBlockSizeA);
-      const auto viewA =
-          transa == gpu::blas::operation::None
-              ? tileA.get_tile(outerA, inner, numOuterA, numInner, stream)
-              : tileA.get_tile(inner, outerA, numInner, numOuterA, stream);
+      const auto viewA = transa == gpu::blas::operation::None
+                             ? tileA.get_tile(outerA, inner, numOuterA, numInner, stream)
+                             : tileA.get_tile(inner, outerA, numInner, numOuterA, stream);
 
       for (IntType outerB = 0; outerB < result.dim_outer(); outerB += outerBlockSizeB) {
         const IntType numOuterB = std::min<IntType>(result.dim_outer() - outerB, outerBlockSizeB);
-        const auto viewB =
-            transb == gpu::blas::operation::None
-                ? tileB.get_tile(inner, outerB, numInner, numOuterB, stream)
-                : tileB.get_tile(outerB, inner, numOuterB, numInner, stream);
+        const auto viewB = transb == gpu::blas::operation::None
+                               ? tileB.get_tile(inner, outerB, numInner, numOuterB, stream)
+                               : tileB.get_tile(outerB, inner, numOuterB, numInner, stream);
 
-        call_gpu_gemm(handle, transa, transb,
-                      numOuterA, numOuterB, numInner, alpha, viewA.data(), viewA.ld_inner(),
-                      viewB.data(), viewB.ld_inner(), beta,
+        call_gpu_gemm(handle, transa, transb, numOuterA, numOuterB, numInner, alpha, viewA.data(),
+                      viewA.ld_inner(), viewB.data(), viewB.ld_inner(), beta,
                       result.data() + result.index(outerB, outerA), result.ld_inner());
       }
-
     }
     beta = RealValueGPU<T>::create(1.0);
   }
 }
 
-template auto
-multiply_gpu<float>(const gpu::blas::HandleType &handle,
-                    gpu::blas::OperationType transa,
-                    gpu::blas::OperationType transb, float alpha,
-                    const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileA,
-                    const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileB,
-                    float beta, GPUArrayView2D<float> result) -> void;
+template auto multiply_gpu<float>(const gpu::blas::HandleType &handle,
+                                  gpu::blas::OperationType transa, gpu::blas::OperationType transb,
+                                  float alpha,
+                                  const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileA,
+                                  const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileB,
+                                  float beta, GPUArrayView2D<float> result) -> void;
 
-template auto multiply_gpu<double>(
-    const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
-    gpu::blas::OperationType transb, double alpha,
-    const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileA,
-    const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileB, double beta,
-    GPUArrayView2D<double> result) -> void;
+template auto multiply_gpu<double>(const gpu::blas::HandleType &handle,
+                                   gpu::blas::OperationType transa, gpu::blas::OperationType transb,
+                                   double alpha,
+                                   const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileA,
+                                   const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileB,
+                                   double beta, GPUArrayView2D<double> result) -> void;
 
 template auto multiply_gpu<gpu::blas::ComplexFloatType>(
     const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
     gpu::blas::OperationType transb, gpu::blas::ComplexFloatType alpha,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>>
-        &tileA,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>>
-        &tileB,
-    gpu::blas::ComplexFloatType beta,
-    GPUArrayView2D<gpu::blas::ComplexFloatType> result) -> void;
+    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>> &tileA,
+    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>> &tileB,
+    gpu::blas::ComplexFloatType beta, GPUArrayView2D<gpu::blas::ComplexFloatType> result) -> void;
 
 template auto multiply_gpu<gpu::blas::ComplexDoubleType>(
     const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
     gpu::blas::OperationType transb, gpu::blas::ComplexDoubleType alpha,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>>
-        &tileA,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>>
-        &tileB,
-    gpu::blas::ComplexDoubleType beta,
-    GPUArrayView2D<gpu::blas::ComplexDoubleType> result) -> void;
+    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>> &tileA,
+    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>> &tileB,
+    gpu::blas::ComplexDoubleType beta, GPUArrayView2D<gpu::blas::ComplexDoubleType> result) -> void;
 
-} // namespace spla
+}  // namespace spla

@@ -29,6 +29,7 @@
 #define SPLA_STRIPE_STATE_HPP
 
 #include <atomic>
+
 #include "spla/config.h"
 namespace spla {
 enum class StripeState : int { Empty, Collected, InExchange, Exchanged };

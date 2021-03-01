@@ -27,8 +27,10 @@
  */
 
 #include "gemm/gemm_host.hpp"
-#include <complex>
+
 #include <algorithm>
+#include <complex>
+
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "spla/config.h"
@@ -42,21 +44,20 @@ namespace spla {
 
 static auto map_op_to_host_blas(SplaOperation op) -> blas::Operation {
   switch (op) {
-  case SplaOperation::SPLA_OP_TRANSPOSE:
-    return blas::Operation::TRANS;
-  case SplaOperation::SPLA_OP_CONJ_TRANSPOSE:
-    return blas::Operation::CONJ_TRANS;
-  default:
-    return blas::Operation::NONE;
+    case SplaOperation::SPLA_OP_TRANSPOSE:
+      return blas::Operation::TRANS;
+    case SplaOperation::SPLA_OP_CONJ_TRANSPOSE:
+      return blas::Operation::CONJ_TRANS;
+    default:
+      return blas::Operation::NONE;
   }
 }
 
 template <typename T>
-void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
-               IntType m, IntType n, IntType k, T alpha, const T *A,
-               IntType lda, const T *B, IntType ldb, T beta, T *C,
+void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m, IntType n,
+               IntType k, T alpha, const T *A, IntType lda, const T *B, IntType ldb, T beta, T *C,
                IntType ldc) {
-  if(m == 0 || n == 0) {
+  if (m == 0 || n == 0) {
     return;
   }
   check_gemm_param(opA, opB, m, n, k, A, lda, B, ldb, C, ldc);
@@ -65,20 +66,20 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   const auto opBlasB = map_op_to_host_blas(opB);
 
   // Some blas libraries like MKL do not accept 0 as ld, even if m, n or k is 0
-  if(lda < 1) lda =1;
-  if(ldb < 1) ldb =1;
-  if(ldc < 1) ldc =1;
+  if (lda < 1) lda = 1;
+  if (ldb < 1) ldb = 1;
+  if (ldc < 1) ldc = 1;
 
   const bool inParallel = omp_in_parallel();
 
   // if blas library is parallelized or not thread safe, call it directly
-  if((blas::is_parallel() && !inParallel) || !blas::is_thread_safe()) {
-    SPLA_OMP_PRAGMA("omp master") { // no implicit barrier
+  if ((blas::is_parallel() && !inParallel) || !blas::is_thread_safe()) {
+    SPLA_OMP_PRAGMA("omp master") {  // no implicit barrier
       BlasThreadsGuard threadGuard(numThreads);
-      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A,
-                 lda, B, ldb, beta, C, ldc);
+      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda, B, ldb, beta, C,
+                 ldc);
     }
-    if(inParallel) {
+    if (inParallel) {
       SPLA_OMP_PRAGMA("omp barrier")
     }
     return;
@@ -86,31 +87,29 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
 
   // assume blas is not parallelized
   HostArrayConstView2D<T> viewA(A, opA == SplaOperation::SPLA_OP_NONE ? k : m,
-                                opA == SplaOperation::SPLA_OP_NONE ? m : k,
-                                lda);
+                                opA == SplaOperation::SPLA_OP_NONE ? m : k, lda);
   HostArrayConstView2D<T> viewB(B, opB == SplaOperation::SPLA_OP_NONE ? n : k,
-                                opB == SplaOperation::SPLA_OP_NONE ? k : n,
-                                ldb);
+                                opB == SplaOperation::SPLA_OP_NONE ? k : n, ldb);
   HostArrayView2D<T> viewC(C, n, m, ldc);
 
-  // If there are multiple threads, use 2 times as many tiles to take advantage of dynamic scheduling
+  // If there are multiple threads, use 2 times as many tiles to take advantage of dynamic
+  // scheduling
   const IntType numThreadCols = numThreads;
   const IntType numThreadRows = numThreads > 1 ? 2 : 1;
 
   const IntType minBlockSize = 5;
 
-  const IntType colBlockSize = std::min<IntType>((n + numThreadCols - 1) / numThreadCols, minBlockSize);
-  const IntType rowBlockSize = std::min<IntType>((m + numThreadRows - 1) / numThreadRows, minBlockSize);
-
+  const IntType colBlockSize =
+      std::min<IntType>((n + numThreadCols - 1) / numThreadCols, minBlockSize);
+  const IntType rowBlockSize =
+      std::min<IntType>((m + numThreadRows - 1) / numThreadRows, minBlockSize);
 
   if (omp_in_parallel()) {
     SPLA_OMP_PRAGMA("omp for schedule(dynamic) collapse(2)")
     for (IntType col = 0; col < n; col += colBlockSize) {
       for (IntType row = 0; row < m; row += rowBlockSize) {
-        const IntType currentCols =
-            std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-        const IntType currentRows =
-            std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
+        const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
+        const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
         const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
@@ -124,10 +123,8 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
     SPLA_OMP_PRAGMA("omp parallel for schedule(dynamic) collapse(2) num_threads(numThreads)")
     for (IntType col = 0; col < n; col += colBlockSize) {
       for (IntType row = 0; row < m; row += rowBlockSize) {
-        const IntType currentCols =
-            std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-        const IntType currentRows =
-            std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
+        const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
+        const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
         const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
         const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
         const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
@@ -140,30 +137,30 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB,
   }
 }
 
-template auto gemm_host<float>(IntType numThreads, SplaOperation opA,
-                               SplaOperation opB, IntType m, IntType n,
-                               IntType k, float alpha, const float *A,
-                               IntType lda, const float *B, IntType ldb,
-                               float beta, float *C, IntType ldc) -> void;
-
-template auto gemm_host<double>(IntType numThreads, SplaOperation opA,
-                                SplaOperation opB, IntType m, IntType n,
-                                IntType k, double alpha, const double *A,
-                                IntType lda, const double *B, IntType ldb,
-                                double beta, double *C, IntType ldc) -> void;
-
-template auto gemm_host<std::complex<float>>(
-    IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m,
-    IntType n, IntType k, std::complex<float> alpha,
-    const std::complex<float> *A, IntType lda, const std::complex<float> *B,
-    IntType ldb, std::complex<float> beta, std::complex<float> *C, IntType ldc)
+template auto gemm_host<float>(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m,
+                               IntType n, IntType k, float alpha, const float *A, IntType lda,
+                               const float *B, IntType ldb, float beta, float *C, IntType ldc)
     -> void;
 
-template auto gemm_host<std::complex<double>>(
-    IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m,
-    IntType n, IntType k, std::complex<double> alpha,
-    const std::complex<double> *A, IntType lda, const std::complex<double> *B,
-    IntType ldb, std::complex<double> beta, std::complex<double> *C,
-    IntType ldc) -> void;
+template auto gemm_host<double>(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType m,
+                                IntType n, IntType k, double alpha, const double *A, IntType lda,
+                                const double *B, IntType ldb, double beta, double *C, IntType ldc)
+    -> void;
 
-} // namespace spla
+template auto gemm_host<std::complex<float>>(IntType numThreads, SplaOperation opA,
+                                             SplaOperation opB, IntType m, IntType n, IntType k,
+                                             std::complex<float> alpha,
+                                             const std::complex<float> *A, IntType lda,
+                                             const std::complex<float> *B, IntType ldb,
+                                             std::complex<float> beta, std::complex<float> *C,
+                                             IntType ldc) -> void;
+
+template auto gemm_host<std::complex<double>>(IntType numThreads, SplaOperation opA,
+                                              SplaOperation opB, IntType m, IntType n, IntType k,
+                                              std::complex<double> alpha,
+                                              const std::complex<double> *A, IntType lda,
+                                              const std::complex<double> *B, IntType ldb,
+                                              std::complex<double> beta, std::complex<double> *C,
+                                              IntType ldc) -> void;
+
+}  // namespace spla

@@ -29,8 +29,8 @@
 #ifndef SPLA_GPU_BLAS_API_HPP
 #define SPLA_GPU_BLAS_API_HPP
 
-#include <utility>
 #include <stdexcept>
+#include <utility>
 
 #include "spla/config.h"
 
@@ -89,82 +89,79 @@ constexpr auto Success = CUBLAS_STATUS_SUCCESS;
 constexpr auto Success = rocblas_status_success;
 #endif
 
-static const char* get_string(StatusType error)
-{
+static const char* get_string(StatusType error) {
 #if defined(SPLA_CUDA)
-    switch (error)
-    {
-        case CUBLAS_STATUS_SUCCESS:
-            return "CUBLAS_STATUS_SUCCESS";
+  switch (error) {
+    case CUBLAS_STATUS_SUCCESS:
+      return "CUBLAS_STATUS_SUCCESS";
 
-        case CUBLAS_STATUS_NOT_INITIALIZED:
-            return "CUBLAS_STATUS_NOT_INITIALIZED";
+    case CUBLAS_STATUS_NOT_INITIALIZED:
+      return "CUBLAS_STATUS_NOT_INITIALIZED";
 
-        case CUBLAS_STATUS_ALLOC_FAILED:
-            return "CUBLAS_STATUS_ALLOC_FAILED";
+    case CUBLAS_STATUS_ALLOC_FAILED:
+      return "CUBLAS_STATUS_ALLOC_FAILED";
 
-        case CUBLAS_STATUS_INVALID_VALUE:
-            return "CUBLAS_STATUS_INVALID_VALUE";
+    case CUBLAS_STATUS_INVALID_VALUE:
+      return "CUBLAS_STATUS_INVALID_VALUE";
 
-        case CUBLAS_STATUS_ARCH_MISMATCH:
-            return "CUBLAS_STATUS_ARCH_MISMATCH";
+    case CUBLAS_STATUS_ARCH_MISMATCH:
+      return "CUBLAS_STATUS_ARCH_MISMATCH";
 
-        case CUBLAS_STATUS_MAPPING_ERROR:
-            return "CUBLAS_STATUS_MAPPING_ERROR";
+    case CUBLAS_STATUS_MAPPING_ERROR:
+      return "CUBLAS_STATUS_MAPPING_ERROR";
 
-        case CUBLAS_STATUS_EXECUTION_FAILED:
-            return "CUBLAS_STATUS_EXECUTION_FAILED";
+    case CUBLAS_STATUS_EXECUTION_FAILED:
+      return "CUBLAS_STATUS_EXECUTION_FAILED";
 
-        case CUBLAS_STATUS_INTERNAL_ERROR:
-            return "CUBLAS_STATUS_INTERNAL_ERROR";
+    case CUBLAS_STATUS_INTERNAL_ERROR:
+      return "CUBLAS_STATUS_INTERNAL_ERROR";
 
-        case CUBLAS_STATUS_NOT_SUPPORTED:
-            return "CUBLAS_STATUS_NOT_SUPPORTED";
+    case CUBLAS_STATUS_NOT_SUPPORTED:
+      return "CUBLAS_STATUS_NOT_SUPPORTED";
 
-        case CUBLAS_STATUS_LICENSE_ERROR:
-            return "CUBLAS_STATUS_LICENSE_ERROR";
-    }
+    case CUBLAS_STATUS_LICENSE_ERROR:
+      return "CUBLAS_STATUS_LICENSE_ERROR";
+  }
 #endif
 
 #if defined(SPLA_ROCM)
-    switch (error)
-    {
-        case rocblas_status_success:
-            return "rocblas_status_success";
+  switch (error) {
+    case rocblas_status_success:
+      return "rocblas_status_success";
 
-        case rocblas_status_invalid_handle:
-            return "rocblas_status_invalid_handle";
+    case rocblas_status_invalid_handle:
+      return "rocblas_status_invalid_handle";
 
-        case rocblas_status_not_implemented:
-            return "rocblas_status_not_implemented";
+    case rocblas_status_not_implemented:
+      return "rocblas_status_not_implemented";
 
-        case rocblas_status_invalid_pointer:
-            return "rocblas_status_invalid_pointer";
+    case rocblas_status_invalid_pointer:
+      return "rocblas_status_invalid_pointer";
 
-        case rocblas_status_invalid_size:
-            return "rocblas_status_invalid_size";
+    case rocblas_status_invalid_size:
+      return "rocblas_status_invalid_size";
 
-        case rocblas_status_memory_error:
-            return "rocblas_status_memory_error";
+    case rocblas_status_memory_error:
+      return "rocblas_status_memory_error";
 
-        case rocblas_status_internal_error:
-            return "rocblas_status_internal_error";
+    case rocblas_status_internal_error:
+      return "rocblas_status_internal_error";
 
-        case rocblas_status_perf_degraded:
-            return "rocblas_status_perf_degraded";
+    case rocblas_status_perf_degraded:
+      return "rocblas_status_perf_degraded";
 
-        case rocblas_status_size_query_mismatch:
-            return "rocblas_status_size_query_mismatch";
+    case rocblas_status_size_query_mismatch:
+      return "rocblas_status_size_query_mismatch";
 
-        case rocblas_status_size_increased:
-            return "rocblas_status_size_increased";
+    case rocblas_status_size_increased:
+      return "rocblas_status_size_increased";
 
-        case rocblas_status_size_unchanged:
-            return "rocblas_status_size_unchanged";
-    }
+    case rocblas_status_size_unchanged:
+      return "rocblas_status_size_unchanged";
+  }
 #endif
 
-    return "<unknown>";
+  return "<unknown>";
 }
 }  // namespace status
 
@@ -213,14 +210,13 @@ inline auto get_stream(ARGS&&... args) -> StatusType {
 #endif
 }
 
-
 template <typename... ARGS>
 inline auto sgemm(ARGS&&... args) -> StatusType {
 #if defined(SPLA_CUDA)
   return cublasSgemm(std::forward<ARGS>(args)...);
 #else
   return rocblas_sgemm(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -229,7 +225,7 @@ inline auto dgemm(ARGS&&... args) -> StatusType {
   return cublasDgemm(std::forward<ARGS>(args)...);
 #else
   return rocblas_dgemm(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -238,7 +234,7 @@ inline auto cgemm(ARGS&&... args) -> StatusType {
   return cublasCgemm(std::forward<ARGS>(args)...);
 #else
   return rocblas_cgemm(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -247,7 +243,7 @@ inline auto zgemm(ARGS&&... args) -> StatusType {
   return cublasZgemm(std::forward<ARGS>(args)...);
 #else
   return rocblas_zgemm(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -256,7 +252,7 @@ inline auto sgeam(ARGS&&... args) -> StatusType {
   return cublasSgeam(std::forward<ARGS>(args)...);
 #else
   return rocblas_sgeam(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -265,9 +261,8 @@ inline auto dgeam(ARGS&&... args) -> StatusType {
   return cublasDgeam(std::forward<ARGS>(args)...);
 #else
   return rocblas_dgeam(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
-
 
 template <typename... ARGS>
 inline auto cgeam(ARGS&&... args) -> StatusType {
@@ -275,7 +270,7 @@ inline auto cgeam(ARGS&&... args) -> StatusType {
   return cublasCgeam(std::forward<ARGS>(args)...);
 #else
   return rocblas_cgeam(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 template <typename... ARGS>
@@ -284,7 +279,7 @@ inline auto zgeam(ARGS&&... args) -> StatusType {
   return cublasZgeam(std::forward<ARGS>(args)...);
 #else
   return rocblas_zgeam(std::forward<ARGS>(args)...);
-#endif // SPLA_CUDA
+#endif  // SPLA_CUDA
 }
 
 }  // namespace blas

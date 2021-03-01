@@ -1,29 +1,27 @@
 #include <mpi.h>
+#include <unistd.h>  // for MPI debugging
+
 #include "gtest/gtest.h"
 #include "gtest_mpi/gtest_mpi.hpp"
-
-// #include <unistd.h>  // for MPI debugging
 
 static auto mpi_world_size() -> int {
   int worldSize;
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
   return worldSize;
-
 }
 
 static auto mpi_world_rank() -> int {
   int worldRank;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   return worldRank;
-
 }
 
 int main(int argc, char* argv[]) {
   // Initialize MPI before any call to gtest_mpi
   int provided;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
 
-  // if (mpi_world_rank() == 1) {
+  // if (mpi_world_rank() == 0) {
   //   std::cout << "PID = " << getpid() << std::endl;
   //   bool wait = true;
   //   while (wait) {

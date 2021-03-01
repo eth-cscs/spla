@@ -93,7 +93,7 @@ SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis);
  * @param[in] comm MPI communicator to be used.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm);
+SplaError spla_mat_dis_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm);
 
 /**
  * Access a distribution parameter.
