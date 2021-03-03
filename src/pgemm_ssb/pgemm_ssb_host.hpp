@@ -54,7 +54,8 @@ namespace spla {
 template <typename T>
 void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
                     const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
-                    MatrixDistributionInternal &descC, ContextInternal &ctx);
+                    SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+                    ContextInternal &ctx);
 
 }  // namespace spla
 #endif

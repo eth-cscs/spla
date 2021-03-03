@@ -29,6 +29,7 @@
 #define SPLA_BLOCK_HPP
 
 #include "spla/config.h"
+#include "spla/types.h"
 #include "util/common_types.hpp"
 
 namespace spla {
@@ -53,6 +54,17 @@ struct Block {
   IntType numRows;
   IntType numCols;
 };
+
+
+inline auto block_is_active(const Block &block, SplaFillMode mode) -> bool {
+  if (mode == SplaFillMode::SPLA_FILL_MODE_UPPER) {
+    return block.col + block.numCols >= block.row;
+  } else if (mode == SplaFillMode::SPLA_FILL_MODE_LOWER) {
+    return block.row + block.numRows >= block.col;
+  }
+  return true;
+}
+
 
 }  // namespace spla
 #endif

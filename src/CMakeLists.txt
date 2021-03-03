@@ -11,6 +11,7 @@ set(SPLA_SOURCE_FILES
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp
 	spla/pgemm_ssb.cpp
+	spla/pgemm_ssbtr.cpp
 	spla/pgemm_sbs.cpp
 	spla/context.cpp
 	spla/gemm.cpp

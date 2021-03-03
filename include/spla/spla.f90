@@ -42,6 +42,10 @@ integer(c_int), parameter ::                  &
     SPLA_OP_TRANSPOSE                   = 1,  &
     SPLA_OP_CONJ_TRANSPOSE              = 2,  &
 
+    SPLA_FILL_MODE_FULL                 = 0,  &
+    SPLA_FILL_MODE_UPPER                = 1,  &
+    SPLA_FILL_MODE_LOWER                = 2,  &
+
     SPFFT_SUCCESS                       = 0,  &
     SPFFT_UNKNOWN_ERROR                 = 1,  &
     SPFFT_INTERNAL_ERROR                = 2,  &

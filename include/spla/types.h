@@ -67,12 +67,28 @@ enum SplaOperation {
   SPLA_OP_CONJ_TRANSPOSE
 };
 
+enum SplaFillMode {
+  /**
+   * Full matrix
+   */
+  SPLA_FILL_MODE_FULL,
+  /**
+   * Upper triangular matrix
+   */
+  SPLA_FILL_MODE_UPPER,
+  /**
+   * Lower triangular matrix
+   */
+  SPLA_FILL_MODE_LOWER
+};
+
 #ifndef __cplusplus
 /*! \cond PRIVATE */
 // C only
 typedef enum SplaDistributionType SplaDistributionType;
 typedef enum SplaProcessingUnit SplaProcessingUnit;
 typedef enum SplaOperation SplaOperation;
+typedef enum SplaFillMode SplaFillMode;
 /*! \endcond */
 #endif  // cpp
 

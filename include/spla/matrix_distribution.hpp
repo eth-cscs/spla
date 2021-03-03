@@ -180,6 +180,28 @@ private:
                         int ldb, int bRowOffset, int bColOffset, MatrixDistribution &descB,
                         std::complex<double> beta, std::complex<double> *C, int ldc, Context &ctx);
 
+  friend void pgemm_ssbtr(int m, int n, int kLocal, SplaOperation opA, float alpha, const float *A,
+                          int lda, const float *B, int ldb, float beta, float *C, int ldc,
+                          int cRowStart, int cColStart, SplaFillMode cFillMode,
+                          MatrixDistribution &descC, Context &ctx);
+
+  friend void pgemm_ssbtr(int m, int n, int kLocal, SplaOperation opA, double alpha,
+                          const double *A, int lda, const double *B, int ldb, double beta,
+                          double *C, int ldc, int cRowStart, int cColStart, SplaFillMode cFillMode,
+                          MatrixDistribution &descC, Context &ctx);
+
+  friend void pgemm_ssbtr(int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
+                          const std::complex<float> *A, int lda, const std::complex<float> *B,
+                          int ldb, std::complex<float> beta, std::complex<float> *C, int ldc,
+                          int cRowStart, int cColStart, SplaFillMode cFillMode,
+                          MatrixDistribution &descC, Context &ctx);
+
+  friend void pgemm_ssbtr(int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
+                          const std::complex<double> *A, int lda, const std::complex<double> *B,
+                          int ldb, std::complex<double> beta, std::complex<double> *C, int ldc,
+                          int cRowStart, int cColStart, SplaFillMode cFillMode,
+                          MatrixDistribution &descC, Context &ctx);
+
   std::shared_ptr<MatrixDistributionInternal> descInternal_;
   /*! \endcond */
 };
