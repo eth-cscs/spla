@@ -314,7 +314,7 @@ interface
   integer(c_int) function spla_pzgemm_ssb(m, n, kLocal, opA, &
                                           alpha, A, lda, B, &
                                           ldb, beta, C, ldc, cRowOffset, &
-                                          cColOffset, distC, &
+                                          cColOffset, cFillMode, distC, &
                                           ctx) bind(C)
     use iso_c_binding
     integer(c_int), value :: m
@@ -331,9 +331,115 @@ interface
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
     type(c_ptr), value :: distC
     type(c_ptr), value :: ctx
   end function
+
+  !--------------------------
+  !         pgemm_ssbtr
+  !--------------------------
+
+  integer(c_int) function spla_psgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    real(c_float), value :: alpha
+    real(c_float), dimension(*), intent(in) :: A
+    integer(c_int), value :: lda
+    real(c_float), dimension(*), intent(in) :: B
+    integer(c_int), value :: ldb
+    real(c_float), value :: beta
+    real(c_float), dimension(*), intent(inout) ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pdgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    real(c_double), value :: alpha
+    real(c_double), dimension(*), intent(in) :: A
+    integer(c_int), value :: lda
+    real(c_double), dimension(*), intent(in) :: B
+    integer(c_int), value :: ldb
+    real(c_double), value :: beta
+    real(c_double), dimension(*), intent(inout) ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pcgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    complex(c_float), intent(in) :: alpha
+    complex(c_float), dimension(*), intent(in) :: A
+    integer(c_int), value :: lda
+    complex(c_float), dimension(*), intent(in) :: B
+    integer(c_int), value :: ldb
+    complex(c_float), intent(in) :: beta
+    complex(c_float), dimension(*), intent(inout) ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pzgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    complex(c_double), intent(in) :: alpha
+    complex(c_double), dimension(*), intent(in) :: A
+    integer(c_int), value :: lda
+    complex(c_double), dimension(*), intent(in) :: B
+    integer(c_int), value :: ldb
+    complex(c_double), intent(in) :: beta
+    complex(c_double), dimension(*), intent(inout) ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+
 
 
 

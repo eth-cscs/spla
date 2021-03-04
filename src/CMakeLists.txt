@@ -72,6 +72,10 @@ target_link_libraries(spla PUBLIC ${SPLA_EXTERNAL_LIBS})
 target_include_directories(spla INTERFACE ${SPLA_INTERFACE_INCLUDE_DIRS})
 target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
+if(${SPLA_FORTRAN}) # Add include directory for fortran module
+	target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include/spla>)
+	target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
+endif()
 
 # set list of interface libries for exporting (workaround for bug with exporting static library:
 # cmake uses MPI_CXX and OpenMP::OpenMP_CXX targets, which are not known externally)
