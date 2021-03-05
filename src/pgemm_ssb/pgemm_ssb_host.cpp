@@ -27,6 +27,7 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -54,7 +55,7 @@ namespace spla {
 template <typename T, typename BLOCK_GEN>
 void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A,
                              int lda, const T *B, int ldb, T beta, T *C, int ldc, int,
-                             int cColStart, SplaFillMode fillMode,
+                             int cColStart, SplaFillMode cFillMode,
                              MatrixDistributionInternal &descC, ContextInternal &ctx,
                              BLOCK_GEN gen) {
   check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, gen.local_rows(descC.comm().rank()),
@@ -67,9 +68,15 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
 
   const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
-  // Generate more blocks for triangular computation, since about half are not used.
-  const IntType targetBlockNum =
-      fillMode == SPLA_FILL_MODE_FULL ? descC.comm().size() : 2 * descC.comm().size();
+
+  IntType targetBlockNum = descC.comm().size();
+  if(cFillMode != SPLA_FILL_MODE_FULL) {
+    // Generate more blocks for triangular computation, since about half are not used.
+    // For a square case, the number of blocks active is b/2 * (b + 1) = r -> solve for b, where r
+    // is comm size
+    const double rootTarget = -0.5 + std::sqrt(0.25 + 2 * descC.comm().size());
+    targetBlockNum = std::ceil(rootTarget*rootTarget);
+  }
   std::tie(rowsInBlock, colsInBlock) =
       block_size_selection_ssb(IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
                                targetBlockNum, m, n, ctx.tile_size_host(), minBlockSize);
@@ -110,7 +117,7 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
              rowIdx += rowsInBlock) {
           const auto block = Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
                                    std::min<IntType>(colsInBlock, n - colIdx)};
-          if (block_is_active(block, fillMode)) blocks.emplace_back(block);
+          if (block_is_active(block, cFillMode)) blocks.emplace_back(block);
 
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descC.comm().size()) {

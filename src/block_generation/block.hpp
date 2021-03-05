@@ -58,9 +58,9 @@ struct Block {
 
 inline auto block_is_active(const Block &block, SplaFillMode mode) -> bool {
   if (mode == SplaFillMode::SPLA_FILL_MODE_UPPER) {
-    return block.col + block.numCols >= block.row;
+    return block.col + block.numCols > block.row;
   } else if (mode == SplaFillMode::SPLA_FILL_MODE_LOWER) {
-    return block.row + block.numRows >= block.col;
+    return block.row + block.numRows > block.col;
   }
   return true;
 }

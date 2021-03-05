@@ -112,9 +112,14 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA,
           : 500;  // If input is on host, smal block sizes lead to much more memory transfers
                   // required. Therefore use larger block sizes in that case.
 
-  // Generate more blocks for triangular computation, since about half are not used.
-  const IntType targetBlockNum =
-      cFillMode == SPLA_FILL_MODE_FULL ? descC.comm().size() : 2 * descC.comm().size();
+  IntType targetBlockNum = descC.comm().size();
+  if(cFillMode != SPLA_FILL_MODE_FULL) {
+    // Generate more blocks for triangular computation, since about half are not used.
+    // For a square case, the number of blocks active is b/2 * (b + 1) = r -> solve for b, where r
+    // is comm size
+    const double rootTarget = -0.5 + std::sqrt(0.25 + 2 * descC.comm().size());
+    targetBlockNum = std::ceil(rootTarget*rootTarget);
+  }
   std::tie(rowsInBlock, colsInBlock) =
       block_size_selection_ssb(IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
                                targetBlockNum, m, n, ctx.tile_size_host(), minBlockSize);
