@@ -314,7 +314,7 @@ interface
   integer(c_int) function spla_pzgemm_ssb(m, n, kLocal, opA, &
                                           alpha, A, lda, B, &
                                           ldb, beta, C, ldc, cRowOffset, &
-                                          cColOffset, cFillMode, distC, &
+                                          cColOffset, distC, &
                                           ctx) bind(C)
     use iso_c_binding
     integer(c_int), value :: m
@@ -331,7 +331,6 @@ interface
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
-    integer(c_int), value :: cFillMode
     type(c_ptr), value :: distC
     type(c_ptr), value :: ctx
   end function
