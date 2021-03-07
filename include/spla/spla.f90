@@ -46,23 +46,23 @@ integer(c_int), parameter ::                  &
     SPLA_FILL_MODE_UPPER                = 1,  &
     SPLA_FILL_MODE_LOWER                = 2,  &
 
-    SPFFT_SUCCESS                       = 0,  &
-    SPFFT_UNKNOWN_ERROR                 = 1,  &
-    SPFFT_INTERNAL_ERROR                = 2,  &
-    SPFFT_INVALID_PARAMETER_ERROR       = 3,  &
-    SPFFT_INVALID_POINTER_ERROR         = 4,  &
-    SPFFT_INVALID_HANDLE_ERROR          = 5,  &
-    SPFFT_MPI_ERROR                     = 6,  &
-    SPFFT_MPI_ALLOCATION_ERROR          = 7,  &
-    SPFFT_MPI_THREAD_SUPPORT_ERROR      = 8,  &
-    SPFFT_GPU_ERROR                     = 9,  &
-    SPFFT_GPU_SUPPORT_ERROR             = 10, &
-    SPFFT_GPU_ALLOCATION_ERROR          = 11, &
-    SPFFT_GPU_LAUNCH_ERROR              = 12, &
-    SPFFT_GPU_NO_DEVICE_ERROR           = 13, &
-    SPFFT_GPU_INVALID_VALUE_ERROR       = 14, &
-    SPFFT_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
-    SPFFT_GPU_BLAS_ERROR                = 16
+    SPLA_SUCCESS                       = 0,  &
+    SPLA_UNKNOWN_ERROR                 = 1,  &
+    SPLA_INTERNAL_ERROR                = 2,  &
+    SPLA_INVALID_PARAMETER_ERROR       = 3,  &
+    SPLA_INVALID_POINTER_ERROR         = 4,  &
+    SPLA_INVALID_HANDLE_ERROR          = 5,  &
+    SPLA_MPI_ERROR                     = 6,  &
+    SPLA_MPI_ALLOCATION_ERROR          = 7,  &
+    SPLA_MPI_THREAD_SUPPORT_ERROR      = 8,  &
+    SPLA_GPU_ERROR                     = 9,  &
+    SPLA_GPU_SUPPORT_ERROR             = 10, &
+    SPLA_GPU_ALLOCATION_ERROR          = 11, &
+    SPLA_GPU_LAUNCH_ERROR              = 12, &
+    SPLA_GPU_NO_DEVICE_ERROR           = 13, &
+    SPLA_GPU_INVALID_VALUE_ERROR       = 14, &
+    SPLA_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
+    SPLA_GPU_BLAS_ERROR                = 16
 
 interface
 
