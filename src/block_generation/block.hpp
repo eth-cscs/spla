@@ -55,16 +55,15 @@ struct Block {
   IntType numCols;
 };
 
-
-inline auto block_is_active(const Block &block, SplaFillMode mode) -> bool {
+inline auto block_is_active(const Block &block, IntType rowOffset, IntType colOffset,
+                            SplaFillMode mode) -> bool {
   if (mode == SplaFillMode::SPLA_FILL_MODE_UPPER) {
-    return block.col + block.numCols > block.row;
+    return block.col + block.numCols + colOffset > block.row + rowOffset;
   } else if (mode == SplaFillMode::SPLA_FILL_MODE_LOWER) {
-    return block.row + block.numRows > block.col;
+    return block.row + block.numRows + rowOffset > block.col + colOffset;
   }
   return true;
 }
-
 
 }  // namespace spla
 #endif

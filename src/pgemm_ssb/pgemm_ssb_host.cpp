@@ -54,8 +54,8 @@ namespace spla {
 
 template <typename T, typename BLOCK_GEN>
 void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A,
-                             int lda, const T *B, int ldb, T beta, T *C, int ldc, int,
-                             int cColStart, SplaFillMode cFillMode,
+                             int lda, const T *B, int ldb, T beta, T *C, int ldc, int cRowOffset,
+                             int cColOffset, SplaFillMode cFillMode,
                              MatrixDistributionInternal &descC, ContextInternal &ctx,
                              BLOCK_GEN gen) {
   check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, gen.local_rows(descC.comm().rank()),
@@ -87,7 +87,7 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
 
   HostArrayConstView2D<T> viewA(A, m, kLocal, lda);
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
-  HostArrayView2D<T> viewC(C, n + cColStart, ldc, ldc);
+  HostArrayView2D<T> viewC(C, n + cColOffset, ldc, ldc);
 
   auto &buffers = ctx.mpi_buffers(2 * numTiles);
   auto &comms = descC.get_comms(numTiles);
@@ -117,7 +117,7 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
              rowIdx += rowsInBlock) {
           const auto block = Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
                                    std::min<IntType>(colsInBlock, n - colIdx)};
-          if (block_is_active(block, cFillMode)) blocks.emplace_back(block);
+          if (block_is_active(block, cRowOffset, cColOffset, cFillMode)) blocks.emplace_back(block);
 
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descC.comm().size()) {
@@ -160,7 +160,7 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
 
 template <typename T>
 void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
-                    const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
+                    const T *B, int ldb, T beta, T *C, int ldc, int cRowOffset, int cColOffset,
                     SplaFillMode cFillMode, MatrixDistributionInternal &descC,
                     ContextInternal &ctx) {
   SCOPED_TIMING("inner_host");
@@ -171,52 +171,52 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
     throw InvalidParameterError();
   }
 
-  if (m < 0 || n < 0 || cRowStart < 0 || cColStart < 0) {
+  if (m < 0 || n < 0 || cRowOffset < 0 || cColOffset < 0) {
     throw InvalidParameterError();
   }
 
   if (descC.comm().size() == 1) {
     return gemm_host<T>(ctx.num_threads(), opA, SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb,
-                        beta, C + cRowStart + cColStart * ldc, ldc);
+                        beta, C + cRowOffset + cColOffset * ldc, ldc);
   }
 
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
     BlockCyclicGenerator gen(descC.row_block_size(), descC.col_block_size(), descC.proc_grid_rows(),
-                             descC.proc_grid_cols(), m, n, cRowStart, cColStart);
+                             descC.proc_grid_cols(), m, n, cRowOffset, cColOffset);
 
     pgemm_ssb_host_internal<T, BlockCyclicGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta,
-                                                     C, ldc, cRowStart, cColStart, cFillMode, descC,
+                                                     C, ldc, cRowOffset, cColOffset, cFillMode, descC,
                                                      ctx, std::move(gen));
 
   } else {
-    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowStart, cColStart);
+    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowOffset, cColOffset);
     pgemm_ssb_host_internal<T, MirrorGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C,
-                                                ldc, cRowStart, cColStart, cFillMode, descC, ctx,
+                                                ldc, cRowOffset, cColOffset, cFillMode, descC, ctx,
                                                 std::move(gen));
   }
 }
 
 template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
                                     const float *A, int lda, const float *B, int ldb, float beta,
-                                    float *C, int ldc, int cRowStart, int cColStart,
+                                    float *C, int ldc, int cRowOffset, int cColOffset,
                                     SplaFillMode cFillMode, MatrixDistributionInternal &descC,
                                     ContextInternal &ctx);
 
 template void pgemm_ssb_host<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
                                      const double *A, int lda, const double *B, int ldb,
-                                     double beta, double *C, int ldc, int cRowStart, int cColStart,
+                                     double beta, double *C, int ldc, int cRowOffset, int cColOffset,
                                      SplaFillMode cFillMode, MatrixDistributionInternal &descC,
                                      ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<float>>(
     int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
     const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
-    std::complex<float> beta, std::complex<float> *C, int ldc, int cRowStart, int cColStart,
+    std::complex<float> beta, std::complex<float> *C, int ldc, int cRowOffset, int cColOffset,
     SplaFillMode cFillMode, MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<double>>(
     int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
     const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
-    std::complex<double> beta, std::complex<double> *C, int ldc, int cRowStart, int cColStart,
+    std::complex<double> beta, std::complex<double> *C, int ldc, int cRowOffset, int cColOffset,
     SplaFillMode cFillMode, MatrixDistributionInternal &descC, ContextInternal &ctx);
 }  // namespace spla
