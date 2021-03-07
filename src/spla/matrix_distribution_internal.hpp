@@ -48,6 +48,10 @@ public:
 
   inline auto col_block_size() const -> IntType { return colBlockSize_; }
 
+  inline auto set_row_block_size(IntType rowBlockSize) -> void { rowBlockSize_ = rowBlockSize; }
+
+  inline auto set_col_block_size(IntType colBlockSize) -> void { colBlockSize_ = colBlockSize; }
+
   inline auto comm() const -> const MPICommunicatorHandle& { return comms_.front(); }
 
   inline auto get_comms(IntType numComms) -> const std::deque<MPICommunicatorHandle>& {

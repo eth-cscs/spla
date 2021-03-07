@@ -140,6 +140,21 @@ public:
    */
   MPI_Comm comm();
 
+  /**
+   * Set row block size used for matrix partitioning.
+   *
+   * @param[in] rowBlockSize Row block size.
+   */
+  void set_row_block_size(int rowBlockSize);
+
+  /**
+   * Set coloumn block size used for matrix partitioning.
+   *
+   * @param[in] colBlockSize Coloumn block size.
+   */
+  void set_col_block_size(int colBlockSize);
+
+
 private:
   /*! \cond PRIVATE */
   explicit MatrixDistribution(std::shared_ptr<MatrixDistributionInternal> descInternal);

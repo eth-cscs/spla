@@ -149,6 +149,27 @@ SPLA_EXPORT SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistr
  * @return Error code or SPLA_SUCCESS.
  */
 SPLA_EXPORT SplaError spla_mat_dis_comm(SplaMatrixDistribution matDis, MPI_Comm* comm);
+
+/**
+ * Set a distribution parameter.
+ *
+ * @param[in] matDis Matrix distribution handle.
+ * @param[in] rowBlockSize Row block size used for matrix partitioning.
+ * provided for creation of distribution.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_mat_dis_set_row_block_size(SplaMatrixDistribution matDis, int rowBlockSize);
+
+/**
+ * Set a distribution parameter.
+ *
+ * @param[in] matDis Matrix distribution handle.
+ * @param[in] colBlockSize Col block size used for matrix partitioning.
+ * provided for creation of distribution.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_mat_dis_set_col_block_size(SplaMatrixDistribution matDis, int colBlockSize);
+
 #ifdef __cplusplus
 }
 #endif

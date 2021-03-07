@@ -197,43 +197,54 @@ interface
     type(c_ptr), intent(inout) :: matDis
   end function
 
-  integer(c_int) function spla_mat_dis_proc_grid_rows(ctx, rows) bind(C)
+  integer(c_int) function spla_mat_dis_proc_grid_rows(matDis, rows) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: rows
   end function
 
-  integer(c_int) function spla_mat_dis_proc_grid_cols(ctx, cols) bind(C)
+  integer(c_int) function spla_mat_dis_proc_grid_cols(matDis, cols) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: cols
   end function
 
-  integer(c_int) function spla_mat_dis_row_block_size(ctx, rowBlockSize) bind(C)
+  integer(c_int) function spla_mat_dis_row_block_size(matDis, rowBlockSize) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: rowBlockSize
   end function
 
-  integer(c_int) function spla_mat_dis_col_block_size(ctx, colBlockSize) bind(C)
+  integer(c_int) function spla_mat_dis_col_block_size(matDis, colBlockSize) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: colBlockSize
   end function
 
-  integer(c_int) function spla_mat_dis_type(ctx, disType) bind(C)
+  integer(c_int) function spla_mat_dis_type(matDis, disType) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: disType
   end function
 
-  integer(c_int) function spla_mat_dis_comm(ctx, commFortran) &
+  integer(c_int) function spla_mat_dis_comm(matDis, commFortran) &
       bind(C, name='spla_mat_dis_comm_fortran')
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: commFortran
   end function
 
+  integer(c_int) function spla_mat_dis_set_row_block_size(matDis, rowBlockSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: matDis
+    integer(c_int), value :: rowBlockSize
+  end function
+
+  integer(c_int) function spla_mat_dis_set_col_block_size(matDis, colBlockSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: matDis
+    integer(c_int), value :: colBlockSize
+  end function
 
   !--------------------------
   !         pgemm_ssb
