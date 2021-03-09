@@ -73,10 +73,20 @@ inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviati
   IntType rowsInBlock = (m + grid.first - 1) / grid.first;
   IntType colsInBlock = (n + grid.second - 1) / grid.second;
 
-  // If the required block size to have enough blocks is too small, use the minimum block size
+  // If the required block size to have enough blocks is too small, use the target block size
   if (rowsInBlock * colsInBlock < minBlockSize * minBlockSize) {
-    return {std::min<IntType>(minBlockSize, m),
-            std::min<IntType>(minBlockSize, n)};
+    rowsInBlock = std::min<IntType>(targetBlockSize, m);
+    colsInBlock = std::min<IntType>(targetBlockSize, n);
+    if(rowsInBlock < targetBlockSize) {
+      colsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(rowsInBlock);
+    }
+    if(colsInBlock < targetBlockSize) {
+      rowsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(colsInBlock);
+    }
+    rowsInBlock = std::min<IntType>(rowsInBlock, m);
+    colsInBlock = std::min<IntType>(colsInBlock, n);
+
+    return {rowsInBlock, colsInBlock};
   }
 
   double factor = static_cast<double>(rowsInBlock * colsInBlock) /
