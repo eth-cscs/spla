@@ -36,6 +36,7 @@ option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
 option(SPLA_FORTRAN "Compile fortran module" OFF)
+option(SPLA_TIMING "Enable internal timing. For developement puposes." OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
