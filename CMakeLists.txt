@@ -289,8 +289,6 @@ endif()
 if(SPLA_BUILD_TESTS)
 	# enable timing with testing
 	set(SPLA_TIMING ON)
-else()
-	set(SPLA_TIMING OFF)
 endif()
 
 # generate config.h
