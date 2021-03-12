@@ -178,7 +178,7 @@ interface
     use iso_c_binding
     type(c_ptr), intent(out) :: matDis
     integer(c_int), value :: commFortran
-    integer(c_ptr), value :: mapping
+    type(c_ptr), value :: mapping
     integer(c_int), value :: procGridRows
     integer(c_int), value :: procGridCols
     integer(c_int), value :: rowBlockSize
@@ -637,19 +637,19 @@ interface
   integer(c_int) function spla_timer_start(n, nameArray) bind(C)
     use iso_c_binding
     integer(c_int), value :: n
-    character(c_char), dimension(*), intent(in) :: nameArray
+    type(c_ptr), value :: nameArray
   end function
 
   integer(c_int) function spla_timer_stop(n, nameArray) bind(C)
     use iso_c_binding
     integer(c_int), value :: n
-    character(c_char), dimension(*), intent(in) :: nameArray
+    type(c_ptr), value :: nameArray
   end function
 
   integer(c_int) function spla_timer_export_json(n, nameArray) bind(C)
     use iso_c_binding
     integer(c_int), value :: n
-    character(c_char), dimension(*), intent(in) :: nameArray
+    type(c_ptr), value :: nameArray
   end function
 
   integer(c_int) function spla_timer_print() bind(C)
