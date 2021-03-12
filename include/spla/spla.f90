@@ -178,7 +178,7 @@ interface
     use iso_c_binding
     type(c_ptr), intent(out) :: matDis
     integer(c_int), value :: commFortran
-    integer(c_int), dimension(*), intent(in) :: mapping
+    integer(c_ptr), value :: mapping
     integer(c_int), value :: procGridRows
     integer(c_int), value :: procGridCols
     integer(c_int), value :: rowBlockSize
@@ -261,12 +261,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -285,12 +285,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -309,12 +309,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -333,12 +333,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -361,12 +361,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -386,12 +386,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -410,12 +410,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -435,12 +435,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -466,15 +466,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -488,15 +488,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -510,15 +510,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -532,15 +532,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -560,12 +560,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -580,12 +580,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -600,12 +600,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -620,12 +620,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
