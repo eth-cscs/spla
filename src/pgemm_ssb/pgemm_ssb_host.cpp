@@ -69,17 +69,9 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
   const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
 
-  IntType targetBlockNum = descC.comm().size();
-  if(cFillMode != SPLA_FILL_MODE_FULL) {
-    // Generate more blocks for triangular computation, since about half are not used.
-    // For a square case, the number of blocks active is b/2 * (b + 1) = r -> solve for b, where r
-    // is comm size
-    const double rootTarget = -0.5 + std::sqrt(0.25 + 2 * descC.comm().size());
-    targetBlockNum = std::ceil(rootTarget*rootTarget);
-  }
-  std::tie(rowsInBlock, colsInBlock) =
-      block_size_selection_ssb(IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
-                               targetBlockNum, m, n, ctx.tile_size_host(), minBlockSize);
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+      cFillMode, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold, descC.comm().size(), m,
+      n, cRowOffset, cColOffset, ctx.tile_size_host(), minBlockSize);
 
   // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =
