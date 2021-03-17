@@ -139,7 +139,7 @@ inline auto block_size_selection_ssb(SplaFillMode mode, bool isDisjointDistribut
                                      IntType minBlockSize) -> std::pair<IntType, IntType> {
   IntType rowsInBlock, colsInBlock;
   std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
-      isDisjointDistribution, commSize, m, n, targetBlockSize, deviationFactor, minBlockSize);
+      isDisjointDistribution, deviationFactor, commSize, m, n, targetBlockSize, minBlockSize);
 
   if (mode != SPLA_FILL_MODE_FULL && !isDisjointDistribution) {
     // For triangular case, the number of blocks that have to be computed is lower than the total ->
