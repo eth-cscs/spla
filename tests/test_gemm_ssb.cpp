@@ -468,7 +468,7 @@ static auto param_type_names(
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(gemmSSB, GemmSSBScalar,
+INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
@@ -485,7 +485,7 @@ INSTANTIATE_TEST_CASE_P(gemmSSB, GemmSSBScalar,
                                                                                  400))),  // k range
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(gemmSSB, GemmSSBComplex,
+INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBComplex,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,

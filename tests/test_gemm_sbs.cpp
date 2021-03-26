@@ -471,7 +471,7 @@ static auto param_type_names(
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(FullGemmSBSTest, GemmSBSScalar,
+INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
@@ -479,8 +479,8 @@ INSTANTIATE_TEST_CASE_P(FullGemmSBSTest, GemmSBSScalar,
 #endif
                                                              ),
                                            ::testing::Values(1, 4),   // number of threads
-                                           ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(1, 64),  // row block size
+                                           ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(std::pair<int, int>(0, 1),
                                                              std::pair<int, int>(50,
                                                                                  400)),  // m range
@@ -488,7 +488,7 @@ INSTANTIATE_TEST_CASE_P(FullGemmSBSTest, GemmSBSScalar,
                                            ::testing::Values(1, 13, 32, 263)),           // k
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(FullGemmSBSTest, GemmSBSComplex,
+INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSComplex,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
@@ -496,11 +496,27 @@ INSTANTIATE_TEST_CASE_P(FullGemmSBSTest, GemmSBSComplex,
 #endif
                                                              ),
                                            ::testing::Values(1, 4),   // number of threads
-                                           ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(1, 64),  // row block size
+                                           ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(std::pair<int, int>(0, 1),
                                                              std::pair<int, int>(50,
                                                                                  400)),  // m range
                                            ::testing::Values(1, 13, 32, 263),            // n
                                            ::testing::Values(1, 13, 32, 263)),           // k
+                        param_type_names);
+
+INSTANTIATE_TEST_CASE_P(LargeGemmSBS, GemmSBSScalar,
+                        ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+                                                             ,
+                                                             SplaProcessingUnit::SPLA_PU_GPU
+#endif
+                                                             ),
+                                           ::testing::Values(2),    // number of threads
+                                           ::testing::Values(128),  // row block size
+                                           ::testing::Values(128),  // coloumn block size
+                                           ::testing::Values(std::pair<int, int>(50,
+                                                                                 400)),  // m range
+                                           ::testing::Values(3000),                      // n
+                                           ::testing::Values(4000)),                     // k
                         param_type_names);
