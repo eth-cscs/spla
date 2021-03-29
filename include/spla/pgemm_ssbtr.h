@@ -62,7 +62,12 @@ extern "C" {
 /**
  * Computes a distributed general matrix multiplication of the form \f$ C \leftarrow \alpha A^H B +
  * \beta C \f$ in single precision. \f$A\f$ and \f$B\f$ are only split along the row dimension
- * (stripes), while \f$C\f$ can be distributed as any supported SplaMatrixDistribution type.
+ * (stripes), while \f$C\f$ can be distributed as any supported SplaMatrixDistribution type. The
+ * fill mode of \f$C\f$ indicates the part of the matrix which must be computed, while any other
+ * part may or may not be computed. It is therefore not a strict limitation. For example, given
+ * SPLA_FILL_MODE_UPPER, a small matrix may still be fully computed, while a large matrix will be
+ * computed block wise, such that the computed blocks cover the upper triangle. The fill mode is
+ * always in refenrence to the full matrix, so offsets are taken into account.
  *
  * @param[in] m Number of rows of \f$A^H\f$
  * @param[in] n Number of columns of \f$B\f$
