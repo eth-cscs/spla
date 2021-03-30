@@ -34,6 +34,7 @@
 
 #include "spla/config.h"
 #include "spla/types.h"
+#include "block_generation/block.hpp"
 #include "util/common_types.hpp"
 
 namespace spla {
@@ -73,10 +74,20 @@ inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviati
   IntType rowsInBlock = (m + grid.first - 1) / grid.first;
   IntType colsInBlock = (n + grid.second - 1) / grid.second;
 
-  // If the required block size to have enough blocks is too small, use the minimum block size
+  // If the required block size to have enough blocks is too small, use the target block size
   if (rowsInBlock * colsInBlock < minBlockSize * minBlockSize) {
-    return {std::min<IntType>(minBlockSize, m),
-            std::min<IntType>(minBlockSize, n)};
+    rowsInBlock = std::min<IntType>(targetBlockSize, m);
+    colsInBlock = std::min<IntType>(targetBlockSize, n);
+    if (rowsInBlock < targetBlockSize) {
+      colsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(rowsInBlock);
+    }
+    if (colsInBlock < targetBlockSize) {
+      rowsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(colsInBlock);
+    }
+    rowsInBlock = std::min<IntType>(rowsInBlock, m);
+    colsInBlock = std::min<IntType>(colsInBlock, n);
+
+    return {rowsInBlock, colsInBlock};
   }
 
   double factor = static_cast<double>(rowsInBlock * colsInBlock) /
@@ -117,6 +128,61 @@ inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviati
 
     rowsInBlock = (m + grid.first - 1) / grid.first;
     colsInBlock = (n + grid.second - 1) / grid.second;
+  }
+
+  return {rowsInBlock, colsInBlock};
+}
+
+inline auto block_size_selection_ssb(SplaFillMode mode, bool isDisjointDistribution,
+                                     double deviationFactor, IntType commSize, IntType m, IntType n,
+                                     IntType rowOffset, IntType colOffset, IntType targetBlockSize,
+                                     IntType minBlockSize) -> std::pair<IntType, IntType> {
+  IntType rowsInBlock, colsInBlock;
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+      isDisjointDistribution, deviationFactor, commSize, m, n, targetBlockSize, minBlockSize);
+
+  if (mode != SPLA_FILL_MODE_FULL && !isDisjointDistribution) {
+    // For triangular case, the number of blocks that have to be computed is lower than the total ->
+    // more blocks required for ring communication
+    IntType numActiveBlocks = 0;
+    IntType numBlockRows = ((m + rowsInBlock - 1) / rowsInBlock);
+    IntType numBlockCols = ((n + colsInBlock - 1) / colsInBlock);
+
+    for (IntType r = 0; r < m; r += rowsInBlock) {
+      for (IntType c = 0; c < n; c += colsInBlock) {
+        Block block{r, c, std::min(rowsInBlock, m - r), std::min(colsInBlock, n - c)};
+        if (block_is_active(block, rowOffset, colOffset, mode)) ++numActiveBlocks;
+      }
+    }
+
+    // scaling factor, by which the number of blocks has to grow
+    double factor =
+        static_cast<double>(numBlockRows * numBlockCols) / static_cast<double>(numActiveBlocks);
+    if (factor > 1.0) {
+      factor = std::sqrt(factor);
+
+      // favour too many blocks over too few
+      numBlockRows = std::ceil(factor * numBlockRows);
+      numBlockCols = std::round(factor * numBlockCols);
+
+      rowsInBlock = (m + numBlockRows - 1) / numBlockRows;
+      colsInBlock = (n + numBlockCols - 1) / numBlockCols;
+
+      if (rowsInBlock * colsInBlock < minBlockSize * minBlockSize) {
+        // If block size is smaller than minimum, use minimum block size instead of target block
+        // size, to still allow savings due to triangular result
+        rowsInBlock = std::min<IntType>(minBlockSize, m);
+        colsInBlock = std::min<IntType>(minBlockSize, n);
+        if (rowsInBlock < minBlockSize) {
+          colsInBlock *= static_cast<double>(minBlockSize) / static_cast<double>(rowsInBlock);
+        }
+        if (colsInBlock < targetBlockSize) {
+          rowsInBlock *= static_cast<double>(minBlockSize) / static_cast<double>(colsInBlock);
+        }
+        rowsInBlock = std::min<IntType>(rowsInBlock, m);
+        colsInBlock = std::min<IntType>(colsInBlock, n);
+      }
+    }
   }
 
   return {rowsInBlock, colsInBlock};

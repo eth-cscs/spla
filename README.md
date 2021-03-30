@@ -33,7 +33,7 @@ where matrices A and B are stored in a "stripe" distribution with variable block
                      ------       ------
                        A            B
 
-
+For computation of triangular block distributed matrices, the `pgemm_ssbtr(...)` function is available, allowing to specify the fill mode of C.
 
 ### Stripe-Block-Stripe
 The `pgemm_sbs(...)` function computes
