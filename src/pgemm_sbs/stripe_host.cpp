@@ -35,6 +35,7 @@
 
 #include "block_generation/block_cyclic_generator.hpp"
 #include "gemm/gemm_host.hpp"
+#include "timing/timing.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -77,6 +78,7 @@ StripeHost<T, BLOCK_GEN>::StripeHost(IntType numThreads, MPICommunicatorHandle c
 
 template <typename T, typename BLOCK_GEN>
 auto StripeHost<T, BLOCK_GEN>::collect(IntType blockColIdx) -> void {
+  SCOPED_TIMING("stripe_collect")
   assert(omp_get_thread_num() == 0);  // only master thread should execute
   assert(blockColIdx < baseMatGen_.num_block_cols());
   if (state_.get() != StripeState::Empty) {
@@ -129,6 +131,7 @@ auto StripeHost<T, BLOCK_GEN>::collect(IntType blockColIdx) -> void {
     assert(recvDispls_[rank] + localCounts_[rank] <= recvBuffer_->size<T>());
   }
 
+  START_TIMING("pack")
   // copy into sendbuffer
   if (localCounts_[comm_.rank()]) {
     HostArrayView2D<T> sendBufferView(recvBuffer_->data<T>() + recvDispls_[comm_.rank()],
@@ -140,6 +143,7 @@ auto StripeHost<T, BLOCK_GEN>::collect(IntType blockColIdx) -> void {
                   sendBufferView.dim_inner() * sizeof(T));
     }
   }
+  STOP_TIMING("pack")
 
   // set state atomically
   state_.set(StripeState::Collected);
@@ -147,6 +151,7 @@ auto StripeHost<T, BLOCK_GEN>::collect(IntType blockColIdx) -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto StripeHost<T, BLOCK_GEN>::start_exchange() -> void {
+  SCOPED_TIMING("stripe_start_exchange")
   assert(omp_get_thread_num() == 0);  // only master thread should execute
   if (this->state_.get() != StripeState::Collected) {
     throw InternalError();
@@ -163,6 +168,7 @@ auto StripeHost<T, BLOCK_GEN>::start_exchange() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto StripeHost<T, BLOCK_GEN>::finalize_exchange() -> void {
+  SCOPED_TIMING("stripe_finalize_exchange")
   assert(omp_get_thread_num() == 0);  // only master thread should execute
   if (this->state_.get() != StripeState::InExchange) {
     throw InternalError();
@@ -175,6 +181,7 @@ auto StripeHost<T, BLOCK_GEN>::finalize_exchange() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto StripeHost<T, BLOCK_GEN>::multiply() -> void {
+  SCOPED_TIMING("stripe_multiply")
   if (this->state_.get() != StripeState::Exchanged) {
     throw InternalError();
   }
@@ -183,6 +190,7 @@ auto StripeHost<T, BLOCK_GEN>::multiply() -> void {
     const IntType n = blockInfos_.back().globalSubColIdx - blockInfos_.front().globalSubColIdx +
                       blockInfos_.back().numCols;
 
+    START_TIMING("unpack")
     // reshuffle data into full C matrix
     HostArrayView2D<T> fullStripe(buffer_->data<T>(), n, A_.dim_outer());
     const IntType stripeColOffset = blockInfos_.front().globalSubColIdx;
@@ -201,12 +209,15 @@ auto StripeHost<T, BLOCK_GEN>::multiply() -> void {
                     &recvDataView(startCol + col, startRow), info.numRows * sizeof(T));
       }
     }
+    STOP_TIMING("unpack")
 
+    START_TIMING("gemm")
     // multiply full C matrix.
     gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
                  A_.dim_inner(), n, A_.dim_outer(), alpha_, A_.data(), A_.ld_inner(),
                  fullStripe.data(), fullStripe.ld_inner(), beta_,
                  &C_(blockInfos_.front().globalSubColIdx, 0), C_.ld_inner());
+    STOP_TIMING("gemm")
   }
 
   this->state_.set(StripeState::Empty);

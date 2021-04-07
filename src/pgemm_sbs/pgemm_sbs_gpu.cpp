@@ -168,25 +168,36 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
       auto &tNext = stripes[(counter + 1) % ctx.num_tiles()];
 
       if (tNext.state() == StripeState::InExchange) {
+        START_TIMING("stripe_finalize_exchange")
         tNext.finalize_exchange();
+        STOP_TIMING("stripe_finalize_exchange")
+        SCOPED_TIMING("stripe_multiply")
         tNext.multiply();
       }
 
+      START_TIMING("stripe_collect")
       t.collect(blockColIdx);
+      STOP_TIMING("stripe_collect")
+      START_TIMING("stripe_start_exchange")
       t.start_exchange();
+      STOP_TIMING("stripe_start_exchange")
     }
   }
 
   // finalize remaining stripes
   for (auto &t : stripes) {
     if (t.state() == StripeState::InExchange) {
+      START_TIMING("stripe_finalize_exchange")
       t.finalize_exchange();
+      STOP_TIMING("stripe_finalize_exchange")
     }
     if (t.state() == StripeState::Exchanged) {
+      SCOPED_TIMING("stripe_multiply")
       t.multiply();
     }
   }
   for (auto &t : stripes) {
+    SCOPED_TIMING("stripe_synchronize")
     t.synchronize();
   }
 }
