@@ -34,6 +34,7 @@
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_gpu.hpp"
+#include "timing/timing.hpp"
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_device_guard.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
