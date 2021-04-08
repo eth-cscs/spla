@@ -85,8 +85,8 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
 
   const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
-  IntType rowsInBlock = 64;
-  IntType colsInBlock = 64;
+  IntType rowsInBlock = 500;
+  IntType colsInBlock = 500;
 
 // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =
