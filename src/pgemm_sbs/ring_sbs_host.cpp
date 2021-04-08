@@ -32,7 +32,6 @@
 #include <complex>
 #include <cstring>
 #include <vector>
-#include <iostream>
 
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
@@ -86,11 +85,10 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   assert(begin != end);
 
   blocks_.assign(begin, end);
-  // std::cout << comm_.rank() << " prepare, size = " << blocks_.size() << std::endl;
 
   stepIdx_ = 0;
-  const IntType rankOffset = baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
-  myStartIdx_ = (rankOffset + comm_.rank()) % comm_.size();
+  rankOffset_ = baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
+  myStartIdx_ = (rankOffset_ + comm_.rank()) % comm_.size();
   // useRing_ =
   //     IsDisjointGenerator<BLOCK_GEN>::value &&
   //     static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
@@ -107,7 +105,6 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
       auto mpiVec = MPIDatatypeHandle::create_vector(
           info.numCols, info.numRows, startBlockView.ld_inner(), MPIMatchElementaryType<T>::get());
       collectRecvs_.emplace_back();
-      // std::cout << comm_.rank() << " recv from " << info.mpiRank << ", size = " << info.numCols * info.numRows << std::endl;
       MPI_Irecv(&startBlockView(info.globalColIdx - myStartBlock.col - bColOffset_,
                                 info.globalRowIdx - myStartBlock.row - bRowOffset_),
                 1, mpiVec.get(), info.mpiRank, collectTag, comm_.get(),
@@ -123,9 +120,7 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
         auto info = gen.get_block_info(j);
         auto mpiVec = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, B_.ld_inner(),
                                                        MPIMatchElementaryType<T>::get());
-        const auto targetRank = (i + comm_.size() - rankOffset) % comm_.size();
-        // std::cout << comm_.rank() << " send to " << targetRank
-        //           << ", size = " << info.numCols * info.numRows << std::endl;
+        const auto targetRank = (i + comm_.size() - rankOffset_) % comm_.size();
         MPI_Send(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
                  comm_.get());
       }
@@ -142,7 +137,6 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
 
 template <typename T, typename BLOCK_GEN>
 auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void {
-  // std::cout << comm_.rank() << " ring step" << std::endl;
   const IntType numBlocks = blocks_.size();
 
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
@@ -156,7 +150,6 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
     MPI_Irecv(recvView_.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
               recvReq_.get_and_activate());
-    // std::cout << comm_.rank() << " ring recv from " << recvRank_ << ", block idx = " << nextBlockIdx << std::endl;
   }
 
   if (blockIdx < numBlocks) {
@@ -164,8 +157,6 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
     if (stepIdx_ < comm_.size() - 1) {
       MPI_Isend(sendView_.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
                 sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
-      // std::cout << comm_.rank() << " ring send to " << sendRank_ << ", block idx = " << blockIdx
-      //           << std::endl;
     }
 
     if (A_.dim_inner() != 0) {
@@ -174,12 +165,6 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
-      // std::cout << comm_.rank() << " block (" << block.row << ", " << block.col
-      //           << "), beta = " << beta << std::endl;
-      // std::cout << comm_.rank() << " A  (" << A_.dim_inner() << ", " << A_.dim_outer() << ")"
-      //           << std::endl;
-      // std::cout << comm_.rank() << " C  (" << A_.dim_inner() << ", " << C_.dim_outer() << ")"
-      //           << std::endl;
       gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
                    A_.dim_inner(), block.numCols, block.numRows, alpha_, &A_(block.row, 0),
                    A_.ld_inner(), sendView_.data(), block.numRows, beta, &C_(block.col, 0),
@@ -191,14 +176,41 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
 }
 
 template <typename T, typename BLOCK_GEN>
+auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void {
+  IntType numBlocks = blocks_.size();
+
+  if(stepIdx_ < numBlocks) {
+    auto blockView = myStartIdx_ == stepIdx_ ? sendView_ : recvView_;
+    auto block = blocks_[stepIdx_];
+    const auto sourceRank = (stepIdx_ + comm_.size() - rankOffset_) % comm_.size();
+    MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
+              sourceRank, comm_.get());
+    if (A_.dim_inner() != 0) {
+      T beta = 1.0;
+      if (!betaColIndeces.count(block.col)) {
+        betaColIndeces.emplace(block.col);
+        beta = beta_;
+      }
+      gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
+                   A_.dim_inner(), block.numCols, block.numRows, alpha_, &A_(block.row, 0),
+                   A_.ld_inner(), blockView.data(), block.numRows, beta, &C_(block.col, 0),
+                   C_.ld_inner());
+    }
+  }
+
+  state_ = stepIdx_ >= numBlocks - 1 ? TileState::Empty : TileState::PartiallyProcessed;
+}
+
+template <typename T, typename BLOCK_GEN>
 auto RingSBSHost<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaColIndeces) -> bool {
-  // std::cout << "step" << std::endl;
   if (blocks_.empty()) return false;
 
-  if (useRing_) {
-    this->process_step_ring(betaColIndeces);
-
-  } else {
+  if(stepIdx_ < comm_.size()) {
+    if (useRing_) {
+      this->process_step_ring(betaColIndeces);
+    } else {
+      this->process_step_broadcast(betaColIndeces);
+    }
   }
 
   ++stepIdx_;

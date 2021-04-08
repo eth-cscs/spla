@@ -75,10 +75,13 @@ public:
 private:
   auto process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void;
 
+  auto process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void;
+
   // state dependend
   bool useRing_ = false;
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
+  IntType rankOffset_ = 0;
   IntType myStartIdx_ = 0;
   IntType stepIdx_ = 0;
   MPIRequestHandle sendReq_;
