@@ -30,6 +30,8 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <unordered_set>
+#include <iostream>
 
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/block.hpp"
@@ -38,7 +40,7 @@
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
-#include "pgemm_sbs/stripe_host.hpp"
+#include "pgemm_sbs/ring_sbs_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -80,46 +82,90 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
   HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
   HostArrayView2D<T> viewC(C, n, mLocal, ldc);
 
-  std::vector<StripeHost<T, BLOCK_GEN>> stripes;
-  stripes.reserve(ctx.num_threads());
 
-  const IntType numBlockCols = gen.num_block_cols();
-  const IntType numBlockColsInTile =
-      std::max<IntType>((128 + descB.col_block_size() - 1) / descB.col_block_size(), 1);
+  const double ringThreshold = 0.65;
+  const IntType minBlockSize = 150;
+  IntType rowsInBlock = 64;
+  IntType colsInBlock = 64;
 
-  // create stripes
-  {
-    auto &buffers = ctx.mpi_buffers(2 * ctx.num_tiles());
-    auto &comms = descB.get_comms(ctx.num_tiles());
-    IntType idx = 0;
-    for (IntType tileIdx = 0; tileIdx < ctx.num_tiles(); ++tileIdx, ++idx) {
-      stripes.emplace_back(ctx.num_threads(), comms[idx], buffers[2 * idx], buffers[2 * idx + 1],
-                           gen, alpha, viewA, viewB, beta, viewC, numBlockColsInTile);
+// Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
+  const IntType maxBlockSize =
+      std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
+
+  constexpr IntType numTiles = 1;
+  auto &buffers = ctx.mpi_buffers(numTiles);
+  auto &comms = descB.get_comms(numTiles);
+
+  std::array<RingSBSHost<T, BLOCK_GEN>, numTiles> tiles{RingSBSHost<T, BLOCK_GEN>{
+      ringThreshold, maxBlockSize, ctx.num_threads(), comms[0], buffers[0], gen, alpha, viewA,
+      viewB, bRowOffset, bColOffset, beta, viewC}};
+  // std::array<RingSBSHost<T, BLOCK_GEN>, numTiles> tiles{
+  //     RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
+  //                               buffers[0], gen, alpha, viewA, viewB, bRowOffset, bColOffset, beta,
+  //                               viewC},
+  //     RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
+  //                               buffers[1], gen, alpha, viewA, viewB, bRowOffset, bColOffset, beta,
+  //                               viewC}};
+
+  std::vector<Block> blocks;
+  blocks.reserve(descB.comm().size());
+  std::unordered_set<IntType> betaColIndeces;
+
+  IntType tileIdx = 0;
+
+  // iterate grid wise
+  for (IntType colStartIdx = 0; colStartIdx < n;
+       colStartIdx += descB.proc_grid_cols() * colsInBlock) {
+    for (IntType rowStartIdx = 0; rowStartIdx < k;
+         rowStartIdx += descB.proc_grid_rows() * rowsInBlock) {
+      // iterate through blocks within grid
+      for (IntType colIdx = colStartIdx;
+           colIdx < std::min<IntType>(n, colStartIdx + descB.proc_grid_cols() * colsInBlock);
+           colIdx += colsInBlock) {
+        for (IntType rowIdx = rowStartIdx;
+             rowIdx < std::min<IntType>(k, rowStartIdx + descB.proc_grid_rows() * rowsInBlock);
+             rowIdx += rowsInBlock) {
+          const auto block = Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, k - rowIdx),
+                                   std::min<IntType>(colsInBlock, n - colIdx)};
+          blocks.emplace_back(block);
+          // Prepare processing when there are enough blocks to form ring
+          if (blocks.size() == descB.comm().size()) {
+            tiles[tileIdx % numTiles].prepare(blocks.begin(), blocks.end());
+            blocks.resize(0);
+            ++tileIdx;
+          }
+
+          if (tileIdx == numTiles) {
+            // All tiles are prepared -> start processing
+            bool tileToProcess = true;
+            while (tileToProcess) {
+              tileToProcess = false;
+              // Interleave processing to hide communication cost
+              for (auto &t : tiles) {
+                tileToProcess |= t.process_step(betaColIndeces);
+              }
+            }
+            tileIdx = 0;
+          }
+        }
+      }
     }
   }
 
-  IntType currentTileIdx = 0;
-  for (IntType blockColIdx = 0; blockColIdx < numBlockCols; blockColIdx += numBlockColsInTile) {
-    IntType nextTileIdx = (currentTileIdx + 1) % ctx.num_tiles();
-
-    stripes[nextTileIdx].collect(blockColIdx);
-    stripes[nextTileIdx].start_exchange();
-
-    if (stripes[currentTileIdx].state() == StripeState::InExchange) {
-      stripes[currentTileIdx].finalize_exchange();
-      stripes[currentTileIdx].multiply();
-    }
-
-    currentTileIdx = nextTileIdx;
+  if (blocks.size()) {
+    // Prepare with remaining blocks
+    tiles[tileIdx].prepare(blocks.begin(), blocks.end());
+    blocks.resize(0);
   }
-  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    if (stripes[i].state() == StripeState::InExchange) {
-      stripes[i].finalize_exchange();
-    }
-    if (stripes[i].state() == StripeState::Exchanged) {
-      stripes[i].multiply();
+  // Process remaining blocks
+  bool tileToProcess = true;
+  while (tileToProcess) {
+    tileToProcess = false;
+    for (auto &t : tiles) {
+      tileToProcess |= t.process_step(betaColIndeces);
     }
   }
+
 }
 
 template <typename T>
