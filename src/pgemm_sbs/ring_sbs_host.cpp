@@ -98,6 +98,7 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   // Issue receives if this rank holds initial block
   collectRecvs_.resize(0);
   if (myStartIdx_ < blocks_.size()) {
+    SCOPED_TIMING("irecv")
     auto myStartBlock = blocks_[myStartIdx_];
     HostArrayView2D<T> startBlockView(sendView_.data(), myStartBlock.numCols, myStartBlock.numRows);
     auto gen = baseMatGen_.create_sub_generator(myStartBlock);
@@ -113,6 +114,7 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
     }
   }
 
+  START_TIMING("send")
   // Send data required for blocks in ring
   for (IntType i = 0; i < blocks_.size(); ++i) {
     auto gen = baseMatGen_.create_sub_generator(blocks_[i]);
@@ -127,11 +129,15 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
       }
     }
   }
+  STOP_TIMING("send")
 
+  START_TIMING("wait_recv")
   // Wait for all receives
   for (auto &r : collectRecvs_) {
     r.wait_if_active();
   }
+  STOP_TIMING("wait_recv")
+
 
   state_ = TileState::Prepared;
 }
