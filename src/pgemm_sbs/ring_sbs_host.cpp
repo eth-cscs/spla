@@ -100,17 +100,27 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   if (myStartIdx_ < blocks_.size()) {
     SCOPED_TIMING("irecv")
     auto myStartBlock = blocks_[myStartIdx_];
-    HostArrayView2D<T> startBlockView(sendView_.data(), myStartBlock.numCols, myStartBlock.numRows);
+    HostArrayView2D<T> startBlockView(recvView_.data(), myStartBlock.numCols, myStartBlock.numRows);
     auto gen = baseMatGen_.create_sub_generator(myStartBlock);
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       auto info = gen.get_block_info(j);
-      auto mpiVec = MPIDatatypeHandle::create_vector(
-          info.numCols, info.numRows, startBlockView.ld_inner(), MPIMatchElementaryType<T>::get());
-      collectRecvs_.emplace_back();
-      MPI_Irecv(&startBlockView(info.globalColIdx - myStartBlock.col - bColOffset_,
-                                info.globalRowIdx - myStartBlock.row - bRowOffset_),
-                1, mpiVec.get(), info.mpiRank, collectTag, comm_.get(),
-                collectRecvs_.back().get_and_activate());
+      if (info.mpiRank == comm_.rank()) {
+        // If data is local, copy directly instead of using MPI
+        for (IntType c = 0; c < info.numCols; ++c) {
+          std::memcpy(&startBlockView(info.globalColIdx - myStartBlock.col - bColOffset_ + c,
+                                      info.globalRowIdx - myStartBlock.row - bRowOffset_),
+                      &B_(info.localColIdx + c, info.localRowIdx), info.numRows * sizeof(T));
+        }
+      } else {
+        auto mpiVec =
+            MPIDatatypeHandle::create_vector(info.numCols, info.numRows, startBlockView.ld_inner(),
+                                             MPIMatchElementaryType<T>::get());
+        collectRecvs_.emplace_back();
+        MPI_Irecv(&startBlockView(info.globalColIdx - myStartBlock.col - bColOffset_,
+                                  info.globalRowIdx - myStartBlock.row - bRowOffset_),
+                  1, mpiVec.get(), info.mpiRank, collectTag, comm_.get(),
+                  collectRecvs_.back().get_and_activate());
+      }
     }
   }
 
@@ -121,17 +131,17 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       if (gen.get_mpi_rank(j) == comm_.rank()) {
         auto info = gen.get_block_info(j);
-        for(IntType c = 0; c < info.numCols; ++c) {
-          std::memcpy(recvView_.data() + c * info.numRows,
-                      &B_(info.localColIdx + c, info.localRowIdx), info.numRows * sizeof(T));
-        }
-        // auto mpiVec = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, B_.ld_inner(),
-        //                                                MPIMatchElementaryType<T>::get());
         const auto targetRank = (i + comm_.size() - rankOffset_) % comm_.size();
-        // MPI_Send(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
-        //          comm_.get());
-        MPI_Send(recvView_.data(), info.numRows * info.numCols, MPIMatchElementaryType<T>::get(),
-                 targetRank, collectTag, comm_.get());
+        if (targetRank != comm_.rank()) {
+          // Copy into send buffer. Only send to other ranks, since local data was already copied.
+          // Testing showed copying is faster than using custom mpi vec type directly.
+          for (IntType c = 0; c < info.numCols; ++c) {
+            std::memcpy(sendView_.data() + c * info.numRows,
+                        &B_(info.localColIdx + c, info.localRowIdx), info.numRows * sizeof(T));
+          }
+          MPI_Send(sendView_.data(), info.numRows * info.numCols, MPIMatchElementaryType<T>::get(),
+                   targetRank, collectTag, comm_.get());
+        }
       }
     }
   }
@@ -158,6 +168,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
 
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
+  std::swap(sendView_, recvView_);
 
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
     const auto &nextBlock = blocks_[nextBlockIdx];
@@ -186,7 +197,6 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
                    C_.ld_inner());
     }
   }
-  std::swap(sendView_, recvView_);
   state_ = stepIdx_ >= comm_.size() - 1 ? TileState::Empty : TileState::PartiallyProcessed;
 }
 
@@ -196,7 +206,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntTyp
   IntType numBlocks = blocks_.size();
 
   if(stepIdx_ < numBlocks) {
-    auto blockView = myStartIdx_ == stepIdx_ ? sendView_ : recvView_;
+    auto blockView = myStartIdx_ == stepIdx_ ? recvView_ : sendView_;
     auto block = blocks_[stepIdx_];
     const auto sourceRank = (stepIdx_ + comm_.size() - rankOffset_) % comm_.size();
     MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
