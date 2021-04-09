@@ -131,9 +131,11 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
           blocks.emplace_back(block);
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descB.comm().size()) {
-            tiles[tileIdx % numTiles].prepare(blocks.begin(), blocks.end());
+            auto& t = tiles[tileIdx % numTiles];
+            t.prepare(blocks.begin(), blocks.end());
             blocks.resize(0);
             ++tileIdx;
+            t.process_step(betaColIndeces);  // do one step for better comm / compute overlap
           }
 
           if (tileIdx == numTiles) {
@@ -155,7 +157,9 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
 
   if (blocks.size()) {
     // Prepare with remaining blocks
-    tiles[tileIdx].prepare(blocks.begin(), blocks.end());
+    auto& t = tiles[tileIdx];
+    t.prepare(blocks.begin(), blocks.end());
+    t.process_step(betaColIndeces);  // do one step for better comm / compute overlap
     blocks.resize(0);
   }
   // Process remaining blocks
