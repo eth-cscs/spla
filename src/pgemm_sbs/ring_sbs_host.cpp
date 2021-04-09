@@ -40,6 +40,7 @@
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "pgemm_ssb/add_kernel.hpp"
+#include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
@@ -81,6 +82,7 @@ RingSBSHost<T, BLOCK_GEN>::RingSBSHost(
 template <typename T, typename BLOCK_GEN>
 auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                         std::vector<Block>::const_iterator end) -> void {
+  SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
   assert(begin != end);
 
@@ -136,6 +138,7 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
 
 template <typename T, typename BLOCK_GEN>
 auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void {
+  SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
@@ -159,6 +162,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
     }
 
     if (A_.dim_inner() != 0) {
+      SCOPED_TIMING("gemm")
       T beta = 1.0;
       if(!betaColIndeces.count(block.col)) {
         betaColIndeces.emplace(block.col);
@@ -176,6 +180,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
 
 template <typename T, typename BLOCK_GEN>
 auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void {
+  SCOPED_TIMING("broadcast_step")
   IntType numBlocks = blocks_.size();
 
   if(stepIdx_ < numBlocks) {
@@ -185,6 +190,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntTyp
     MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
               sourceRank, comm_.get());
     if (A_.dim_inner() != 0) {
+      SCOPED_TIMING("gemm")
       T beta = 1.0;
       if (!betaColIndeces.count(block.col)) {
         betaColIndeces.emplace(block.col);
