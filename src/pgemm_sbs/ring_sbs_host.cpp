@@ -114,7 +114,8 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
     }
   }
 
-  START_TIMING("send")
+  START_TIMING("isend")
+  collectSends_.resize(0);
   // Send data required for blocks in ring
   for (IntType i = 0; i < blocks_.size(); ++i) {
     auto gen = baseMatGen_.create_sub_generator(blocks_[i]);
@@ -124,12 +125,20 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
         auto mpiVec = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, B_.ld_inner(),
                                                        MPIMatchElementaryType<T>::get());
         const auto targetRank = (i + comm_.size() - rankOffset_) % comm_.size();
-        MPI_Send(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
-                 comm_.get());
+        collectSends_.emplace_back();
+        MPI_Isend(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
+                 comm_.get(), collectSends_.back().get_and_activate());
       }
     }
   }
-  STOP_TIMING("send")
+  STOP_TIMING("isend")
+
+  START_TIMING("wait_send")
+  // Wait for all sends
+  for (auto &s : collectSends_) {
+    s.wait_if_active();
+  }
+  STOP_TIMING("wait_send")
 
   START_TIMING("wait_recv")
   // Wait for all receives
