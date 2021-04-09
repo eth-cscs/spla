@@ -40,6 +40,7 @@
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "pgemm_ssb/add_kernel.hpp"
+#include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
@@ -84,6 +85,7 @@ template <typename T, typename BLOCK_GEN>
 auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                                std::vector<Block>::const_iterator end)
     -> void {
+  SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
   assert(begin != end);
 
@@ -135,6 +137,7 @@ auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 
 template <typename T, typename BLOCK_GEN>
 auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
+  SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
@@ -154,6 +157,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
   if (blockIdx < blocks_.size()) {
     const auto &block = blocks_[blockIdx];
     if (A_.dim_inner() != 0) {
+      SCOPED_TIMING("gemm")
       gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
                    A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
                    B_.ld_inner(), 1.0, sendView_.data(), block.numRows);
@@ -178,6 +182,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
+  SCOPED_TIMING("reduction_step")
   const auto &block = blocks_[stepIdx_];
 
   sendReq_.wait_if_active();
@@ -202,6 +207,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   if (A_.dim_inner() == 0) {
     std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
   } else {
+    SCOPED_TIMING("gemm")
     gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
                  A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
                  B_.ld_inner(), 0.0, sendView_.data(), block.numRows);
@@ -216,6 +222,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
+  SCOPED_TIMING("reduction_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -240,6 +247,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
+  SCOPED_TIMING("ring_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
