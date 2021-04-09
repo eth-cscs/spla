@@ -114,31 +114,28 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
     }
   }
 
-  START_TIMING("isend")
-  collectSends_.resize(0);
+  START_TIMING("send")
   // Send data required for blocks in ring
   for (IntType i = 0; i < blocks_.size(); ++i) {
     auto gen = baseMatGen_.create_sub_generator(blocks_[i]);
     for (IntType j = 0; j < gen.num_blocks(); ++j) {
       if (gen.get_mpi_rank(j) == comm_.rank()) {
         auto info = gen.get_block_info(j);
-        auto mpiVec = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, B_.ld_inner(),
-                                                       MPIMatchElementaryType<T>::get());
+        for(IntType c = 0; c < info.numCols; ++c) {
+          std::memcpy(recvView_.data() + c * info.numRows,
+                      &B_(info.localColIdx + c, info.localRowIdx), info.numRows * sizeof(T));
+        }
+        // auto mpiVec = MPIDatatypeHandle::create_vector(info.numCols, info.numRows, B_.ld_inner(),
+        //                                                MPIMatchElementaryType<T>::get());
         const auto targetRank = (i + comm_.size() - rankOffset_) % comm_.size();
-        collectSends_.emplace_back();
-        MPI_Isend(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
-                 comm_.get(), collectSends_.back().get_and_activate());
+        // MPI_Send(&B_(info.localColIdx, info.localRowIdx), 1, mpiVec.get(), targetRank, collectTag,
+        //          comm_.get());
+        MPI_Send(recvView_.data(), info.numRows * info.numCols, MPIMatchElementaryType<T>::get(),
+                 targetRank, collectTag, comm_.get());
       }
     }
   }
-  STOP_TIMING("isend")
-
-  START_TIMING("wait_send")
-  // Wait for all sends
-  for (auto &s : collectSends_) {
-    s.wait_if_active();
-  }
-  STOP_TIMING("wait_send")
+  STOP_TIMING("send")
 
   START_TIMING("wait_recv")
   // Wait for all receives

@@ -88,7 +88,6 @@ private:
   MPIRequestHandle recvReq_;
   std::vector<Block> blocks_;
   std::vector<MPIRequestHandle> collectRecvs_;
-  std::vector<MPIRequestHandle> collectSends_;
   TileState state_;
 
   // fixed
