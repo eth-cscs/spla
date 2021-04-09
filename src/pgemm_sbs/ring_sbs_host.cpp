@@ -89,10 +89,9 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   stepIdx_ = 0;
   rankOffset_ = baseMatGen_.create_sub_generator(blocks_.front()).get_mpi_rank(0);
   myStartIdx_ = (rankOffset_ + comm_.rank()) % comm_.size();
-  // useRing_ =
-  //     IsDisjointGenerator<BLOCK_GEN>::value &&
-  //     static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
-  useRing_ = true;
+  useRing_ =
+      IsDisjointGenerator<BLOCK_GEN>::value &&
+      static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
 
   // Issue receives if this rank holds initial block
   collectRecvs_.resize(0);

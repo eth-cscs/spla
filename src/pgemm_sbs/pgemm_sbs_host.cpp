@@ -29,17 +29,18 @@
 #include <atomic>
 #include <cmath>
 #include <memory>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
-#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/block.hpp"
+#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "pgemm_sbs/ring_sbs_host.hpp"
+#include "pgemm_ssb/block_size_selection_ssb.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -87,7 +88,11 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
   IntType rowsInBlock = 500;
   IntType colsInBlock = 500;
 
-// Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+      SPLA_FILL_MODE_FULL, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
+      descB.comm().size(), k, n, bRowOffset, bColOffset, ctx.tile_size_host(), minBlockSize);
+
+  // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =
       std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
 
