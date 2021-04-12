@@ -8,7 +8,6 @@ set(SPLA_SOURCE_FILES
 	pgemm_sbs/pgemm_sbs_host.cpp
 	pgemm_sbs/stripe_host.cpp
 	pgemm_sbs/ring_sbs_host.cpp
-	pgemm_sbs/ring_sbs_gpu.cpp
 	gemm/gemm_host.cpp
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp
@@ -25,6 +24,7 @@ if(SPLA_CUDA OR SPLA_ROCM)
 				pgemm_ssb/pgemm_ssb_gpu.cpp
 				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp
+            	pgemm_sbs/ring_sbs_gpu.cpp
 				gemm/gemm_gpu.cpp
 				gpu_util/multiply_gpu.cpp
 		)
