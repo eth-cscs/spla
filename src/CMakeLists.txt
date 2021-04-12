@@ -8,6 +8,7 @@ set(SPLA_SOURCE_FILES
 	pgemm_sbs/pgemm_sbs_host.cpp
 	pgemm_sbs/stripe_host.cpp
 	pgemm_sbs/ring_sbs_host.cpp
+	pgemm_sbs/ring_sbs_gpu.cpp
 	gemm/gemm_host.cpp
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp

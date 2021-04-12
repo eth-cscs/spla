@@ -76,6 +76,19 @@ public:
 
   auto size() const -> IntType { return rows_ * cols_; }
 
+  auto copy_back(GPU_VIEW_TYPE view,IntType rowOffset, IntType colOffset,
+                const gpu::StreamType &stream) const -> GPU_VIEW_TYPE {
+    if (matrixGPU_.empty()) {
+      assert(buffer_->data<ValueType>() <= view.data() &&
+             buffer_->data<ValueType>() + buffer_->size<ValueType>() >=
+                 view.data() + view.ld_inner() * view.dim_outer());
+      copy_from_gpu_async(
+          stream, GPUArrayConstView2D<ValueType>(view),
+          HostArrayView2D<ValueType>(const_cast<ValueType *>(&matrixHost_(colOffset, rowOffset)),
+                                     view.dim_outer(), view.dim_inner(), matrixHost_.ld_inner()));
+    }
+  }
+
   auto get_tile(IntType rowOffset, IntType colOffset, IntType rows, IntType cols,
                 const gpu::StreamType &stream) const -> GPU_VIEW_TYPE {
     assert(rowOffset + rows <= rows_);
