@@ -234,6 +234,10 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
   auto& proc = ringProcs_[stepIdx_ % ringProcs_.size()];
   auto& nextProc = ringProcs_[(stepIdx_ + 1) % ringProcs_.size()];
 
+  if (stepIdx_ == 0) {
+    // Make sure memory transfers for assembling the first block are done.
+    gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
+  }
 
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
