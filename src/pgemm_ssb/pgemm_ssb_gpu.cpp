@@ -147,17 +147,15 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA,
     std::vector<RingProcessor<T>> ringBlocks;
     ringBlocks.reserve(numTiles * numRingProcs);
     for (IntType j = 0; j < numRingProcs; ++j) {
-      auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
-                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                HostArrayConstView2D<T>(A, m, kLocal, lda), tileSizeGEMM,
-                                *(gpuBuffersIt++));
+      auto matA = gpuPtrA
+                      ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
+                      : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, m, kLocal, lda),
+                                                  tileSizeGEMM, *(gpuBuffersIt++));
 
-      auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
-                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                HostArrayConstView2D<T>(B, n, kLocal, ldb), tileSizeGEMM,
-                                *(gpuBuffersIt++));
+      auto matB = gpuPtrB
+                      ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
+                      : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(B, n, kLocal, ldb),
+                                                  tileSizeGEMM, *(gpuBuffersIt++));
       ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(eventHandlesIt++),
                               *(streamHandlesIt++), *(pinnedBuffersIt++), *(gpuBuffersIt++),
                               std::move(matA), std::move(matB));

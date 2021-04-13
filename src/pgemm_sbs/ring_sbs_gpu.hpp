@@ -62,8 +62,7 @@ struct RingProcessorSBS {
   RingProcessorSBS(IntType blockSize_, GPUBlasHandle blasHandle_,
                    std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
                    std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
-                   GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
-                   GPUMatrixAccessor<GPUArrayView2D<T>> matC_)
+                   GPUConstMatrixAccessor<T> matA_, GPUMatrixAccessor<T> matC_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
         bufferHost(std::move(bufferHost_)),
@@ -84,8 +83,8 @@ struct RingProcessorSBS {
   GPUBlasHandle blasHandle;
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matA;
-  GPUMatrixAccessor<GPUArrayView2D<T>> matC;
+  GPUConstMatrixAccessor<T> matA;
+  GPUMatrixAccessor<T> matC;
   HostArrayView1D<T> sendView;
   HostArrayView1D<T> recvView;
   GPUArrayView1D<T> tileViewGPU;

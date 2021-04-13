@@ -59,9 +59,8 @@ template <typename T>
 struct RingProcessor {
   RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
                 GPUStreamHandle recvStream_, std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-                std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
-                GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
-                GPUMatrixAccessor<GPUArrayConstView2D<T>> matB_)
+                std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_, GPUConstMatrixAccessor<T> matA_,
+                GPUConstMatrixAccessor<T> matB_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
         event(std::move(event_)),
@@ -86,8 +85,8 @@ struct RingProcessor {
   GPUStreamHandle recvStream;
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matA;
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matB;
+  GPUConstMatrixAccessor<T> matA;
+  GPUConstMatrixAccessor<T> matB;
   HostArrayView1D<T> tileViewHost;
   GPUArrayView1D<T> tileViewGPU;
   GPUArrayView1D<T> recvViewGPU;

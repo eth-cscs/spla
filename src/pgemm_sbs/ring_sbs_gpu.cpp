@@ -56,10 +56,9 @@ static constexpr int collectTag = 1;
 static constexpr int ringTag = 2;
 
 template <typename T>
-static auto sbs_gemm_gpu_async(GPUBlasHandle& blasHandle, T alpha,
-                           GPUMatrixAccessor<GPUArrayConstView2D<T>> matA,
-                           GPUMatrixAccessor<GPUArrayConstView2D<T>> matB, T beta,
-                           GPUMatrixAccessor<GPUArrayView2D<T>> matC) -> void {
+static auto sbs_gemm_gpu_async(GPUBlasHandle& blasHandle, T alpha, GPUConstMatrixAccessor<T> matA,
+                               GPUConstMatrixAccessor<T> matB, T beta, GPUMatrixAccessor<T> matC)
+    -> void {
   const IntType m = matC.rows();
   const IntType n = matC.cols();
   const IntType k = matA.cols();
@@ -281,10 +280,10 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
       auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
       gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
 
-      sbs_gemm_gpu_async(proc.blasHandle, alpha_,
-                     proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
-                     GPUMatrixAccessor<GPUArrayConstView2D<T>>(blockViewGPU), beta,
-                     proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
+      sbs_gemm_gpu_async<T>(proc.blasHandle, alpha_,
+                            proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
+                            GPUConstMatrixAccessor<T>(blockViewGPU), beta,
+                            proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
       gpu::event_record(event.get(), proc.blasHandle.stream_handle().get());
     }
   }

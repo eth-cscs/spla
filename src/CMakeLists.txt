@@ -22,7 +22,6 @@ if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
 				pgemm_ssb/ring_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
-				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp
             	pgemm_sbs/ring_sbs_gpu.cpp
 				gemm/gemm_gpu.cpp
