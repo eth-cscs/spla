@@ -31,6 +31,7 @@
 #include <array>
 #include <memory>
 #include <vector>
+#include <deque>
 #include <unordered_set>
 
 #include "block_generation/block.hpp"
@@ -58,14 +59,13 @@ namespace spla {
 // Provides resources to proccess a block
 template <typename T>
 struct RingProcessorSBS {
-  RingProcessorSBS(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
+  RingProcessorSBS(IntType blockSize_, GPUBlasHandle blasHandle_,
                    std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
                    std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
                    GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
                    GPUMatrixAccessor<GPUArrayView2D<T>> matC_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
-        event(std::move(event_)),
         bufferHost(std::move(bufferHost_)),
         bufferGPU(std::move(bufferGPU_)),
         matA(std::move(matA_)),
@@ -82,7 +82,6 @@ struct RingProcessorSBS {
 
   IntType blockSize;
   GPUBlasHandle blasHandle;
-  GPUEventHandle event;
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
   GPUMatrixAccessor<GPUArrayConstView2D<T>> matA;
@@ -110,7 +109,8 @@ public:
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.
-  auto process_step(std::unordered_set<IntType>& betaColIndeces) -> bool;
+  auto process_step(std::unordered_set<IntType>& betaColIndeces,
+                    std::deque<GPUEventHandle>& colEvents) -> bool;
 
   // Must be called after all processing steps are done and before preparing for more blocks.
   auto finalize() -> void;
@@ -124,9 +124,11 @@ public:
   }
 
 private:
-  auto process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void;
+  auto process_step_ring(std::unordered_set<IntType>& betaColIndeces,
+                         std::deque<GPUEventHandle>& colEvents) -> void;
 
-  auto process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void;
+  auto process_step_broadcast(std::unordered_set<IntType>& betaColIndeces,
+                              std::deque<GPUEventHandle>& colEvents) -> void;
 
   // state dependend
   bool useRing_ = false;

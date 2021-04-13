@@ -120,11 +120,12 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   const IntType maxBlockSize =
       std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
 
-  // const IntType numRingProcs = 2;  // Must be at least 2 for ring to work
-  // const IntType numTiles =
-  //     std::max<IntType>(1, (ctx.num_tiles() + numRingProcs - 1) / numRingProcs);
-  const IntType numRingProcs = 1;
-  const IntType numTiles = 1;
+  const IntType numRingProcs = 2;
+  const IntType numTiles =
+      std::max<IntType>(1, (ctx.num_tiles() + numRingProcs - 1) / numRingProcs);
+
+  rowsInBlock = 1;
+  colsInBlock = 1;
 
   /*************************************
    * Create tiles
@@ -133,7 +134,6 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   auto pinnedBuffersIt = ctx.pinned_buffers(numTiles * (numRingProcs + 1)).begin();
   auto gpuBuffersIt = ctx.gpu_buffers(numTiles * numRingProcs * 3).begin();
   auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingProcs).begin();
-  auto eventHandlesIt = ctx.gpu_event_handles(numTiles * numRingProcs).begin();
   auto commsIt = descB.get_comms(numTiles).begin();
 
   std::vector<RingSBSGPU<T, BLOCK_GEN>> tiles;
@@ -160,9 +160,8 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
                                 HostArrayView2D<T>(C, n, mLocal, ldc), tileSizeGEMM,
                                 *(gpuBuffersIt++));
 
-      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(eventHandlesIt++),
-                              *(pinnedBuffersIt++), *(gpuBuffersIt++), std::move(matA),
-                              std::move(matC));
+      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(pinnedBuffersIt++),
+                              *(gpuBuffersIt++), std::move(matA), std::move(matC));
     }
 
     tiles.emplace_back(ringThreshold, maxBlockSize, *(commsIt++), std::move(ringBlocks), gen, alpha,
@@ -176,6 +175,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   std::vector<Block> blocks;
   blocks.reserve(descB.comm().size());
   std::unordered_set<IntType> betaColIndeces;
+  auto& colEvents = ctx.gpu_event_handles(20);
 
   IntType tileIdx = 0;
 
@@ -200,7 +200,8 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
             t.prepare(blocks.begin(), blocks.end());
             blocks.resize(0);
             ++tileIdx;
-            t.process_step(betaColIndeces);  // do one step for better comm / compute overlap
+            t.process_step(betaColIndeces,
+                           colEvents);  // do one step for better comm / compute overlap
           }
 
           if (tileIdx == numTiles) {
@@ -210,7 +211,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
               tileToProcess = false;
               // Interleave processing to hide communication cost
               for (auto &t : tiles) {
-                tileToProcess |= t.process_step(betaColIndeces);
+                tileToProcess |= t.process_step(betaColIndeces, colEvents);
               }
             }
             tileIdx = 0;
@@ -224,7 +225,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
     // Prepare with remaining blocks
     auto &t = tiles[tileIdx];
     t.prepare(blocks.begin(), blocks.end());
-    t.process_step(betaColIndeces);  // do one step for better comm / compute overlap
+    t.process_step(betaColIndeces, colEvents);  // do one step for better comm / compute overlap
     blocks.resize(0);
   }
   // Process remaining blocks
@@ -232,7 +233,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   while (tileToProcess) {
     tileToProcess = false;
     for (auto &t : tiles) {
-      tileToProcess |= t.process_step(betaColIndeces);
+      tileToProcess |= t.process_step(betaColIndeces, colEvents);
     }
   }
 

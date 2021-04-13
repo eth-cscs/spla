@@ -224,7 +224,8 @@ auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void {
+auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& betaColIndeces,
+                                                 std::deque<GPUEventHandle>& colEvents) -> void {
   SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
@@ -248,7 +249,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
     // Make sure data is on GPU before receiving again
     gpu::check_status(gpu::stream_synchronize(nextProc.blasHandle.stream_handle().get()));
     const auto &nextBlock = blocks_[nextBlockIdx];
-    MPI_Irecv(proc.recvView.data(), nextBlock.numCols * nextBlock.numRows,
+    MPI_Irecv(nextProc.recvView.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
               recvReq_.get_and_activate());
   }
@@ -274,29 +275,37 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
+
+      // Make sure another stream is writing to the same location. Select event based on coloumn
+      // index, which determines the write location.
+      auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
+      gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
+
       sbs_gemm_gpu_async(proc.blasHandle, alpha_,
                      proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
                      GPUMatrixAccessor<GPUArrayConstView2D<T>>(blockViewGPU), beta,
                      proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
-
+      gpu::event_record(event.get(), proc.blasHandle.stream_handle().get());
     }
   }
   state_ = stepIdx_ >= comm_.size() - 1 ? TileState::Empty : TileState::PartiallyProcessed;
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void {
-}
+auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces,
+                                                      std::deque<GPUEventHandle>& colEvents)
+    -> void {}
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSGPU<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaColIndeces) -> bool {
+auto RingSBSGPU<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaColIndeces,
+                                            std::deque<GPUEventHandle>& colEvents) -> bool {
   if (blocks_.empty()) return false;
 
   if(stepIdx_ < comm_.size()) {
     if (useRing_) {
-      this->process_step_ring(betaColIndeces);
+      this->process_step_ring(betaColIndeces, colEvents);
     } else {
-      this->process_step_broadcast(betaColIndeces);
+      this->process_step_broadcast(betaColIndeces, colEvents);
     }
   }
 
