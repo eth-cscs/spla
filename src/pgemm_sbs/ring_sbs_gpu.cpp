@@ -128,7 +128,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
   // useRing_ =
   //     IsDisjointGenerator<BLOCK_GEN>::value &&
   //     static_cast<double>(blocks_.size()) >= static_cast<double>(comm_.size()) * ringThreshold_;
-  useRing_ = true;
+  useRing_ = false;
 
   auto& firstProc = ringProcs_.front();
   // Make sure no memory transfer is still running before receiving
@@ -275,7 +275,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
         beta = beta_;
       }
 
-      // Make sure another stream is writing to the same location. Select event based on coloumn
+      // Make sure no other stream is writing to the same location. Select event based on coloumn
       // index, which determines the write location.
       auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
       gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
@@ -293,7 +293,52 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
 template <typename T, typename BLOCK_GEN>
 auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces,
                                                       std::deque<GPUEventHandle>& colEvents)
-    -> void {}
+    -> void {
+  SCOPED_TIMING("broadcast_step")
+  IntType numBlocks = blocks_.size();
+
+  if (stepIdx_ < numBlocks) {
+    const auto sourceRank = (stepIdx_ + comm_.size() - rankOffset_) % comm_.size();
+    auto block = blocks_[stepIdx_];
+    auto& proc = ringProcs_[stepIdx_ % ringProcs_.size()];
+    auto& firstProc = ringProcs_.front();
+    auto blockView = HostArrayView2D<T>(
+        sourceRank == comm_.rank() ? firstProc.recvView.data() : proc.sendView.data(),
+        block.numCols, block.numRows);
+    auto blockViewGPU = GPUArrayView2D<T>(proc.tileViewGPU.data(), block.numCols, block.numRows);
+
+    // Make sure memory transfers are done before overwriting data through broadcast
+    gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
+
+    MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
+              sourceRank, comm_.get());
+
+    if (proc.matA.size() != 0) {
+      SCOPED_TIMING("gemm")
+      copy_to_gpu_async(proc.blasHandle.stream_handle().get(), HostArrayConstView2D<T>(blockView),
+                        blockViewGPU);
+
+      T beta = RealValueGPU<T>::create(1.0);
+      if(!betaColIndeces.count(block.col)) {
+        betaColIndeces.emplace(block.col);
+        beta = beta_;
+      }
+
+      // Make sure no other stream is writing to the same location. Select event based on coloumn
+      // index, which determines the write location.
+      auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
+      gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
+
+      sbs_gemm_gpu_async<T>(proc.blasHandle, alpha_,
+                            proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
+                            GPUConstMatrixAccessor<T>(blockViewGPU), beta,
+                            proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
+      gpu::event_record(event.get(), proc.blasHandle.stream_handle().get());
+    }
+  }
+
+  state_ = stepIdx_ >= numBlocks - 1 ? TileState::Empty : TileState::PartiallyProcessed;
+}
 
 template <typename T, typename BLOCK_GEN>
 auto RingSBSGPU<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaColIndeces,

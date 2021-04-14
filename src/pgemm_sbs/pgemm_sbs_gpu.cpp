@@ -124,9 +124,6 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   const IntType numTiles =
       std::max<IntType>(1, (ctx.num_tiles() + numRingProcs - 1) / numRingProcs);
 
-  rowsInBlock = 1;
-  colsInBlock = 1;
-
   /*************************************
    * Create tiles
    *************************************/
