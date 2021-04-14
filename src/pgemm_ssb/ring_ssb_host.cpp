@@ -144,11 +144,15 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring() -> void {
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
   const IntType nextBlockIdx = (myStartIdx_ + stepIdx_ + 1) % comm_.size();
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
+  sendReq_.wait_if_active();
   std::swap(sendView_, recvView_);
 
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
+    SCOPED_TIMING("irecv")
     const auto &nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(recvView_.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -164,6 +168,7 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring() -> void {
                    B_.ld_inner(), 1.0, sendView_.data(), block.numRows);
     }
     if (stepIdx_ < comm_.size() - 1) {  // continue sending around in ring
+      SCOPED_TIMING("send")
       MPI_Isend(sendView_.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
                 sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
     } else {  // send final result to target rank
@@ -186,9 +191,12 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   SCOPED_TIMING("reduction_step")
   const auto &block = blocks_[stepIdx_];
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
 
   if (stepIdx_) {
+    SCOPED_TIMING("add_result")
     const auto &previousBlock = blocks_[stepIdx_ - 1];
     auto gen = baseMatGen_.create_sub_generator(previousBlock);
     HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
@@ -214,9 +222,11 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction() -> void {
                  B_.ld_inner(), 0.0, sendView_.data(), block.numRows);
   }
 
+  START_TIMING("iallreduce")
   mpi_check_status(MPI_Iallreduce(MPI_IN_PLACE, sendView_.data(), block.numCols * block.numRows,
                                   MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get(),
                                   sendReq_.get_and_activate()));
+  STOP_TIMING("iallreduce")
 
   state_ = TileState::PartiallyProcessed;
 }
@@ -232,6 +242,7 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
   auto gen = baseMatGen_.create_sub_generator(previousBlock);
   HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
                                      previousBlock.numRows);
+  SCOPED_TIMING("add_result")
   for (IntType i = 0; i < gen.num_blocks(); ++i) {
     const auto targetRank = gen.get_mpi_rank(i);
     if (targetRank == comm_.rank() || targetRank < 0) {
@@ -254,6 +265,7 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
   recvReq_.wait_if_active();
 
   IntType offset = 0;
+  SCOPED_TIMING("add_result")
   for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
     resultRecvs_[i].wait_if_active();
     const auto &info = myBlockInfos_[i].second;

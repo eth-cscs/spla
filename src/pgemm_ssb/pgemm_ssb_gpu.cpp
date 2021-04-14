@@ -49,6 +49,7 @@
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/spla.hpp"
+#include "timing/timing.hpp"
 #include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
@@ -78,6 +79,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
                             int cColOffset, SplaFillMode cFillMode,
                             MatrixDistributionInternal &descC, ContextInternal &ctx,
                             BLOCK_GEN gen) {
+  SCOPED_TIMING("pgemm_ssb_gpu")
   check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, gen.local_rows(descC.comm().rank()),
                    gen.local_cols(descC.comm().rank()), kLocal, A, lda, B, ldb, C, ldc);
 

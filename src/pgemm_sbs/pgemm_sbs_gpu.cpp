@@ -76,6 +76,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
                             int ldb, int bRowOffset, int bColOffset,
                             MatrixDistributionInternal &descB, T beta, T *C, int ldc,
                             ContextInternal &ctx, BLOCK_GEN gen) {
+  SCOPED_TIMING("pgemm_sbs_gpu")
   check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
                    gen.local_cols(descB.comm().rank()), gen.local_rows(descB.comm().rank()), A, lda,
                    B, ldb, C, ldc);

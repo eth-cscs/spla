@@ -130,7 +130,9 @@ auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 
   auto& firstProc = ringProcs_.front();
   // Make sure no memory transfer is still running before receiving
+  START_TIMING("stream_wait")
   gpu::check_status(gpu::stream_synchronize(firstProc.blasHandle.stream_handle().get()));
+  STOP_TIMING("stream_wait")
 
   // Issue receives if this rank holds initial block
   collectRecvs_.resize(0);
@@ -233,16 +235,23 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
 
   if (stepIdx_ == 0) {
     // Make sure memory transfers for assembling the first block are done.
+    START_TIMING("stream_wait")
     gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
+    STOP_TIMING("stream_wait")
   }
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
   std::swap(proc.sendView, proc.recvView);
 
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
     // Make sure data is on GPU before receiving again
+    START_TIMING("stream_wait")
     gpu::check_status(gpu::stream_synchronize(nextProc.blasHandle.stream_handle().get()));
+    STOP_TIMING("stream_wait")
+    SCOPED_TIMING("irecv")
     const auto& nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(nextProc.recvView.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -259,6 +268,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
     }
 
     if (stepIdx_ < comm_.size() - 1) {
+      SCOPED_TIMING("isend")
       MPI_Isend(proc.sendView.data(), block.numRows * block.numCols,
                 MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get(),
                 sendReq_.get_and_activate());
@@ -305,10 +315,14 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType
     auto blockViewGPU = GPUArrayView2D<T>(proc.tileViewGPU.data(), block.numCols, block.numRows);
 
     // Make sure memory transfers are done before overwriting data through broadcast
+    START_TIMING("stream_wait")
     gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
+    STOP_TIMING("stream_wait")
 
+    START_TIMING("bcast")
     MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
               sourceRank, comm_.get());
+    STOP_TIMING("bcast")
 
     if (proc.matA.size() != 0) {
       SCOPED_TIMING("gemm")

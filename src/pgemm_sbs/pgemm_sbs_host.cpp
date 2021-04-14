@@ -44,6 +44,7 @@
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/spla.hpp"
+#include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
 #include "util/block_size_selection.hpp"
@@ -74,6 +75,7 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
                              int ldb, int bRowOffset, int bColOffset,
                              MatrixDistributionInternal &descB, T beta, T *C, int ldc,
                              ContextInternal &ctx, BLOCK_GEN gen) {
+  SCOPED_TIMING("pgemm_sbs_host")
   check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
                    gen.local_cols(descB.comm().rank()), gen.local_rows(descB.comm().rank()), A, lda,
                    B, ldb, C, ldc);

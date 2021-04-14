@@ -166,11 +166,14 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType> &b
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
   const IntType nextBlockIdx = (myStartIdx_ + stepIdx_ + 1) % comm_.size();
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
   std::swap(sendView_, recvView_);
 
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
+    SCOPED_TIMING("irecv")
     const auto &nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(recvView_.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -180,6 +183,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType> &b
   if (blockIdx < numBlocks) {
     const auto &block = blocks_[blockIdx];
     if (stepIdx_ < comm_.size() - 1) {
+      SCOPED_TIMING("isend")
       MPI_Isend(sendView_.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
                 sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
     }
@@ -210,8 +214,10 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntTyp
     auto blockView = myStartIdx_ == stepIdx_ ? recvView_ : sendView_;
     auto block = blocks_[stepIdx_];
     const auto sourceRank = (stepIdx_ + comm_.size() - rankOffset_) % comm_.size();
+    START_TIMING("bcast")
     MPI_Bcast(blockView.data(), block.numCols * block.numRows, MPIMatchElementaryType<T>::get(),
               sourceRank, comm_.get());
+    STOP_TIMING("bcast")
     if (A_.dim_inner() != 0) {
       SCOPED_TIMING("gemm")
       T beta = 1.0;

@@ -46,6 +46,7 @@
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "pgemm_ssb/add_kernel.hpp"
+#include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
@@ -118,6 +119,7 @@ RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(double ringThreshold, IntType maxBlockSize,
 template <typename T, typename BLOCK_GEN>
 auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                        std::vector<Block>::const_iterator end) -> void {
+  SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
 
   blocks_.assign(begin, end);
@@ -216,6 +218,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 
 template <typename T, typename BLOCK_GEN>
 auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
+  SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
   assert(ringProcs_.size() >= 2);
@@ -227,6 +230,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
     auto &nextProc = ringProcs_[(procIdx_ + 1) % ringProcs_.size()];
 
     if (recvBlockIdx < numBlocks) {
+      SCOPED_TIMING("irecv")
       const auto &recvBlock = blocks_[recvBlockIdx];
       MPI_Irecv(nextProc.tileViewHost.data(), recvBlock.numCols * recvBlock.numRows,
                 MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -234,6 +238,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
     }
 
     if (sendBlockIdx < numBlocks) {
+      SCOPED_TIMING("send")
       gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
       const auto &sendBlock = blocks_[sendBlockIdx];
       MPI_Send(proc.tileViewHost.data(), sendBlock.numRows * sendBlock.numCols,
@@ -241,10 +246,14 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
     }
 
     if (recvBlockIdx < numBlocks) {
+      START_TIMING("mpi_wait")
       recvReq_.wait_if_active();
+      STOP_TIMING("mpi_wait")
+
       const auto &recvBlock = blocks_[recvBlockIdx];
 
       if (nextProc.matA.rows() != 0) {
+        SCOPED_TIMING("add_before_send")
         copy_to_gpu_async(
             nextProc.recvStream.get(),
             HostArrayConstView1D<T>(nextProc.tileViewHost.data(),
@@ -253,7 +262,9 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
         nextProc.event.record(nextProc.recvStream.get());
         // make sure transfer of received result is done first to avoid scheduling
         // performance issues
+        START_TIMING("stream_wait")
         nextProc.event.stream_wait(nextProc.blasHandle.stream_handle().get());
+        STOP_TIMING("stream_wait")
         call_gpu_geam(nextProc.blasHandle.get(), gpu::blas::operation::None,
                       gpu::blas::operation::None, recvBlock.numRows, recvBlock.numCols,
                       RealValueGPU<T>::create(1.0), nextProc.recvViewGPU.data(), recvBlock.numRows,
@@ -269,6 +280,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
 
     if (sendBlockIdx < numBlocks) {
       if (proc.matA.rows() != 0 && numMultipliedBlocks_ < numBlocks) {
+        SCOPED_TIMING("gemm")
         const auto &block = blocks_[(sendBlockIdx + ringProcs_.size()) % blocks_.size()];
         const ValueType beta = RealValueGPU<T>::create(0.0);
 
@@ -277,7 +289,9 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
                           : gpu::blas::operation::ConjugateTranspose;
         // make sure transfer of received result is done first to avoid scheduling
         // performance issues
+        START_TIMING("stream_wait")
         nextProc.event.stream_wait(proc.blasHandle.stream_handle().get());
+        STOP_TIMING("stream_wait")
         // compute gemm
         multiply_gpu<ValueType>(
             proc.blasHandle.get(), opAGPU, gpu::blas::operation::None, alpha_,
@@ -303,6 +317,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingSSBGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
+  SCOPED_TIMING("reduction_step")
   const auto &block = blocks_[stepIdx_];
   auto &proc = ringProcs_[stepIdx_ % ringProcs_.size()];
 
@@ -312,13 +327,16 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
     // If no local contribution, make sure to overwrite previous received results
     std::memset(proc.tileViewHost.data(), 0, block.numCols * block.numRows * sizeof(T));
   }
+  START_TIMING("allreduce")
   mpi_check_status(MPI_Allreduce(MPI_IN_PLACE, proc.tileViewHost.data(),
                                  block.numCols * block.numRows,
                                  MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get()));
+  STOP_TIMING("allreduce")
 
   const bool resultOnHost = GPUMatC_.empty();
 
   if (resultOnHost) {
+    SCOPED_TIMING("add_result_host")
     using hostType = typename TypeTranslationHost<T>::type;
     auto matCHostConverted = HostArrayView2D<hostType>(
         reinterpret_cast<hostType *>(HostMatC_.data()), HostMatC_.dim_outer(),
@@ -344,6 +362,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
 
   } else {
     // result should be placed in gpu memory
+    SCOPED_TIMING("add_result_gpu")
 
     auto gen = baseMatGen_.create_sub_generator(block);
     HostArrayConstView2D<T> resultViewHost(proc.tileViewHost.data(), block.numCols, block.numRows);
@@ -369,6 +388,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
   }
 
   if (proc.matA.rows() != 0 && stepIdx_ + ringProcs_.size() < blocks_.size()) {
+    SCOPED_TIMING("gemm")
     const auto &nextBlock = blocks_[stepIdx_ + ringProcs_.size()];
     auto opAGPU = opA_ == SplaOperation::SPLA_OP_TRANSPOSE
                       ? gpu::blas::operation::Transpose
@@ -394,6 +414,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_reduction() -> void {
 template <typename T, typename BLOCK_GEN>
 auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
   assert(state_ == TileState::Processed);
+  SCOPED_TIMING("finalize")
 
   // add tile to result as final step
   const bool resultOnHost = GPUMatC_.empty();
@@ -407,6 +428,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
     const IntType lastRingBlockIdx = (myStartIdx_ + comm_.size() - 1) % comm_.size();
 
     // send final result to target rank
+    START_TIMING("send")
     if (lastRingBlockIdx < blocks_.size()) {
       const auto &block = blocks_[lastRingBlockIdx];
       auto &proc = ringProcs_[procIdx_];
@@ -421,8 +443,10 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
                  info.mpiRank, resultTag, comm_.get());
       }
     }
+    STOP_TIMING("send")
 
     if (!myBlockInfos_.empty()) {
+      SCOPED_TIMING("add_result")
       if (resultOnHost) {
         using hostType = typename TypeTranslationHost<T>::type;
         auto matCHostConverted = HostArrayView2D<hostType>(
@@ -433,7 +457,9 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
 
         IntType offset = 0;
         for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
+          START_TIMING("mpi_wait")
           resultRecvs_[i].wait_if_active();
+          STOP_TIMING("mpi_wait")
           const auto &info = myBlockInfos_[i].second;
 
           add_kernel(info.numRows, info.numCols, resultBufferHost_->data<hostType>() + offset,
@@ -447,7 +473,9 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
 
         IntType offset = 0;
         for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
+          START_TIMING("mpi_wait")
           resultRecvs_[i].wait_if_active();
+          STOP_TIMING("mpi_wait")
           const auto &info = myBlockInfos_[i].second;
 
           copy_to_gpu_async<T, T>(
