@@ -65,8 +65,7 @@ static auto sbs_gemm_gpu_async(GPUBlasHandle& blasHandle, T alpha, GPUConstMatri
   IntType rowBlockSize = m;
   if (matC.max_tile_size() < matC.size()) {
     // if not fully on GPU, try square size
-    rowBlockSize =
-        std::min<IntType>(std::sqrt(matC.max_tile_size()), rowBlockSize);
+    rowBlockSize = std::min<IntType>(std::sqrt(matC.max_tile_size()), rowBlockSize);
   }
 
   const IntType colBlockSize = std::min(matC.max_tile_size() / rowBlockSize, n);
@@ -115,7 +114,7 @@ RingSBSGPU<T, BLOCK_GEN>::RingSBSGPU(double ringThreshold, IntType maxBlockSize,
 
 template <typename T, typename BLOCK_GEN>
 auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
-                                              std::vector<Block>::const_iterator end) -> void {
+                                       std::vector<Block>::const_iterator end) -> void {
   SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
   assert(begin != end);
@@ -202,8 +201,8 @@ auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                           info.numRows * sizeof(T));
             }
           }
-          MPI_Send(firstProc.sendView.data(), info.numRows * info.numCols, MPIMatchElementaryType<T>::get(),
-                   targetRank, collectTag, comm_.get());
+          MPI_Send(firstProc.sendView.data(), info.numRows * info.numCols,
+                   MPIMatchElementaryType<T>::get(), targetRank, collectTag, comm_.get());
         }
       }
     }
@@ -212,11 +211,10 @@ auto RingSBSGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 
   START_TIMING("wait_recv")
   // Wait for all receives
-  for (auto &r : collectRecvs_) {
+  for (auto& r : collectRecvs_) {
     r.wait_if_active();
   }
   STOP_TIMING("wait_recv")
-
 
   state_ = TileState::Prepared;
 }
@@ -242,18 +240,17 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
   recvReq_.wait_if_active();
   std::swap(proc.sendView, proc.recvView);
 
-
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
     // Make sure data is on GPU before receiving again
     gpu::check_status(gpu::stream_synchronize(nextProc.blasHandle.stream_handle().get()));
-    const auto &nextBlock = blocks_[nextBlockIdx];
+    const auto& nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(nextProc.recvView.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
               recvReq_.get_and_activate());
   }
 
   if (blockIdx < numBlocks) {
-    const auto &block = blocks_[blockIdx];
+    const auto& block = blocks_[blockIdx];
     HostArrayConstView2D<T> blockView(proc.sendView.data(), block.numCols, block.numRows);
     GPUArrayView2D<T> blockViewGPU(proc.tileViewGPU.data(), block.numCols, block.numRows);
 
@@ -262,14 +259,15 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
     }
 
     if (stepIdx_ < comm_.size() - 1) {
-      MPI_Isend(proc.sendView.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
-                sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
+      MPI_Isend(proc.sendView.data(), block.numRows * block.numCols,
+                MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get(),
+                sendReq_.get_and_activate());
     }
 
     if (proc.matA.size() != 0) {
       SCOPED_TIMING("gemm")
       T beta = RealValueGPU<T>::create(1.0);
-      if(!betaColIndeces.count(block.col)) {
+      if (!betaColIndeces.count(block.col)) {
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
@@ -318,7 +316,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType
                         blockViewGPU);
 
       T beta = RealValueGPU<T>::create(1.0);
-      if(!betaColIndeces.count(block.col)) {
+      if (!betaColIndeces.count(block.col)) {
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
@@ -344,7 +342,7 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaCol
                                             std::deque<GPUEventHandle>& colEvents) -> bool {
   if (blocks_.empty()) return false;
 
-  if(stepIdx_ < comm_.size()) {
+  if (stepIdx_ < comm_.size()) {
     if (useRing_) {
       this->process_step_ring(betaColIndeces, colEvents);
     } else {

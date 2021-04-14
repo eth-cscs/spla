@@ -29,10 +29,10 @@
 #define SPLA_RING_SBS_GPU_HPP
 
 #include <array>
-#include <memory>
-#include <vector>
 #include <deque>
+#include <memory>
 #include <unordered_set>
+#include <vector>
 
 #include "block_generation/block.hpp"
 #include "gpu_util/gpu_blas_handle.hpp"
@@ -103,8 +103,8 @@ public:
              GPUArrayConstView2D<ValueType> GPUMatB, IntType bRowOffset, IntType bColOffset);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.

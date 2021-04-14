@@ -45,11 +45,11 @@
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "pgemm_sbs/ring_sbs_gpu.hpp"
-#include "util/block_size_selection.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/spla.hpp"
 #include "timing/timing.hpp"
+#include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
@@ -84,7 +84,6 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
 
   // always synchronize with stream 0 as part of API requirement
   gpu::check_status(gpu::stream_synchronize(nullptr));
-
 
   const T *hostPtrA;
   const T *gpuPtrA;
@@ -136,10 +135,11 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   std::vector<RingSBSGPU<T, BLOCK_GEN>> tiles;
   tiles.reserve(numTiles);
 
-  auto hostMatB = gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb, ldb);
+  auto hostMatB =
+      gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb, ldb);
 
-  auto gpuMatB =
-      gpuPtrB ? GPUArrayConstView2D<T>(gpuPtrB, n + bColOffset, ldb, ldb) : GPUArrayConstView2D<T>();
+  auto gpuMatB = gpuPtrB ? GPUArrayConstView2D<T>(gpuPtrB, n + bColOffset, ldb, ldb)
+                         : GPUArrayConstView2D<T>();
 
   for (IntType i = 0; i < numTiles; ++i) {
     std::vector<RingProcessorSBS<T>> ringBlocks;
@@ -169,7 +169,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   std::vector<Block> blocks;
   blocks.reserve(descB.comm().size());
   std::unordered_set<IntType> betaColIndeces;
-  auto& colEvents = ctx.gpu_event_handles(20);
+  auto &colEvents = ctx.gpu_event_handles(20);
 
   IntType tileIdx = 0;
 

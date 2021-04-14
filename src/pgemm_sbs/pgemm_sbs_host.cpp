@@ -40,13 +40,13 @@
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "pgemm_sbs/ring_sbs_host.hpp"
-#include "util/block_size_selection.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/spla.hpp"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
+#include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
@@ -81,7 +81,6 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
   HostArrayConstView2D<T> viewA(A, k, mLocal, lda);
   HostArrayConstView2D<T> viewB(B, n + bColOffset, ldb, ldb);
   HostArrayView2D<T> viewC(C, n, mLocal, ldc);
-
 
   const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
@@ -131,7 +130,7 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
           blocks.emplace_back(block);
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descB.comm().size()) {
-            auto& t = tiles[tileIdx % numTiles];
+            auto &t = tiles[tileIdx % numTiles];
             t.prepare(blocks.begin(), blocks.end());
             blocks.resize(0);
             ++tileIdx;
@@ -157,7 +156,7 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
 
   if (blocks.size()) {
     // Prepare with remaining blocks
-    auto& t = tiles[tileIdx];
+    auto &t = tiles[tileIdx];
     t.prepare(blocks.begin(), blocks.end());
     t.process_step(betaColIndeces);  // do one step for better comm / compute overlap
     blocks.resize(0);
@@ -170,7 +169,6 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
       tileToProcess |= t.process_step(betaColIndeces);
     }
   }
-
 }
 
 template <typename T>

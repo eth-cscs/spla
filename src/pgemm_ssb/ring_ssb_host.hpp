@@ -57,15 +57,15 @@ public:
   using ValueType = T;
 
   RingSSBHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-                     MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
-                     SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-                     const HostArrayConstView2D<ValueType> &B, ValueType beta,
-                     HostArrayView2D<ValueType> C);
+              MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+              std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
+              SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+              const HostArrayConstView2D<ValueType> &B, ValueType beta,
+              HostArrayView2D<ValueType> C);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.

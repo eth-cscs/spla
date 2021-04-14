@@ -154,12 +154,12 @@ auto RingSBSHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   }
   STOP_TIMING("wait_recv")
 
-
   state_ = TileState::Prepared;
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void {
+auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType> &betaColIndeces)
+    -> void {
   SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
@@ -187,7 +187,7 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
     if (A_.dim_inner() != 0) {
       SCOPED_TIMING("gemm")
       T beta = 1.0;
-      if(!betaColIndeces.count(block.col)) {
+      if (!betaColIndeces.count(block.col)) {
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
@@ -201,11 +201,12 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& b
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void {
+auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType> &betaColIndeces)
+    -> void {
   SCOPED_TIMING("broadcast_step")
   IntType numBlocks = blocks_.size();
 
-  if(stepIdx_ < numBlocks) {
+  if (stepIdx_ < numBlocks) {
     auto blockView = myStartIdx_ == stepIdx_ ? recvView_ : sendView_;
     auto block = blocks_[stepIdx_];
     const auto sourceRank = (stepIdx_ + comm_.size() - rankOffset_) % comm_.size();
@@ -229,10 +230,10 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntTyp
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingSBSHost<T, BLOCK_GEN>::process_step(std::unordered_set<IntType>& betaColIndeces) -> bool {
+auto RingSBSHost<T, BLOCK_GEN>::process_step(std::unordered_set<IntType> &betaColIndeces) -> bool {
   if (blocks_.empty()) return false;
 
-  if(stepIdx_ < comm_.size()) {
+  if (stepIdx_ < comm_.size()) {
     if (useRing_) {
       this->process_step_ring(betaColIndeces);
     } else {

@@ -30,9 +30,9 @@
 
 #include <atomic>
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
-#include <unordered_set>
 
 #include "block_generation/block.hpp"
 #include "memory/buffer.hpp"
@@ -62,8 +62,8 @@ public:
               ValueType beta, HostArrayView2D<ValueType> C);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.

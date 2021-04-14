@@ -58,9 +58,10 @@ namespace spla {
 template <typename T>
 struct RingProcessorSSB {
   RingProcessorSSB(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
-                GPUStreamHandle recvStream_, std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-                std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_, GPUConstMatrixAccessor<T> matA_,
-                GPUConstMatrixAccessor<T> matB_)
+                   GPUStreamHandle recvStream_,
+                   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
+                   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
+                   GPUConstMatrixAccessor<T> matA_, GPUConstMatrixAccessor<T> matB_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
         event(std::move(event_)),
@@ -100,14 +101,14 @@ public:
   using ValueType = T;
 
   RingSSBGPU(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
-          std::vector<RingProcessorSSB<T>> ringProcs,
-          std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
-          SplaOperation opA, ValueType alpha, ValueType beta, HostArrayView2D<ValueType> HostMatC,
-          GPUArrayView2D<ValueType> GPUMatC);
+             std::vector<RingProcessorSSB<T>> ringProcs,
+             std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
+             SplaOperation opA, ValueType alpha, ValueType beta,
+             HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.

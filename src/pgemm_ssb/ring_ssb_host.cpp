@@ -50,12 +50,14 @@ static constexpr int resultTag = 1;
 static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
-RingSSBHost<T, BLOCK_GEN>::RingSSBHost(
-    double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
-    std::shared_ptr<Buffer<MPIAllocator>> buffer,
-    std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen, SplaOperation opA,
-    ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-    const HostArrayConstView2D<ValueType> &B, ValueType beta, HostArrayView2D<ValueType> C)
+RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSize,
+                                       IntType numThreads, MPICommunicatorHandle comm,
+                                       std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                                       std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
+                                       BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
+                                       const HostArrayConstView2D<ValueType> &A,
+                                       const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                                       HostArrayView2D<ValueType> C)
     : state_(TileState::Empty),
       baseMatGen_(std::move(baseMatGen)),
       buffer_(std::move(buffer)),
@@ -83,8 +85,7 @@ RingSSBHost<T, BLOCK_GEN>::RingSSBHost(
 
 template <typename T, typename BLOCK_GEN>
 auto RingSSBHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
-                                               std::vector<Block>::const_iterator end)
-    -> void {
+                                        std::vector<Block>::const_iterator end) -> void {
   SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
   assert(begin != end);
@@ -267,7 +268,7 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
 
 template <typename T, typename BLOCK_GEN>
 auto RingSSBHost<T, BLOCK_GEN>::process_step() -> bool {
-  if(blocks_.empty()) return false;
+  if (blocks_.empty()) return false;
 
   if (useRing_) {
     if (stepIdx_ < comm_.size())
@@ -288,7 +289,6 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step() -> bool {
     ++stepIdx_;
     return stepIdx_ <= numBlocks;
   }
-
 }
 
 template class RingSSBHost<double, BlockCyclicGenerator>;

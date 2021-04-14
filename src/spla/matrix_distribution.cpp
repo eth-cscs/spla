@@ -264,6 +264,4 @@ SPLA_EXPORT SplaError spla_mat_dis_comm_fortran(SplaMatrixDistribution matDis, i
   }
   return SplaError::SPLA_SUCCESS;
 }
-
-
 }

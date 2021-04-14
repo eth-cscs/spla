@@ -91,12 +91,13 @@ static auto call_gpu_geam(const gpu::blas::HandleType &handle,
 }
 
 template <typename T, typename BLOCK_GEN>
-RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(
-    double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
-    std::vector<RingProcessorSSB<T>> ringProcs,
-    std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
-    SplaOperation opA, ValueType alpha, ValueType beta, HostArrayView2D<ValueType> HostMatC,
-    GPUArrayView2D<ValueType> GPUMatC)
+RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(double ringThreshold, IntType maxBlockSize,
+                                     MPICommunicatorHandle comm,
+                                     std::vector<RingProcessorSSB<T>> ringProcs,
+                                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
+                                     BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
+                                     ValueType beta, HostArrayView2D<ValueType> HostMatC,
+                                     GPUArrayView2D<ValueType> GPUMatC)
     : state_(TileState::Empty),
       comm_(std::move(comm)),
       baseMatGen_(std::move(baseMatGen)),
@@ -116,7 +117,7 @@ RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(
 
 template <typename T, typename BLOCK_GEN>
 auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
-                                              std::vector<Block>::const_iterator end) -> void {
+                                       std::vector<Block>::const_iterator end) -> void {
   assert(state_ == TileState::Empty);
 
   blocks_.assign(begin, end);
@@ -175,7 +176,8 @@ auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
     // If ring is used, start with first actual block to be proccessed. If start index is greater
     // than number of blocks, the first block to process will always be 0
     const IntType myFirstBlockIdx = (!useRing_ || myStartIdx_ >= blocks_.size()) ? 0 : myStartIdx_;
-    // Use offset if the first block being processed requires result from other rank before being send on
+    // Use offset if the first block being processed requires result from other rank before being
+    // send on
     const IntType procOffset =
         useRing_ && myStartIdx_ >= blocks_.size() ? ringProcs_.size() - 1 : 0;
     for (IntType i = 0; i < std::min<IntType>(ringProcs_.size(), blocks_.size()); ++i) {
@@ -224,7 +226,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
     auto &proc = ringProcs_[procIdx_];
     auto &nextProc = ringProcs_[(procIdx_ + 1) % ringProcs_.size()];
 
-    if(recvBlockIdx < numBlocks) {
+    if (recvBlockIdx < numBlocks) {
       const auto &recvBlock = blocks_[recvBlockIdx];
       MPI_Irecv(nextProc.tileViewHost.data(), recvBlock.numCols * recvBlock.numRows,
                 MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -238,8 +240,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
                MPIMatchElementaryType<T>::get(), sendRank_, ringTag, comm_.get());
     }
 
-
-    if(recvBlockIdx < numBlocks) {
+    if (recvBlockIdx < numBlocks) {
       recvReq_.wait_if_active();
       const auto &recvBlock = blocks_[recvBlockIdx];
 
@@ -288,7 +289,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::process_step_ring() -> void {
       }
     }
 
-    if(recvBlockIdx < numBlocks) {
+    if (recvBlockIdx < numBlocks) {
       // Advance proc index
       procIdx_ = (procIdx_ + 1) % ringProcs_.size();
     }

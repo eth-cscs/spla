@@ -31,12 +31,11 @@
 #include <memory>
 #include <vector>
 
-#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/block.hpp"
+#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
-#include "util/block_size_selection.hpp"
 #include "pgemm_ssb/ring_ssb_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
@@ -46,6 +45,7 @@
 #include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/blas_threads_guard.hpp"
+#include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
@@ -178,8 +178,8 @@ void pgemm_ssb_host(int m, int n, int kLocal, SplaOperation opA, T alpha, const 
                              descC.proc_grid_cols(), m, n, cRowOffset, cColOffset);
 
     pgemm_ssb_host_internal<T, BlockCyclicGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta,
-                                                     C, ldc, cRowOffset, cColOffset, cFillMode, descC,
-                                                     ctx, std::move(gen));
+                                                     C, ldc, cRowOffset, cColOffset, cFillMode,
+                                                     descC, ctx, std::move(gen));
 
   } else {
     MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowOffset, cColOffset);
@@ -197,9 +197,9 @@ template void pgemm_ssb_host<float>(int m, int n, int kLocal, SplaOperation opA,
 
 template void pgemm_ssb_host<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
                                      const double *A, int lda, const double *B, int ldb,
-                                     double beta, double *C, int ldc, int cRowOffset, int cColOffset,
-                                     SplaFillMode cFillMode, MatrixDistributionInternal &descC,
-                                     ContextInternal &ctx);
+                                     double beta, double *C, int ldc, int cRowOffset,
+                                     int cColOffset, SplaFillMode cFillMode,
+                                     MatrixDistributionInternal &descC, ContextInternal &ctx);
 
 template void pgemm_ssb_host<std::complex<float>>(
     int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
