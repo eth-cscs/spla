@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "pgemm_ssb/ring_host.hpp"
+#include "pgemm_ssb/ring_ssb_host.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -50,7 +50,7 @@ static constexpr int resultTag = 1;
 static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
-RingHost<T, BLOCK_GEN>::RingHost(
+RingSSBHost<T, BLOCK_GEN>::RingSSBHost(
     double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
     std::shared_ptr<Buffer<MPIAllocator>> buffer,
     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen, SplaOperation opA,
@@ -82,7 +82,7 @@ RingHost<T, BLOCK_GEN>::RingHost(
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
+auto RingSSBHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
                                                std::vector<Block>::const_iterator end)
     -> void {
   SCOPED_TIMING("prepare")
@@ -136,7 +136,7 @@ auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_ring() -> void {
   SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
@@ -181,7 +181,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   SCOPED_TIMING("reduction_step")
   const auto &block = blocks_[stepIdx_];
 
@@ -221,7 +221,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
   SCOPED_TIMING("reduction_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
@@ -246,7 +246,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
   SCOPED_TIMING("ring_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
@@ -266,7 +266,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step() -> bool {
+auto RingSSBHost<T, BLOCK_GEN>::process_step() -> bool {
   if(blocks_.empty()) return false;
 
   if (useRing_) {
@@ -291,14 +291,14 @@ auto RingHost<T, BLOCK_GEN>::process_step() -> bool {
 
 }
 
-template class RingHost<double, BlockCyclicGenerator>;
-template class RingHost<float, BlockCyclicGenerator>;
-template class RingHost<std::complex<double>, BlockCyclicGenerator>;
-template class RingHost<std::complex<float>, BlockCyclicGenerator>;
+template class RingSSBHost<double, BlockCyclicGenerator>;
+template class RingSSBHost<float, BlockCyclicGenerator>;
+template class RingSSBHost<std::complex<double>, BlockCyclicGenerator>;
+template class RingSSBHost<std::complex<float>, BlockCyclicGenerator>;
 
-template class RingHost<double, MirrorGenerator>;
-template class RingHost<float, MirrorGenerator>;
-template class RingHost<std::complex<double>, MirrorGenerator>;
-template class RingHost<std::complex<float>, MirrorGenerator>;
+template class RingSSBHost<double, MirrorGenerator>;
+template class RingSSBHost<float, MirrorGenerator>;
+template class RingSSBHost<std::complex<double>, MirrorGenerator>;
+template class RingSSBHost<std::complex<float>, MirrorGenerator>;
 
 }  // namespace spla

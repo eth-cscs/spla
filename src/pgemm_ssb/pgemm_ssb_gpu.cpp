@@ -45,7 +45,7 @@
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "pgemm_ssb/block_size_selection_ssb.hpp"
-#include "pgemm_ssb/ring_gpu.hpp"
+#include "pgemm_ssb/ring_ssb_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -135,7 +135,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA,
   auto streamHandlesIt = ctx.gpu_stream_handles(numTiles * numRingProcs).begin();
   auto commsIt = descC.get_comms(numTiles).begin();
 
-  std::vector<RingGPU<T, BLOCK_GEN>> tiles;
+  std::vector<RingSSBGPU<T, BLOCK_GEN>> tiles;
   tiles.reserve(numTiles);
 
   auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColOffset, ldc, ldc);
@@ -144,7 +144,7 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA,
       gpuPtrC ? GPUArrayView2D<T>(gpuPtrC, n + cColOffset, ldc, ldc) : GPUArrayView2D<T>();
 
   for (IntType i = 0; i < numTiles; ++i) {
-    std::vector<RingProcessor<T>> ringBlocks;
+    std::vector<RingProcessorSSB<T>> ringBlocks;
     ringBlocks.reserve(numTiles * numRingProcs);
     for (IntType j = 0; j < numRingProcs; ++j) {
       auto matA = gpuPtrA
