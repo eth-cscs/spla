@@ -195,8 +195,8 @@ public:
     return data_[(idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner];
   }
 
-  __device__ inline auto operator()(const int idxOuter, const int idxMid,
-                                    const int idxInner) const noexcept -> const ValueType& {
+  __device__ inline auto operator()(const int idxOuter, const int idxMid, const int idxInner) const
+      noexcept -> const ValueType& {
     assert(idxOuter < dims_[0]);
     assert(idxMid < dims_[1]);
     assert(idxInner < dims_[2]);

@@ -28,12 +28,43 @@
 
 #include "timing/timing.hpp"
 
-#include "spla/config.h"
-
 #ifdef SPLA_TIMING
+#include <fstream>
+#include <iostream>
+#include <string>
+
+#include "spla/config.h"
+#include "spla/errors.h"
+#include "spla/types.h"
+
 namespace spla {
 namespace timing {
 ::rt_graph::Timer GlobalTimer;
 }  // namespace timing
 }  // namespace spla
+
+extern "C" {
+
+SPLA_EXPORT SplaError spla_timer_start(int n, const char* name) {
+  spla::timing::GlobalTimer.start(std::string(name, n));
+  return SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_timer_stop(int n, const char* name) {
+  spla::timing::GlobalTimer.stop(std::string(name, n));
+  return SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_timer_export_json(int n, const char* name) {
+  std::string fileName(name, n);
+  std::ofstream file(fileName);
+  file << spla::timing::GlobalTimer.process().json();
+  return SPLA_SUCCESS;
+}
+
+SPLA_EXPORT SplaError spla_timer_print() {
+  std::cout << spla::timing::GlobalTimer.process().print();
+  return SPLA_SUCCESS;
+}
+}
 #endif

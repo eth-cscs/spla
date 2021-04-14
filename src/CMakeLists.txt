@@ -3,14 +3,15 @@ set(SPLA_SOURCE_FILES
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
-	pgemm_ssb/ring_host.cpp
+	pgemm_ssb/ring_ssb_host.cpp
 	pgemm_ssb/add_kernel.cpp
 	pgemm_sbs/pgemm_sbs_host.cpp
-	pgemm_sbs/stripe_host.cpp
+	pgemm_sbs/ring_sbs_host.cpp
 	gemm/gemm_host.cpp
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp
 	spla/pgemm_ssb.cpp
+	spla/pgemm_ssbtr.cpp
 	spla/pgemm_sbs.cpp
 	spla/context.cpp
 	spla/gemm.cpp
@@ -18,10 +19,10 @@ set(SPLA_SOURCE_FILES
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				pgemm_ssb/ring_gpu.cpp
+				pgemm_ssb/ring_ssb_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
-				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp
+            	pgemm_sbs/ring_sbs_gpu.cpp
 				gemm/gemm_gpu.cpp
 				gpu_util/multiply_gpu.cpp
 		)
@@ -71,6 +72,10 @@ target_link_libraries(spla PUBLIC ${SPLA_EXTERNAL_LIBS})
 target_include_directories(spla INTERFACE ${SPLA_INTERFACE_INCLUDE_DIRS})
 target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
+if(${SPLA_FORTRAN}) # Add include directory for fortran module
+	target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include/spla>)
+	target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
+endif()
 
 # set list of interface libries for exporting (workaround for bug with exporting static library:
 # cmake uses MPI_CXX and OpenMP::OpenMP_CXX targets, which are not known externally)

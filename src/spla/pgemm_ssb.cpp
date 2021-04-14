@@ -36,6 +36,8 @@
 #include "pgemm_ssb/pgemm_ssb_host.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/pgemm_ssb.h"
+#include "spla/pgemm_ssbtr.h"
+#include "spla/pgemm_ssbtr.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_blas_api.hpp"
@@ -44,79 +46,33 @@
 
 namespace spla {
 void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, float alpha, const float *A, int lda,
-               const float *B, int ldb, float beta, float *C, int ldc, int cRowStart,
+               const float *B, int ldb, float beta, float *C, int ldc, int cRowOffset,
                int cColOffset, MatrixDistribution &distC, Context &ctx) {
-  if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    pgemm_ssb_host(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart, cColOffset,
-                   *(distC.descInternal_), *(ctx.ctxInternal_));
-  } else {
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    pgemm_ssb_gpu<float>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
-                         cColOffset, *(distC.descInternal_), *(ctx.ctxInternal_));
-#else
-    throw GPUSupportError();
-#endif
-  }
+  pgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
+              SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, double alpha, const double *A, int lda,
-               const double *B, int ldb, double beta, double *C, int ldc, int cRowStart,
+               const double *B, int ldb, double beta, double *C, int ldc, int cRowOffset,
                int cColOffset, MatrixDistribution &distC, Context &ctx) {
-  if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    pgemm_ssb_host(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart, cColOffset,
-                   *(distC.descInternal_), *(ctx.ctxInternal_));
-  } else {
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    pgemm_ssb_gpu<double>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart,
-                          cColOffset, *(distC.descInternal_), *(ctx.ctxInternal_));
-#else
-    throw GPUSupportError();
-#endif
-  }
+  pgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
+              SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<float> alpha,
                const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
-               std::complex<float> beta, std::complex<float> *C, int ldc, int cRowStart,
+               std::complex<float> beta, std::complex<float> *C, int ldc, int cRowOffset,
                int cColOffset, MatrixDistribution &distC, Context &ctx) {
-  if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    pgemm_ssb_host(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart, cColOffset,
-                   *(distC.descInternal_), *(ctx.ctxInternal_));
-  } else {
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    pgemm_ssb_gpu<gpu::blas::ComplexFloatType>(
-        m, n, kLocal, opA, gpu::blas::ComplexFloatType{alpha.real(), alpha.imag()},
-        reinterpret_cast<const gpu::blas::ComplexFloatType *>(A), lda,
-        reinterpret_cast<const gpu::blas::ComplexFloatType *>(B), ldb,
-        gpu::blas::ComplexFloatType{beta.real(), beta.imag()},
-        reinterpret_cast<gpu::blas::ComplexFloatType *>(C), ldc, cRowStart, cColOffset,
-        *(distC.descInternal_), *(ctx.ctxInternal_));
-#else
-    throw GPUSupportError();
-#endif
-  }
+  pgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
+              SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 void pgemm_ssb(int m, int n, int kLocal, SplaOperation opA, std::complex<double> alpha,
                const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
-               std::complex<double> beta, std::complex<double> *C, int ldc, int cRowStart,
+               std::complex<double> beta, std::complex<double> *C, int ldc, int cRowOffset,
                int cColOffset, MatrixDistribution &distC, Context &ctx) {
-  if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    pgemm_ssb_host(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowStart, cColOffset,
-                   *(distC.descInternal_), *(ctx.ctxInternal_));
-  } else {
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-    pgemm_ssb_gpu<gpu::blas::ComplexDoubleType>(
-        m, n, kLocal, opA, gpu::blas::ComplexDoubleType{alpha.real(), alpha.imag()},
-        reinterpret_cast<const gpu::blas::ComplexDoubleType *>(A), lda,
-        reinterpret_cast<const gpu::blas::ComplexDoubleType *>(B), ldb,
-        gpu::blas::ComplexDoubleType{beta.real(), beta.imag()},
-        reinterpret_cast<gpu::blas::ComplexDoubleType *>(C), ldc, cRowStart, cColOffset,
-        *(distC.descInternal_), *(ctx.ctxInternal_));
-#else
-    throw GPUSupportError();
-#endif
-  }
+  pgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
+              SPLA_FILL_MODE_FULL, distC, ctx);
 }
 }  // namespace spla
 
@@ -126,71 +82,31 @@ SplaError spla_psgemm_ssb(int m, int n, int kLocal, SplaOperation opA, float alp
                           int lda, const float *B, int ldb, float beta, float *C, int ldc,
                           int cRowOffset, int cColOffset, SplaMatrixDistribution distC,
                           SplaContext ctx) {
-  try {
-    spla::pgemm_ssb(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
-                    *reinterpret_cast<spla::MatrixDistribution *>(distC),
-                    *reinterpret_cast<spla::Context *>(ctx));
-  } catch (const spla::GenericError &e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
-  return SplaError::SPLA_SUCCESS;
+  return spla_psgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset,
+                           cColOffset, SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 SplaError spla_pdgemm_ssb(int m, int n, int kLocal, SplaOperation opA, double alpha,
                           const double *A, int lda, const double *B, int ldb, double beta,
                           double *C, int ldc, int cRowOffset, int cColOffset,
                           SplaMatrixDistribution distC, SplaContext ctx) {
-  try {
-    spla::pgemm_ssb(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset, cColOffset,
-                    *reinterpret_cast<spla::MatrixDistribution *>(distC),
-                    *reinterpret_cast<spla::Context *>(ctx));
-  } catch (const spla::GenericError &e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
-  return SplaError::SPLA_SUCCESS;
+  return spla_pdgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset,
+                           cColOffset, SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 SplaError spla_pcgemm_ssb(int m, int n, int kLocal, SplaOperation opA, const void *alpha,
                           const void *A, int lda, const void *B, int ldb, const void *beta, void *C,
                           int ldc, int cRowOffset, int cColOffset, SplaMatrixDistribution distC,
                           SplaContext ctx) {
-  try {
-    spla::pgemm_ssb(m, n, kLocal, opA, *reinterpret_cast<const std::complex<float> *>(alpha),
-                    reinterpret_cast<const std::complex<float> *>(A), lda,
-                    reinterpret_cast<const std::complex<float> *>(B), ldb,
-                    *reinterpret_cast<const std::complex<float> *>(beta),
-                    reinterpret_cast<std::complex<float> *>(C), ldc, cRowOffset, cColOffset,
-                    *reinterpret_cast<spla::MatrixDistribution *>(distC),
-                    *reinterpret_cast<spla::Context *>(ctx));
-  } catch (const spla::GenericError &e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
-  return SplaError::SPLA_SUCCESS;
+  return spla_pcgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset,
+                           cColOffset, SPLA_FILL_MODE_FULL, distC, ctx);
 }
 
 SplaError spla_pzgemm_ssb(int m, int n, int kLocal, SplaOperation opA, const void *alpha,
                           const void *A, int lda, const void *B, int ldb, const void *beta, void *C,
                           int ldc, int cRowOffset, int cColOffset, SplaMatrixDistribution distC,
                           SplaContext ctx) {
-  try {
-    spla::pgemm_ssb(m, n, kLocal, opA, *reinterpret_cast<const std::complex<double> *>(alpha),
-                    reinterpret_cast<const std::complex<double> *>(A), lda,
-                    reinterpret_cast<const std::complex<double> *>(B), ldb,
-                    *reinterpret_cast<const std::complex<double> *>(beta),
-                    reinterpret_cast<std::complex<double> *>(C), ldc, cRowOffset, cColOffset,
-                    *reinterpret_cast<spla::MatrixDistribution *>(distC),
-                    *reinterpret_cast<spla::Context *>(ctx));
-  } catch (const spla::GenericError &e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
-  return SplaError::SPLA_SUCCESS;
+  return spla_pzgemm_ssbtr(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C, ldc, cRowOffset,
+                           cColOffset, SPLA_FILL_MODE_FULL, distC, ctx);
 }
 }

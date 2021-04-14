@@ -25,11 +25,13 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_STRIPE_HOST_HPP
-#define SPLA_STRIPE_HOST_HPP
+#ifndef SPLA_RING_SBS_HOST_HPP
+#define SPLA_RING_SBS_HOST_HPP
 
 #include <atomic>
 #include <memory>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "block_generation/block.hpp"
@@ -39,62 +41,69 @@
 #include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
+#include "mpi_util/mpi_window_handle.hpp"
 #include "spla/config.h"
 #include "spla/spla.hpp"
+#include "spla/types.h"
 #include "util/common_types.hpp"
-#include "util/stripe_state.hpp"
+#include "util/tile_state.hpp"
 
 namespace spla {
+
 template <typename T, typename BLOCK_GEN>
-class StripeHost {
+class RingSBSHost {
 public:
   using ValueType = T;
 
-  StripeHost(IntType numThreads, MPICommunicatorHandle comm,
-             std::shared_ptr<Buffer<MPIAllocator>> buffer,
-             std::shared_ptr<Buffer<MPIAllocator>> recvBuffer, BLOCK_GEN baseMatGen,
-             ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-             const HostArrayConstView2D<ValueType> &B, ValueType beta, HostArrayView2D<ValueType> C,
-             IntType numBlockCols);
+  RingSBSHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
+              MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+              BLOCK_GEN baseMatGen, ValueType alpha, const HostArrayConstView2D<ValueType>& A,
+              const HostArrayConstView2D<ValueType>& B, IntType bRowOffset, IntType bColOffset,
+              ValueType beta, HostArrayView2D<ValueType> C);
 
-  // Assemble send buffer for MPI exchange.
-  auto collect(IntType blockColIdx) -> void;
+  // Prepare to process input blocks
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
-  // Start exchange data with MPI.
-  auto start_exchange() -> void;
+  // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
+  // otherwise.
+  auto process_step(std::unordered_set<IntType>& betaColIndeces) -> bool;
 
-  // Finalize exchange data with MPI.
-  auto finalize_exchange() -> void;
+  // Must be called after all processing steps are done and before preparing for more blocks.
+  inline auto state() -> TileState { return state_; }
 
-  // Multiply stripe.
-  auto multiply() -> void;
+private:
+  auto process_step_ring(std::unordered_set<IntType>& betaColIndeces) -> void;
 
-  inline auto state() -> StripeState { return state_.get(); }
+  auto process_step_broadcast(std::unordered_set<IntType>& betaColIndeces) -> void;
 
-protected:
-  // state dependent
-  AtomicStripeState state_;
-  HostArrayView2D<ValueType> tile_;
-  std::vector<BlockInfo> blockInfos_;
-  std::vector<int> localCounts_;
-  std::vector<int> recvDispls_;
-  std::vector<IntType> localRows_;        // number of rows of B each rank has stored
-  std::vector<IntType> localCols_;        // number of cols of B each rank has stored
-  std::vector<IntType> localRowOffsets_;  // Row offset of sub-matrix of B on each rank
-  std::vector<IntType> localColOffsets_;  // Col offset of sub-matrix of B on each rank
-  MPIRequestHandle mpiRequest_;
+  // state dependend
+  bool useRing_ = false;
+  IntType sendRank_ = 0;
+  IntType recvRank_ = 0;
+  IntType rankOffset_ = 0;
+  IntType myStartIdx_ = 0;
+  IntType stepIdx_ = 0;
+  MPIRequestHandle sendReq_;
+  MPIRequestHandle recvReq_;
+  std::vector<Block> blocks_;
+  std::vector<MPIRequestHandle> collectRecvs_;
+  TileState state_;
 
   // fixed
+  HostArrayView1D<ValueType> recvView_;
+  HostArrayView1D<ValueType> sendView_;
   BLOCK_GEN baseMatGen_;
   std::shared_ptr<Buffer<MPIAllocator>> buffer_;
-  std::shared_ptr<Buffer<MPIAllocator>> recvBuffer_;
   MPICommunicatorHandle comm_;
-  const IntType numBlockCols_;
   HostArrayConstView2D<ValueType> A_;
   HostArrayConstView2D<ValueType> B_;
   HostArrayView2D<ValueType> C_;
+  const IntType bRowOffset_, bColOffset_;
   const ValueType alpha_, beta_;
   const IntType numThreads_;
+  const IntType maxBlockSize_;
+  const double ringThreshold_;
 };
 
 }  // namespace spla

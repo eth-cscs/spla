@@ -77,10 +77,9 @@ static auto call_gpu_gemm(gpu::blas::HandleType handle, gpu::blas::OperationType
 
 template <typename T>
 auto multiply_gpu(const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
-                  gpu::blas::OperationType transb, T alpha,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileA,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB, T beta,
-                  GPUArrayView2D<T> result) -> void {
+                  gpu::blas::OperationType transb, T alpha, const GPUConstMatrixAccessor<T> &tileA,
+                  const GPUConstMatrixAccessor<T> &tileB, T beta, GPUArrayView2D<T> result)
+    -> void {
   assert(transa == gpu::blas::operation::None || tileA.cols() == result.dim_inner());
   assert(transa != gpu::blas::operation::None || tileA.rows() == result.dim_inner());
   assert(transb == gpu::blas::operation::None || tileB.rows() == result.dim_outer());
@@ -145,30 +144,28 @@ auto multiply_gpu(const gpu::blas::HandleType &handle, gpu::blas::OperationType 
 
 template auto multiply_gpu<float>(const gpu::blas::HandleType &handle,
                                   gpu::blas::OperationType transa, gpu::blas::OperationType transb,
-                                  float alpha,
-                                  const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileA,
-                                  const GPUMatrixAccessor<GPUArrayConstView2D<float>> &tileB,
-                                  float beta, GPUArrayView2D<float> result) -> void;
+                                  float alpha, const GPUConstMatrixAccessor<float> &tileA,
+                                  const GPUConstMatrixAccessor<float> &tileB, float beta,
+                                  GPUArrayView2D<float> result) -> void;
 
 template auto multiply_gpu<double>(const gpu::blas::HandleType &handle,
                                    gpu::blas::OperationType transa, gpu::blas::OperationType transb,
-                                   double alpha,
-                                   const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileA,
-                                   const GPUMatrixAccessor<GPUArrayConstView2D<double>> &tileB,
-                                   double beta, GPUArrayView2D<double> result) -> void;
+                                   double alpha, const GPUConstMatrixAccessor<double> &tileA,
+                                   const GPUConstMatrixAccessor<double> &tileB, double beta,
+                                   GPUArrayView2D<double> result) -> void;
 
 template auto multiply_gpu<gpu::blas::ComplexFloatType>(
     const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
     gpu::blas::OperationType transb, gpu::blas::ComplexFloatType alpha,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>> &tileA,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexFloatType>> &tileB,
+    const GPUConstMatrixAccessor<gpu::blas::ComplexFloatType> &tileA,
+    const GPUConstMatrixAccessor<gpu::blas::ComplexFloatType> &tileB,
     gpu::blas::ComplexFloatType beta, GPUArrayView2D<gpu::blas::ComplexFloatType> result) -> void;
 
 template auto multiply_gpu<gpu::blas::ComplexDoubleType>(
     const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
     gpu::blas::OperationType transb, gpu::blas::ComplexDoubleType alpha,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>> &tileA,
-    const GPUMatrixAccessor<GPUArrayConstView2D<gpu::blas::ComplexDoubleType>> &tileB,
+    const GPUConstMatrixAccessor<gpu::blas::ComplexDoubleType> &tileA,
+    const GPUConstMatrixAccessor<gpu::blas::ComplexDoubleType> &tileB,
     gpu::blas::ComplexDoubleType beta, GPUArrayView2D<gpu::blas::ComplexDoubleType> result) -> void;
 
 }  // namespace spla

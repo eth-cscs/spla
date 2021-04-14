@@ -50,7 +50,7 @@ public:
 
   auto operator=(const BlasThreadsGuard&) -> BlasThreadsGuard& = delete;
 
-  auto operator=(BlasThreadsGuard&&) -> BlasThreadsGuard& = delete;
+  auto operator=(BlasThreadsGuard &&) -> BlasThreadsGuard& = delete;
 
   ~BlasThreadsGuard() {
     if (numThreadsSet_) blas::set_num_threads(orignalNumThreads_);

@@ -69,6 +69,14 @@ int MatrixDistribution::row_block_size() const { return descInternal_->row_block
 
 int MatrixDistribution::col_block_size() const { return descInternal_->col_block_size(); }
 
+void MatrixDistribution::set_row_block_size(int rowBlockSize) {
+  descInternal_->set_row_block_size(rowBlockSize);
+}
+
+void MatrixDistribution::set_col_block_size(int colBlockSize) {
+  descInternal_->set_col_block_size(colBlockSize);
+}
+
 SplaDistributionType MatrixDistribution::type() const { return descInternal_->type(); }
 
 MPI_Comm MatrixDistribution::comm() { return descInternal_->comm().get(); }
@@ -205,6 +213,28 @@ SplaError spla_mat_dis_col_block_size(SplaMatrixDistribution matDis, int* colBlo
 SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistributionType* type) {
   try {
     *type = reinterpret_cast<spla::MatrixDistribution*>(matDis)->type();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_mat_dis_set_row_block_size(SplaMatrixDistribution matDis, int rowBlockSize) {
+  try {
+    reinterpret_cast<spla::MatrixDistribution*>(matDis)->set_row_block_size(rowBlockSize);
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_mat_dis_set_col_block_size(SplaMatrixDistribution matDis, int colBlockSize) {
+  try {
+    reinterpret_cast<spla::MatrixDistribution*>(matDis)->set_col_block_size(colBlockSize);
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

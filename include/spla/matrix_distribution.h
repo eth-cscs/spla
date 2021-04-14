@@ -56,9 +56,10 @@ extern "C" {
  * @param[in] colBlockSize Coloumn block size for matrix partitioning.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_create_block_cyclic(SplaMatrixDistribution* matDis, MPI_Comm comm,
-                                           char order, int procGridRows, int procGridCols,
-                                           int rowBlockSize, int colBlockSize);
+SPLA_EXPORT SplaError spla_mat_dis_create_block_cyclic(SplaMatrixDistribution* matDis,
+                                                       MPI_Comm comm, char order, int procGridRows,
+                                                       int procGridCols, int rowBlockSize,
+                                                       int colBlockSize);
 
 /**
  * Create a blacs block cyclic matrix distribution with given process grid mapping.
@@ -73,10 +74,9 @@ SplaError spla_mat_dis_create_block_cyclic(SplaMatrixDistribution* matDis, MPI_C
  * @param[in] colBlockSize Coloumn block size for matrix partitioning.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping(SplaMatrixDistribution* matDis,
-                                                              MPI_Comm comm, const int* mapping,
-                                                              int procGridRows, int procGridCols,
-                                                              int rowBlockSize, int colBlockSize);
+SPLA_EXPORT SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping(
+    SplaMatrixDistribution* matDis, MPI_Comm comm, const int* mapping, int procGridRows,
+    int procGridCols, int rowBlockSize, int colBlockSize);
 
 /**
  * Destroy matrix distribution.
@@ -84,7 +84,7 @@ SplaError spla_mat_dis_create_blacs_block_cyclic_from_mapping(SplaMatrixDistribu
  * @param[in] matDis Matrix distribution handle.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis);
+SPLA_EXPORT SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis);
 
 /**
  * Create a mirror distribution, where the full matrix is stored on each MPI rank.
@@ -93,7 +93,7 @@ SplaError spla_mat_dis_destroy(SplaMatrixDistribution* matDis);
  * @param[in] comm MPI communicator to be used.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm);
+SPLA_EXPORT SplaError spla_mat_dis_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm comm);
 
 /**
  * Access a distribution parameter.
@@ -102,7 +102,7 @@ SplaError spla_mat_dis_create_mirror(SplaMatrixDistribution* matDis, MPI_Comm co
  * @param[out] procGridRows Number of rows in process grid.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_proc_grid_rows(SplaMatrixDistribution matDis, int* procGridRows);
+SPLA_EXPORT SplaError spla_mat_dis_proc_grid_rows(SplaMatrixDistribution matDis, int* procGridRows);
 
 /**
  * Access a distribution parameter.
@@ -111,7 +111,7 @@ SplaError spla_mat_dis_proc_grid_rows(SplaMatrixDistribution matDis, int* procGr
  * @param[out] procGridCols Number of coloumns in process grid.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_proc_grid_cols(SplaMatrixDistribution matDis, int* procGridCols);
+SPLA_EXPORT SplaError spla_mat_dis_proc_grid_cols(SplaMatrixDistribution matDis, int* procGridCols);
 
 /**
  * Access a distribution parameter.
@@ -120,7 +120,7 @@ SplaError spla_mat_dis_proc_grid_cols(SplaMatrixDistribution matDis, int* procGr
  * @param[out] rowBlockSize Row block size used for matrix partitioning.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_row_block_size(SplaMatrixDistribution matDis, int* rowBlockSize);
+SPLA_EXPORT SplaError spla_mat_dis_row_block_size(SplaMatrixDistribution matDis, int* rowBlockSize);
 
 /**
  * Access a distribution parameter.
@@ -129,7 +129,7 @@ SplaError spla_mat_dis_row_block_size(SplaMatrixDistribution matDis, int* rowBlo
  * @param[out] colBlockSize Coloumn block size used for matrix partitioning.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_col_block_size(SplaMatrixDistribution matDis, int* colBlockSize);
+SPLA_EXPORT SplaError spla_mat_dis_col_block_size(SplaMatrixDistribution matDis, int* colBlockSize);
 
 /**
  * Access a distribution parameter.
@@ -138,7 +138,7 @@ SplaError spla_mat_dis_col_block_size(SplaMatrixDistribution matDis, int* colBlo
  * @param[out] type Distribution type
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistributionType* type);
+SPLA_EXPORT SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistributionType* type);
 
 /**
  * Access a distribution parameter.
@@ -148,7 +148,28 @@ SplaError spla_mat_dis_type(SplaMatrixDistribution matDis, SplaDistributionType*
  * provided for creation of distribution.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_mat_dis_comm(SplaMatrixDistribution matDis, MPI_Comm* comm);
+SPLA_EXPORT SplaError spla_mat_dis_comm(SplaMatrixDistribution matDis, MPI_Comm* comm);
+
+/**
+ * Set a distribution parameter.
+ *
+ * @param[in] matDis Matrix distribution handle.
+ * @param[in] rowBlockSize Row block size used for matrix partitioning.
+ * provided for creation of distribution.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_mat_dis_set_row_block_size(SplaMatrixDistribution matDis, int rowBlockSize);
+
+/**
+ * Set a distribution parameter.
+ *
+ * @param[in] matDis Matrix distribution handle.
+ * @param[in] colBlockSize Col block size used for matrix partitioning.
+ * provided for creation of distribution.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_mat_dis_set_col_block_size(SplaMatrixDistribution matDis, int colBlockSize);
+
 #ifdef __cplusplus
 }
 #endif

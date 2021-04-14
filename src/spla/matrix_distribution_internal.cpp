@@ -103,10 +103,10 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm, const int 
   std::set<IntType> mappedRanks;
   for (IntType i = 0; i < procGridRows_ * procGridCols_; ++i) {
     if (mapping[i] < 0 || mapping[i] >= commSize) {
-      throw std::runtime_error("Invalid rank mapping");
+      throw InvalidParameterError();
     }
     if (!mappedRanks.insert(mapping[i]).second) {
-      throw std::runtime_error("Rank mapping duplication");
+      throw InvalidParameterError();
     }
 
     fullMapping[i] = mapping[i];
@@ -121,7 +121,7 @@ MatrixDistributionInternal::MatrixDistributionInternal(MPI_Comm comm, const int 
     }
   }
   if (excessRankIdx != commSize) {
-    throw std::runtime_error("Rank mapping failed");
+    throw InvalidParameterError();
   }
 
   auto groupDeleteFunc = [](MPI_Group *group) -> void {

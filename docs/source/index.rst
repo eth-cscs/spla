@@ -19,6 +19,7 @@ SPLA Documentation
    matrix_distribution
    gemm
    pgemm_ssb
+   pgemm_ssbtr
    pgemm_sbs
    exceptions
 
@@ -32,6 +33,7 @@ SPLA Documentation
    matrix_distribution_c
    gemm_c
    pgemm_ssb_c
+   pgemm_ssbtr_c
    pgemm_sbs_c
    errors_c
 

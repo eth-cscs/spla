@@ -48,7 +48,7 @@ extern "C" {
  * @param[in] pu Processing unit to be used for computations.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_create(SplaContext* ctx, SplaProcessingUnit pu);
+SPLA_EXPORT SplaError spla_ctx_create(SplaContext* ctx, SplaProcessingUnit pu);
 
 /**
  * Destroy context.
@@ -56,7 +56,7 @@ SplaError spla_ctx_create(SplaContext* ctx, SplaProcessingUnit pu);
  * @param[in] ctx Context handle.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_destroy(SplaContext* ctx);
+SPLA_EXPORT SplaError spla_ctx_destroy(SplaContext* ctx);
 
 /**
  * Access a Context parameter.
@@ -64,7 +64,7 @@ SplaError spla_ctx_destroy(SplaContext* ctx);
  * @param[out] pu Procesing unit used for computations.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_processing_unit(SplaContext ctx, SplaProcessingUnit* pu);
+SPLA_EXPORT SplaError spla_ctx_processing_unit(SplaContext ctx, SplaProcessingUnit* pu);
 
 /**
  * Access a Context parameter.
@@ -72,7 +72,7 @@ SplaError spla_ctx_processing_unit(SplaContext ctx, SplaProcessingUnit* pu);
  * @param[out] numThreads Maximum number of threads used for computations.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads);
+SPLA_EXPORT SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads);
 
 /**
  * Access a Context parameter.
@@ -80,7 +80,7 @@ SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads);
  * @param[out] numTiles Number of tiles used to overlap computation and communication.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
+SPLA_EXPORT SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
 
 /**
  * Access a Context parameter.
@@ -88,7 +88,7 @@ SplaError spla_ctx_num_tiles(SplaContext ctx, int* numTiles);
  * @param[out] tileSizeHost Size of tiles for host compuations and partitioning of communication.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
+SPLA_EXPORT SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
 
 /**
  * Access a Context parameter.
@@ -96,7 +96,7 @@ SplaError spla_ctx_tile_size_host(SplaContext ctx, int* tileSizeHost);
  * @param[out] tileSizeGPU Size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
+SPLA_EXPORT SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
 
 /**
  * Access a Context parameter.
@@ -105,7 +105,7 @@ SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
  * even if processing unit is set to GPU.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU);
+SPLA_EXPORT SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU);
 
 /**
  * Access a Context parameter.
@@ -114,7 +114,7 @@ SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU);
  * device id at context creation.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId);
+SPLA_EXPORT SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId);
 
 /**
  * Set the number of threads to be used.
@@ -123,7 +123,7 @@ SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId);
  * @param[in] numThreads Number of threads.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads);
+SPLA_EXPORT SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads);
 
 /**
  * Set the number of tiles.
@@ -132,7 +132,7 @@ SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads);
  * @param[in] numTiles Number of tiles.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
+SPLA_EXPORT SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
 
 /**
  * Set the tile size used for computations on host and partitioning communication.
@@ -141,7 +141,7 @@ SplaError spla_ctx_set_num_tiles(SplaContext ctx, int numTiles);
  * @param[in] tileSizeHost Size of tiles on host.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
+SPLA_EXPORT SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
 
 /**
  * Set the operations threshold, below which computation may be done on Host, even if processing
@@ -151,7 +151,7 @@ SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeHost);
  * @param[in] opThresholdGPU Threshold in number of operations.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU);
+SPLA_EXPORT SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU);
 
 /**
  * Set tile size for GPU computations.
@@ -160,7 +160,7 @@ SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU);
  * @param[in] tileSizeGPU Size of tiles on GPU.
  * @return Error code or SPLA_SUCCESS.
  */
-SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU);
+SPLA_EXPORT SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU);
 
 #ifdef __cplusplus
 }

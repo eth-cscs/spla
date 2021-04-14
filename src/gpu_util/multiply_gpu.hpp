@@ -41,10 +41,8 @@
 namespace spla {
 template <typename T>
 auto multiply_gpu(const gpu::blas::HandleType &handle, gpu::blas::OperationType transa,
-                  gpu::blas::OperationType transb, T alpha,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileA,
-                  const GPUMatrixAccessor<GPUArrayConstView2D<T>> &tileB, T beta,
-                  GPUArrayView2D<T> result) -> void;
+                  gpu::blas::OperationType transb, T alpha, const GPUConstMatrixAccessor<T> &tileA,
+                  const GPUConstMatrixAccessor<T> &tileB, T beta, GPUArrayView2D<T> result) -> void;
 
 }  // namespace spla
 #endif

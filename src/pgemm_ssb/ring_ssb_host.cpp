@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "pgemm_ssb/ring_host.hpp"
+#include "pgemm_ssb/ring_ssb_host.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -40,6 +40,7 @@
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "pgemm_ssb/add_kernel.hpp"
+#include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
@@ -49,12 +50,14 @@ static constexpr int resultTag = 1;
 static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
-RingHost<T, BLOCK_GEN>::RingHost(
-    double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
-    std::shared_ptr<Buffer<MPIAllocator>> buffer,
-    std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen, SplaOperation opA,
-    ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-    const HostArrayConstView2D<ValueType> &B, ValueType beta, HostArrayView2D<ValueType> C)
+RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSize,
+                                       IntType numThreads, MPICommunicatorHandle comm,
+                                       std::shared_ptr<Buffer<MPIAllocator>> buffer,
+                                       std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
+                                       BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
+                                       const HostArrayConstView2D<ValueType> &A,
+                                       const HostArrayConstView2D<ValueType> &B, ValueType beta,
+                                       HostArrayView2D<ValueType> C)
     : state_(TileState::Empty),
       baseMatGen_(std::move(baseMatGen)),
       buffer_(std::move(buffer)),
@@ -81,9 +84,9 @@ RingHost<T, BLOCK_GEN>::RingHost(
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
-                                               std::vector<Block>::const_iterator end)
-    -> void {
+auto RingSSBHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
+                                        std::vector<Block>::const_iterator end) -> void {
+  SCOPED_TIMING("prepare")
   assert(state_ == TileState::Empty);
   assert(begin != end);
 
@@ -134,17 +137,22 @@ auto RingHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_ring() -> void {
+  SCOPED_TIMING("ring_step")
   const IntType numBlocks = blocks_.size();
 
   const IntType blockIdx = (myStartIdx_ + stepIdx_) % comm_.size();
   const IntType nextBlockIdx = (myStartIdx_ + stepIdx_ + 1) % comm_.size();
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
+  sendReq_.wait_if_active();
   std::swap(sendView_, recvView_);
 
   if (stepIdx_ < comm_.size() - 1 && nextBlockIdx < numBlocks) {
+    SCOPED_TIMING("irecv")
     const auto &nextBlock = blocks_[nextBlockIdx];
     MPI_Irecv(recvView_.data(), nextBlock.numCols * nextBlock.numRows,
               MPIMatchElementaryType<T>::get(), recvRank_, ringTag, comm_.get(),
@@ -154,11 +162,13 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
   if (blockIdx < blocks_.size()) {
     const auto &block = blocks_[blockIdx];
     if (A_.dim_inner() != 0) {
+      SCOPED_TIMING("gemm")
       gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
                    A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
                    B_.ld_inner(), 1.0, sendView_.data(), block.numRows);
     }
     if (stepIdx_ < comm_.size() - 1) {  // continue sending around in ring
+      SCOPED_TIMING("send")
       MPI_Isend(sendView_.data(), block.numRows * block.numCols, MPIMatchElementaryType<T>::get(),
                 sendRank_, ringTag, comm_.get(), sendReq_.get_and_activate());
     } else {  // send final result to target rank
@@ -177,12 +187,16 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction() -> void {
+  SCOPED_TIMING("reduction_step")
   const auto &block = blocks_[stepIdx_];
 
+  START_TIMING("mpi_wait")
   sendReq_.wait_if_active();
+  STOP_TIMING("mpi_wait")
 
   if (stepIdx_) {
+    SCOPED_TIMING("add_result")
     const auto &previousBlock = blocks_[stepIdx_ - 1];
     auto gen = baseMatGen_.create_sub_generator(previousBlock);
     HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
@@ -202,20 +216,24 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction() -> void {
   if (A_.dim_inner() == 0) {
     std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
   } else {
+    SCOPED_TIMING("gemm")
     gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
                  A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
                  B_.ld_inner(), 0.0, sendView_.data(), block.numRows);
   }
 
+  START_TIMING("iallreduce")
   mpi_check_status(MPI_Iallreduce(MPI_IN_PLACE, sendView_.data(), block.numCols * block.numRows,
                                   MPIMatchElementaryType<ValueType>::get(), MPI_SUM, comm_.get(),
                                   sendReq_.get_and_activate()));
+  STOP_TIMING("iallreduce")
 
   state_ = TileState::PartiallyProcessed;
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
+  SCOPED_TIMING("reduction_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
@@ -224,6 +242,7 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
   auto gen = baseMatGen_.create_sub_generator(previousBlock);
   HostArrayConstView2D<T> resultView(sendView_.data(), previousBlock.numCols,
                                      previousBlock.numRows);
+  SCOPED_TIMING("add_result")
   for (IntType i = 0; i < gen.num_blocks(); ++i) {
     const auto targetRank = gen.get_mpi_rank(i);
     if (targetRank == comm_.rank() || targetRank < 0) {
@@ -239,12 +258,14 @@ auto RingHost<T, BLOCK_GEN>::process_step_reduction_finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
+auto RingSSBHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
+  SCOPED_TIMING("ring_finalize")
   // add tile to result as final step
   sendReq_.wait_if_active();
   recvReq_.wait_if_active();
 
   IntType offset = 0;
+  SCOPED_TIMING("add_result")
   for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
     resultRecvs_[i].wait_if_active();
     const auto &info = myBlockInfos_[i].second;
@@ -258,8 +279,8 @@ auto RingHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
 }
 
 template <typename T, typename BLOCK_GEN>
-auto RingHost<T, BLOCK_GEN>::process_step() -> bool {
-  if(blocks_.empty()) return false;
+auto RingSSBHost<T, BLOCK_GEN>::process_step() -> bool {
+  if (blocks_.empty()) return false;
 
   if (useRing_) {
     if (stepIdx_ < comm_.size())
@@ -280,17 +301,16 @@ auto RingHost<T, BLOCK_GEN>::process_step() -> bool {
     ++stepIdx_;
     return stepIdx_ <= numBlocks;
   }
-
 }
 
-template class RingHost<double, BlockCyclicGenerator>;
-template class RingHost<float, BlockCyclicGenerator>;
-template class RingHost<std::complex<double>, BlockCyclicGenerator>;
-template class RingHost<std::complex<float>, BlockCyclicGenerator>;
+template class RingSSBHost<double, BlockCyclicGenerator>;
+template class RingSSBHost<float, BlockCyclicGenerator>;
+template class RingSSBHost<std::complex<double>, BlockCyclicGenerator>;
+template class RingSSBHost<std::complex<float>, BlockCyclicGenerator>;
 
-template class RingHost<double, MirrorGenerator>;
-template class RingHost<float, MirrorGenerator>;
-template class RingHost<std::complex<double>, MirrorGenerator>;
-template class RingHost<std::complex<float>, MirrorGenerator>;
+template class RingSSBHost<double, MirrorGenerator>;
+template class RingSSBHost<float, MirrorGenerator>;
+template class RingSSBHost<std::complex<double>, MirrorGenerator>;
+template class RingSSBHost<std::complex<float>, MirrorGenerator>;
 
 }  // namespace spla

@@ -30,8 +30,8 @@
 #include <memory>
 #include <vector>
 
-#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/block.hpp"
+#include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_gpu.hpp"
 #include "gpu_util/gpu_blas_api.hpp"
@@ -44,17 +44,19 @@
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "pgemm_ssb/block_size_selection_ssb.hpp"
-#include "pgemm_ssb/ring_gpu.hpp"
+#include "pgemm_ssb/ring_ssb_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/matrix_distribution_internal.hpp"
 #include "spla/spla.hpp"
+#include "timing/timing.hpp"
+#include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
 
 namespace spla {
+
 /*
  *    ------ H     ------
  *    |    |       |    |
@@ -73,9 +75,11 @@ namespace spla {
  */
 template <typename T, typename BLOCK_GEN>
 void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A,
-                            int lda, const T *B, int ldb, T beta, T *C, int ldc, int cRowStart,
-                            int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx,
+                            int lda, const T *B, int ldb, T beta, T *C, int ldc, int cRowOffset,
+                            int cColOffset, SplaFillMode cFillMode,
+                            MatrixDistributionInternal &descC, ContextInternal &ctx,
                             BLOCK_GEN gen) {
+  SCOPED_TIMING("pgemm_ssb_gpu")
   check_gemm_param(opA, SplaOperation::SPLA_OP_NONE, gen.local_rows(descC.comm().rank()),
                    gen.local_cols(descC.comm().rank()), kLocal, A, lda, B, ldb, C, ldc);
 
@@ -109,9 +113,10 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
           ? 250
           : 500;  // If input is on host, smal block sizes lead to much more memory transfers
                   // required. Therefore use larger block sizes in that case.
-  std::tie(rowsInBlock, colsInBlock) =
-      block_size_selection_ssb(IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
-                               descC.comm().size(), m, n, ctx.tile_size_host(), minBlockSize);
+
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
+      cFillMode, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold, descC.comm().size(), m,
+      n, cRowOffset, cColOffset, ctx.tile_size_host(), minBlockSize);
 
   // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =
@@ -132,29 +137,27 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
   auto streamHandlesIt = ctx.gpu_stream_handles(numTiles * numRingProcs).begin();
   auto commsIt = descC.get_comms(numTiles).begin();
 
-  std::vector<RingGPU<T, BLOCK_GEN>> tiles;
+  std::vector<RingSSBGPU<T, BLOCK_GEN>> tiles;
   tiles.reserve(numTiles);
 
-  auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColStart, ldc, ldc);
+  auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n + cColOffset, ldc, ldc);
 
   auto gpuMatC =
-      gpuPtrC ? GPUArrayView2D<T>(gpuPtrC, n + cColStart, ldc, ldc) : GPUArrayView2D<T>();
+      gpuPtrC ? GPUArrayView2D<T>(gpuPtrC, n + cColOffset, ldc, ldc) : GPUArrayView2D<T>();
 
   for (IntType i = 0; i < numTiles; ++i) {
-    std::vector<RingProcessor<T>> ringBlocks;
+    std::vector<RingProcessorSSB<T>> ringBlocks;
     ringBlocks.reserve(numTiles * numRingProcs);
     for (IntType j = 0; j < numRingProcs; ++j) {
-      auto matA = gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
-                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                HostArrayConstView2D<T>(A, m, kLocal, lda), tileSizeGEMM,
-                                *(gpuBuffersIt++));
+      auto matA = gpuPtrA
+                      ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
+                      : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, m, kLocal, lda),
+                                                  tileSizeGEMM, *(gpuBuffersIt++));
 
-      auto matB = gpuPtrB ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
-                          : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                                HostArrayConstView2D<T>(B, n, kLocal, ldb), tileSizeGEMM,
-                                *(gpuBuffersIt++));
+      auto matB = gpuPtrB
+                      ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
+                      : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(B, n, kLocal, ldb),
+                                                  tileSizeGEMM, *(gpuBuffersIt++));
       ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(eventHandlesIt++),
                               *(streamHandlesIt++), *(pinnedBuffersIt++), *(gpuBuffersIt++),
                               std::move(matA), std::move(matB));
@@ -185,8 +188,9 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
         for (IntType rowIdx = rowStartIdx;
              rowIdx < std::min<IntType>(m, rowStartIdx + descC.proc_grid_rows() * rowsInBlock);
              rowIdx += rowsInBlock) {
-          blocks.emplace_back(Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
-                                         std::min<IntType>(colsInBlock, n - colIdx)});
+          const auto block = Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, m - rowIdx),
+                                   std::min<IntType>(colsInBlock, n - colIdx)};
+          if (block_is_active(block, cRowOffset, cColOffset, cFillMode)) blocks.emplace_back(block);
 
           // Prepare processing when there are enough blocks to form ring
           if (blocks.size() == descC.comm().size()) {
@@ -243,8 +247,9 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
 
 template <typename T>
 void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T *A, int lda,
-                   const T *B, int ldb, T beta, T *C, int ldc, int cRowStart, int cColStart,
-                   MatrixDistributionInternal &descC, ContextInternal &ctx) {
+                   const T *B, int ldb, T beta, T *C, int ldc, int cRowOffset, int cColOffset,
+                   SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+                   ContextInternal &ctx) {
   if (m == 0 || n == 0) {
     return;
   }
@@ -253,50 +258,54 @@ void pgemm_ssb_gpu(int m, int n, int kLocal, SplaOperation opA, T alpha, const T
     throw InvalidParameterError();
   }
 
-  if (m < 0 || n < 0 || cRowStart < 0 || cColStart < 0) {
+  if (m < 0 || n < 0 || cRowOffset < 0 || cColOffset < 0) {
     throw InvalidParameterError();
   }
 
   if (descC.comm().size() == 1) {
     return gemm_gpu<T>(opA, SplaOperation::SPLA_OP_NONE, m, n, kLocal, alpha, A, lda, B, ldb, beta,
-                       C + cRowStart + cColStart * ldc, ldc, ctx);
+                       C + cRowOffset + cColOffset * ldc, ldc, ctx);
   }
 
   if (descC.type() == SplaDistributionType::SPLA_DIST_BLACS_BLOCK_CYCLIC) {
     BlockCyclicGenerator gen(descC.row_block_size(), descC.col_block_size(), descC.proc_grid_rows(),
-                             descC.proc_grid_cols(), m, n, cRowStart, cColStart);
+                             descC.proc_grid_cols(), m, n, cRowOffset, cColOffset);
 
     pgemm_ssb_gpu_internal<T, BlockCyclicGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta,
-                                                    C, ldc, cRowStart, cColStart, descC, ctx,
-                                                    std::move(gen));
+                                                    C, ldc, cRowOffset, cColOffset, cFillMode,
+                                                    descC, ctx, std::move(gen));
   } else {
-    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowStart, cColStart);
+    MirrorGenerator gen(ctx.tile_size_host(), ctx.tile_size_host(), m, n, cRowOffset, cColOffset);
     pgemm_ssb_gpu_internal<T, MirrorGenerator>(m, n, kLocal, opA, alpha, A, lda, B, ldb, beta, C,
-                                               ldc, cRowStart, cColStart, descC, ctx,
+                                               ldc, cRowOffset, cColOffset, cFillMode, descC, ctx,
                                                std::move(gen));
   }
 }
 
 template void pgemm_ssb_gpu<float>(int m, int n, int kLocal, SplaOperation opA, float alpha,
                                    const float *A, int lda, const float *B, int ldb, float beta,
-                                   float *C, int ldc, int cRowStart, int cColStart,
-                                   MatrixDistributionInternal &descC, ContextInternal &ctx);
+                                   float *C, int ldc, int cRowOffset, int cColOffset,
+                                   SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+                                   ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<double>(int m, int n, int kLocal, SplaOperation opA, double alpha,
                                     const double *A, int lda, const double *B, int ldb, double beta,
-                                    double *C, int ldc, int cRowStart, int cColStart,
-                                    MatrixDistributionInternal &descC, ContextInternal &ctx);
+                                    double *C, int ldc, int cRowOffset, int cColOffset,
+                                    SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+                                    ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<gpu::blas::ComplexFloatType>(
     int m, int n, int kLocal, SplaOperation opA, gpu::blas::ComplexFloatType alpha,
     const gpu::blas::ComplexFloatType *A, int lda, const gpu::blas::ComplexFloatType *B, int ldb,
-    gpu::blas::ComplexFloatType beta, gpu::blas::ComplexFloatType *C, int ldc, int cRowStart,
-    int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
+    gpu::blas::ComplexFloatType beta, gpu::blas::ComplexFloatType *C, int ldc, int cRowOffset,
+    int cColOffset, SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+    ContextInternal &ctx);
 
 template void pgemm_ssb_gpu<gpu::blas::ComplexDoubleType>(
     int m, int n, int kLocal, SplaOperation opA, gpu::blas::ComplexDoubleType alpha,
     const gpu::blas::ComplexDoubleType *A, int lda, const gpu::blas::ComplexDoubleType *B, int ldb,
-    gpu::blas::ComplexDoubleType beta, gpu::blas::ComplexDoubleType *C, int ldc, int cRowStart,
-    int cColStart, MatrixDistributionInternal &descC, ContextInternal &ctx);
+    gpu::blas::ComplexDoubleType beta, gpu::blas::ComplexDoubleType *C, int ldc, int cRowOffset,
+    int cColOffset, SplaFillMode cFillMode, MatrixDistributionInternal &descC,
+    ContextInternal &ctx);
 
 }  // namespace spla

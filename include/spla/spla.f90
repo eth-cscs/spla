@@ -42,23 +42,27 @@ integer(c_int), parameter ::                  &
     SPLA_OP_TRANSPOSE                   = 1,  &
     SPLA_OP_CONJ_TRANSPOSE              = 2,  &
 
-    SPFFT_SUCCESS                       = 0,  &
-    SPFFT_UNKNOWN_ERROR                 = 1,  &
-    SPFFT_INTERNAL_ERROR                = 2,  &
-    SPFFT_INVALID_PARAMETER_ERROR       = 3,  &
-    SPFFT_INVALID_POINTER_ERROR         = 4,  &
-    SPFFT_INVALID_HANDLE_ERROR          = 5,  &
-    SPFFT_MPI_ERROR                     = 6,  &
-    SPFFT_MPI_ALLOCATION_ERROR          = 7,  &
-    SPFFT_MPI_THREAD_SUPPORT_ERROR      = 8,  &
-    SPFFT_GPU_ERROR                     = 9,  &
-    SPFFT_GPU_SUPPORT_ERROR             = 10, &
-    SPFFT_GPU_ALLOCATION_ERROR          = 11, &
-    SPFFT_GPU_LAUNCH_ERROR              = 12, &
-    SPFFT_GPU_NO_DEVICE_ERROR           = 13, &
-    SPFFT_GPU_INVALID_VALUE_ERROR       = 14, &
-    SPFFT_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
-    SPFFT_GPU_BLAS_ERROR                = 16
+    SPLA_FILL_MODE_FULL                 = 0,  &
+    SPLA_FILL_MODE_UPPER                = 1,  &
+    SPLA_FILL_MODE_LOWER                = 2,  &
+
+    SPLA_SUCCESS                       = 0,  &
+    SPLA_UNKNOWN_ERROR                 = 1,  &
+    SPLA_INTERNAL_ERROR                = 2,  &
+    SPLA_INVALID_PARAMETER_ERROR       = 3,  &
+    SPLA_INVALID_POINTER_ERROR         = 4,  &
+    SPLA_INVALID_HANDLE_ERROR          = 5,  &
+    SPLA_MPI_ERROR                     = 6,  &
+    SPLA_MPI_ALLOCATION_ERROR          = 7,  &
+    SPLA_MPI_THREAD_SUPPORT_ERROR      = 8,  &
+    SPLA_GPU_ERROR                     = 9,  &
+    SPLA_GPU_SUPPORT_ERROR             = 10, &
+    SPLA_GPU_ALLOCATION_ERROR          = 11, &
+    SPLA_GPU_LAUNCH_ERROR              = 12, &
+    SPLA_GPU_NO_DEVICE_ERROR           = 13, &
+    SPLA_GPU_INVALID_VALUE_ERROR       = 14, &
+    SPLA_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
+    SPLA_GPU_BLAS_ERROR                = 16
 
 interface
 
@@ -174,7 +178,7 @@ interface
     use iso_c_binding
     type(c_ptr), intent(out) :: matDis
     integer(c_int), value :: commFortran
-    integer(c_int), dimension(*), intent(in) :: mapping
+    type(c_ptr), value :: mapping
     integer(c_int), value :: procGridRows
     integer(c_int), value :: procGridCols
     integer(c_int), value :: rowBlockSize
@@ -193,43 +197,54 @@ interface
     type(c_ptr), intent(inout) :: matDis
   end function
 
-  integer(c_int) function spla_mat_dis_proc_grid_rows(ctx, rows) bind(C)
+  integer(c_int) function spla_mat_dis_proc_grid_rows(matDis, rows) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: rows
   end function
 
-  integer(c_int) function spla_mat_dis_proc_grid_cols(ctx, cols) bind(C)
+  integer(c_int) function spla_mat_dis_proc_grid_cols(matDis, cols) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: cols
   end function
 
-  integer(c_int) function spla_mat_dis_row_block_size(ctx, rowBlockSize) bind(C)
+  integer(c_int) function spla_mat_dis_row_block_size(matDis, rowBlockSize) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: rowBlockSize
   end function
 
-  integer(c_int) function spla_mat_dis_col_block_size(ctx, colBlockSize) bind(C)
+  integer(c_int) function spla_mat_dis_col_block_size(matDis, colBlockSize) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: colBlockSize
   end function
 
-  integer(c_int) function spla_mat_dis_type(ctx, disType) bind(C)
+  integer(c_int) function spla_mat_dis_type(matDis, disType) bind(C)
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: disType
   end function
 
-  integer(c_int) function spla_mat_dis_comm(ctx, commFortran) &
+  integer(c_int) function spla_mat_dis_comm(matDis, commFortran) &
       bind(C, name='spla_mat_dis_comm_fortran')
     use iso_c_binding
-    type(c_ptr), value :: ctx
+    type(c_ptr), value :: matDis
     integer(c_int), intent(out) :: commFortran
   end function
 
+  integer(c_int) function spla_mat_dis_set_row_block_size(matDis, rowBlockSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: matDis
+    integer(c_int), value :: rowBlockSize
+  end function
+
+  integer(c_int) function spla_mat_dis_set_col_block_size(matDis, colBlockSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: matDis
+    integer(c_int), value :: colBlockSize
+  end function
 
   !--------------------------
   !         pgemm_ssb
@@ -246,12 +261,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -270,12 +285,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -294,12 +309,12 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
@@ -318,18 +333,123 @@ interface
     integer(c_int), value :: kLocal
     integer(c_int), value :: opA
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     integer(c_int), value :: cRowOffset
     integer(c_int), value :: cColOffset
     type(c_ptr), value :: distC
     type(c_ptr), value :: ctx
   end function
+
+  !--------------------------
+  !         pgemm_ssbtr
+  !--------------------------
+
+  integer(c_int) function spla_psgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    real(c_float), value :: alpha
+    type(c_ptr), value :: A
+    integer(c_int), value :: lda
+    type(c_ptr), value :: B
+    integer(c_int), value :: ldb
+    real(c_float), value :: beta
+    type(c_ptr), value ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pdgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    real(c_double), value :: alpha
+    type(c_ptr), value :: A
+    integer(c_int), value :: lda
+    type(c_ptr), value :: B
+    integer(c_int), value :: ldb
+    real(c_double), value :: beta
+    type(c_ptr), value ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pcgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    complex(c_float), intent(in) :: alpha
+    type(c_ptr), value :: A
+    integer(c_int), value :: lda
+    type(c_ptr), value :: B
+    integer(c_int), value :: ldb
+    complex(c_float), intent(in) :: beta
+    type(c_ptr), value ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+  integer(c_int) function spla_pzgemm_ssbtr(m, n, kLocal, opA, &
+                                          alpha, A, lda, B, &
+                                          ldb, beta, C, ldc, cRowOffset, &
+                                          cColOffset, cFillMode, distC, &
+                                          ctx) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: m
+    integer(c_int), value :: n
+    integer(c_int), value :: kLocal
+    integer(c_int), value :: opA
+    complex(c_double), intent(in) :: alpha
+    type(c_ptr), value :: A
+    integer(c_int), value :: lda
+    type(c_ptr), value :: B
+    integer(c_int), value :: ldb
+    complex(c_double), intent(in) :: beta
+    type(c_ptr), value ::C
+    integer(c_int), value :: ldc
+    integer(c_int), value :: cRowOffset
+    integer(c_int), value :: cColOffset
+    integer(c_int), value :: cFillMode
+    type(c_ptr), value :: distC
+    type(c_ptr), value :: ctx
+  end function
+
+
 
 
 
@@ -346,15 +466,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -368,15 +488,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -390,15 +510,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -412,15 +532,15 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     integer(c_int), value :: bRowOffset
     integer(c_int), value :: bColOffset
     type(c_ptr), value :: distB
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -440,12 +560,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_float), value :: alpha
-    real(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_float), value :: beta
-    real(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -460,12 +580,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     real(c_double), value :: alpha
-    real(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    real(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     real(c_double), value :: beta
-    real(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -480,12 +600,12 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_float), intent(in) :: alpha
-    complex(c_float), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_float), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_float), intent(in) :: beta
-    complex(c_float), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
   end function
@@ -500,14 +620,40 @@ interface
     integer(c_int), value :: n
     integer(c_int), value :: k
     complex(c_double), intent(in) :: alpha
-    complex(c_double), dimension(*), intent(in) :: A
+    type(c_ptr), value :: A
     integer(c_int), value :: lda
-    complex(c_double), dimension(*), intent(in) :: B
+    type(c_ptr), value :: B
     integer(c_int), value :: ldb
     complex(c_double), intent(in) :: beta
-    complex(c_double), dimension(*), intent(inout) ::C
+    type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
+  end function
+
+  !--------------------------
+  !     For testing only
+  !--------------------------
+
+  integer(c_int) function spla_timer_start(n, nameArray) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: n
+    type(c_ptr), value :: nameArray
+  end function
+
+  integer(c_int) function spla_timer_stop(n, nameArray) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: n
+    type(c_ptr), value :: nameArray
+  end function
+
+  integer(c_int) function spla_timer_export_json(n, nameArray) bind(C)
+    use iso_c_binding
+    integer(c_int), value :: n
+    type(c_ptr), value :: nameArray
+  end function
+
+  integer(c_int) function spla_timer_print() bind(C)
+    use iso_c_binding
   end function
 
 end interface
