@@ -3,10 +3,10 @@ set(SPLA_SOURCE_FILES
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
-	pgemm_ssb/ring_host.cpp
+	pgemm_ssb/ring_ssb_host.cpp
 	pgemm_ssb/add_kernel.cpp
 	pgemm_sbs/pgemm_sbs_host.cpp
-	pgemm_sbs/stripe_host.cpp
+	pgemm_sbs/ring_sbs_host.cpp
 	gemm/gemm_host.cpp
 	spla/matrix_distribution.cpp
 	spla/matrix_distribution_internal.cpp
@@ -19,10 +19,10 @@ set(SPLA_SOURCE_FILES
 
 if(SPLA_CUDA OR SPLA_ROCM)
 	list(APPEND SPLA_SOURCE_FILES
-				pgemm_ssb/ring_gpu.cpp
+				pgemm_ssb/ring_ssb_gpu.cpp
 				pgemm_ssb/pgemm_ssb_gpu.cpp
-				pgemm_sbs/stripe_gpu.cpp
 				pgemm_sbs/pgemm_sbs_gpu.cpp
+            	pgemm_sbs/ring_sbs_gpu.cpp
 				gemm/gemm_gpu.cpp
 				gpu_util/multiply_gpu.cpp
 		)

@@ -25,11 +25,13 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_RING_GPU_HPP
-#define SPLA_RING_GPU_HPP
+#ifndef SPLA_RING_SBS_GPU_HPP
+#define SPLA_RING_SBS_GPU_HPP
 
 #include <array>
+#include <deque>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include "block_generation/block.hpp"
@@ -56,63 +58,58 @@ namespace spla {
 
 // Provides resources to proccess a block
 template <typename T>
-struct RingProcessor {
-  RingProcessor(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
-                GPUStreamHandle recvStream_, std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-                std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
-                GPUMatrixAccessor<GPUArrayConstView2D<T>> matA_,
-                GPUMatrixAccessor<GPUArrayConstView2D<T>> matB_)
+struct RingProcessorSBS {
+  RingProcessorSBS(IntType blockSize_, GPUBlasHandle blasHandle_,
+                   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
+                   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
+                   GPUConstMatrixAccessor<T> matA_, GPUMatrixAccessor<T> matC_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
-        event(std::move(event_)),
-        recvStream(std::move(recvStream_)),
         bufferHost(std::move(bufferHost_)),
         bufferGPU(std::move(bufferGPU_)),
         matA(std::move(matA_)),
-        matB(std::move(matB_)) {
+        matC(std::move(matC_)) {
     assert(bufferHost);
     assert(bufferGPU);
-    bufferHost->resize<T>(blockSize);
-    bufferGPU->resize<T>(2 * blockSize);
+    bufferHost->resize<T>(2 * blockSize);
+    bufferGPU->resize<T>(blockSize);
 
-    tileViewHost = HostArrayView1D<T>(bufferHost->data<T>(), blockSize);
     tileViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>(), blockSize);
-    recvViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>() + blockSize, blockSize);
+    sendView = HostArrayView1D<T>(bufferHost->data<T>(), blockSize);
+    recvView = HostArrayView1D<T>(bufferHost->data<T>() + blockSize, blockSize);
   }
 
   IntType blockSize;
   GPUBlasHandle blasHandle;
-  GPUEventHandle event;
-  GPUStreamHandle recvStream;
   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matA;
-  GPUMatrixAccessor<GPUArrayConstView2D<T>> matB;
-  HostArrayView1D<T> tileViewHost;
+  GPUConstMatrixAccessor<T> matA;
+  GPUMatrixAccessor<T> matC;
+  HostArrayView1D<T> sendView;
+  HostArrayView1D<T> recvView;
   GPUArrayView1D<T> tileViewGPU;
-  GPUArrayView1D<T> recvViewGPU;
 };
 
 // Compute and reduce for pgemm_ssb. If number of input blocks is equal to comm size, a ring
 // communication pattern is used. Otherwise, each block is processed individually.
 template <typename T, typename BLOCK_GEN>
-class RingGPU {
+class RingSBSGPU {
 public:
   using ValueType = T;
 
-  RingGPU(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
-          std::vector<RingProcessor<T>> ringProcs,
-          std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
-          SplaOperation opA, ValueType alpha, ValueType beta, HostArrayView2D<ValueType> HostMatC,
-          GPUArrayView2D<ValueType> GPUMatC);
+  RingSBSGPU(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
+             std::vector<RingProcessorSBS<T>> ringProcs, BLOCK_GEN baseMatGen, ValueType alpha,
+             ValueType beta, HostArrayConstView2D<ValueType> HostMatB,
+             GPUArrayConstView2D<ValueType> GPUMatB, IntType bRowOffset, IntType bColOffset);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.
-  auto process_step() -> bool;
+  auto process_step(std::unordered_set<IntType>& betaColIndeces,
+                    std::deque<GPUEventHandle>& colEvents) -> bool;
 
   // Must be called after all processing steps are done and before preparing for more blocks.
   auto finalize() -> void;
@@ -126,34 +123,35 @@ public:
   }
 
 private:
-  auto process_step_ring() -> void;
+  auto process_step_ring(std::unordered_set<IntType>& betaColIndeces,
+                         std::deque<GPUEventHandle>& colEvents) -> void;
 
-  auto process_step_reduction() -> void;
+  auto process_step_broadcast(std::unordered_set<IntType>& betaColIndeces,
+                              std::deque<GPUEventHandle>& colEvents) -> void;
 
   // state dependend
   bool useRing_ = false;
   IntType sendRank_ = 0;
   IntType recvRank_ = 0;
   IntType myStartIdx_ = 0;
+  IntType rankOffset_ = 0;
   IntType stepIdx_ = 0;
   IntType procIdx_ = 0;
   IntType numMultipliedBlocks_ = 0;
   MPIRequestHandle sendReq_;
   MPIRequestHandle recvReq_;
   std::vector<Block> blocks_;
-  std::vector<std::pair<IntType, BlockInfo>> myBlockInfos_;
-  std::vector<MPIRequestHandle> resultRecvs_;
+  std::vector<MPIRequestHandle> collectRecvs_;
   TileState state_;
 
   // fixed
   MPICommunicatorHandle comm_;
   BLOCK_GEN baseMatGen_;
-  std::vector<RingProcessor<T>> ringProcs_;
-  std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
-  HostArrayView2D<ValueType> HostMatC_;
-  GPUArrayView2D<ValueType> GPUMatC_;
+  std::vector<RingProcessorSBS<T>> ringProcs_;
+  HostArrayConstView2D<ValueType> HostMatB_;
+  GPUArrayConstView2D<ValueType> GPUMatB_;
+  const IntType bRowOffset_, bColOffset_;
   const ValueType alpha_, beta_;
-  const SplaOperation opA_;
   const IntType maxBlockSize_;
   const double ringThreshold_;
 };

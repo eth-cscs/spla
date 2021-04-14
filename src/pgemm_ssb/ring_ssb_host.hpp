@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_RING_HOST_HPP
-#define SPLA_RING_HOST_HPP
+#ifndef SPLA_RING_SSB_HOST_HPP
+#define SPLA_RING_SSB_HOST_HPP
 
 #include <atomic>
 #include <memory>
@@ -52,20 +52,20 @@ namespace spla {
 // Compute and reduce for pgemm_ssb. If number of input blocks is equal to comm size, a ring
 // communication pattern is used. Otherwise, each block is processed individually.
 template <typename T, typename BLOCK_GEN>
-class RingHost {
+class RingSSBHost {
 public:
   using ValueType = T;
 
-  RingHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-                     MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                     std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
-                     SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-                     const HostArrayConstView2D<ValueType> &B, ValueType beta,
-                     HostArrayView2D<ValueType> C);
+  RingSSBHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
+              MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+              std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
+              SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+              const HostArrayConstView2D<ValueType> &B, ValueType beta,
+              HostArrayView2D<ValueType> C);
 
   // Prepare to process input blocks
-  auto prepare(std::vector<Block>::const_iterator begin,
-               std::vector<Block>::const_iterator end) -> void;
+  auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
+      -> void;
 
   // Do one step within ring, prcosseing blocks. Returns true if more steps required, false
   // otherwise.

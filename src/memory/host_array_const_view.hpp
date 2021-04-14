@@ -172,8 +172,8 @@ public:
   HostArrayConstView3D(const ValueType* data, const IntType dimOuter, const IntType dimMid,
                        const IntType dimInner);
 
-  inline auto operator()(const IntType idxOuter, const IntType idxMid,
-                         const IntType idxInner) const noexcept -> const ValueType& {
+  inline auto operator()(const IntType idxOuter, const IntType idxMid, const IntType idxInner) const
+      noexcept -> const ValueType& {
     assert(idxOuter < dims_[0]);
     assert(idxOuter >= 0);
     assert(idxMid < dims_[1]);
@@ -183,8 +183,8 @@ public:
     return data_[(idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner];
   }
 
-  inline auto index(const IntType idxOuter, const IntType idxMid,
-                    const IntType idxInner) const noexcept -> IntType {
+  inline auto index(const IntType idxOuter, const IntType idxMid, const IntType idxInner) const
+      noexcept -> IntType {
     return (idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner;
   }
 

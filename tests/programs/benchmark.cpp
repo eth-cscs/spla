@@ -102,14 +102,14 @@ void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
   // run once to warm up
   spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
                   B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
-                  maxRowsB, ctx);
+                  localNumRows, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_sbs");
     spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
                     B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
-                    maxRowsB, ctx);
+                    localNumRows, ctx);
   }
   STOP_TIMING("spla");
 }

@@ -47,7 +47,7 @@ public:
   GPUDeviceGuard(const GPUDeviceGuard&) = delete;
   GPUDeviceGuard(GPUDeviceGuard&&) = delete;
   auto operator=(const GPUDeviceGuard&) -> GPUDeviceGuard& = delete;
-  auto operator=(GPUDeviceGuard&&) -> GPUDeviceGuard& = delete;
+  auto operator=(GPUDeviceGuard &&) -> GPUDeviceGuard& = delete;
 
   ~GPUDeviceGuard() {
     if (targetDeviceId_ != originalDeviceId_) {

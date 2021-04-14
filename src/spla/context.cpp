@@ -248,5 +248,4 @@ SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU) {
   }
   return SplaError::SPLA_SUCCESS;
 }
-
 }

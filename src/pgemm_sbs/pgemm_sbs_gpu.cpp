@@ -44,10 +44,12 @@
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "pgemm_sbs/stripe_gpu.hpp"
+#include "pgemm_sbs/ring_sbs_gpu.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/spla.hpp"
+#include "timing/timing.hpp"
+#include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
 #include "util/omp_definitions.hpp"
@@ -74,6 +76,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
                             int ldb, int bRowOffset, int bColOffset,
                             MatrixDistributionInternal &descB, T beta, T *C, int ldc,
                             ContextInternal &ctx, BLOCK_GEN gen) {
+  SCOPED_TIMING("pgemm_sbs_gpu")
   check_gemm_param(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, mLocal,
                    gen.local_cols(descB.comm().rank()), gen.local_rows(descB.comm().rank()), A, lda,
                    B, ldb, C, ldc);
@@ -82,21 +85,6 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
 
   // always synchronize with stream 0 as part of API requirement
   gpu::check_status(gpu::stream_synchronize(nullptr));
-
-  const IntType numBlockRows = gen.num_block_rows();
-  const IntType numBlockCols = gen.num_block_cols();
-
-  const IntType numBlockColsInTile = std::max<IntType>(
-      (ctx.tile_size_host() + descB.col_block_size() - 1) / descB.col_block_size(), 1);
-
-  const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
-
-  std::vector<StripeGPU<T, BLOCK_GEN>> stripes;
-  stripes.reserve(ctx.num_tiles());
-
-  auto &gpuBuffers = ctx.gpu_buffers(ctx.num_tiles() * 3);
-  auto &pinnedBuffers = ctx.pinned_buffers(2 * ctx.num_tiles());
-  auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
 
   const T *hostPtrA;
   const T *gpuPtrA;
@@ -109,84 +97,143 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
   std::tie(hostPtrB, gpuPtrB) = translate_gpu_pointer(B);
   std::tie(hostPtrC, gpuPtrC) = translate_gpu_pointer(C);
 
-  for (IntType i = 0; i < ctx.num_tiles(); ++i) {
-    auto matA =
-        gpuPtrA ? GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                      GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
-                : GPUMatrixAccessor<GPUArrayConstView2D<T>>(
-                      HostArrayConstView2D<T>(A, k, mLocal, lda), tileSizeGEMM, gpuBuffers[i * 3]);
+  const IntType tileSizeGEMM = ctx.tile_size_gpu() * ctx.tile_size_gpu();
 
-    auto matC =
-        gpuPtrC ? GPUMatrixAccessor<GPUArrayView2D<T>>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
-                : GPUMatrixAccessor<GPUArrayView2D<T>>(HostArrayView2D<T>(C, n, mLocal, ldc),
-                                                       tileSizeGEMM, gpuBuffers[i * 3 + 1]);
+  /*************************************
+   * Try to determine optimal block size
+   *************************************/
+  IntType rowsInBlock = 1;
+  IntType colsInBlock = 1;
 
-    auto hostMatC = gpuPtrC ? HostArrayView2D<T>() : HostArrayView2D<T>(C, n, mLocal, ldc);
+  const double ringThreshold = 0.65;
+  const IntType minBlockSize =
+      gpuPtrA && gpuPtrB
+          ? 250
+          : 500;  // If input is on host, smal block sizes lead to much more memory transfers
+                  // required. Therefore use larger block sizes in that case.
 
-    auto hostMatB =
-        gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb);
-    auto gpuMatB =
-        gpuPtrB ? GPUArrayConstView2D<T>(B, n + bColOffset, ldb) : GPUArrayConstView2D<T>();
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
+      SPLA_FILL_MODE_FULL, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
+      descB.comm().size(), k, n, bRowOffset, bColOffset, ctx.tile_size_host(), minBlockSize);
 
-    stripes.emplace_back(descB.comm(), blasHandles[i], pinnedBuffers[2 * i],
-                         pinnedBuffers[2 * i + 1], gpuBuffers[i * 3 + 2], ctx.tile_size_gpu(), gen,
-                         alpha, matA, hostMatB, gpuMatB, beta, matC, hostMatC, numBlockColsInTile);
+  // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
+  const IntType maxBlockSize =
+      std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
+
+  const IntType numRingProcs = 2;
+  const IntType numTiles =
+      std::max<IntType>(1, (ctx.num_tiles() + numRingProcs - 1) / numRingProcs);
+
+  /*************************************
+   * Create tiles
+   *************************************/
+
+  auto pinnedBuffersIt = ctx.pinned_buffers(numTiles * (numRingProcs + 1)).begin();
+  auto gpuBuffersIt = ctx.gpu_buffers(numTiles * numRingProcs * 3).begin();
+  auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingProcs).begin();
+  auto commsIt = descB.get_comms(numTiles).begin();
+
+  std::vector<RingSBSGPU<T, BLOCK_GEN>> tiles;
+  tiles.reserve(numTiles);
+
+  auto hostMatB =
+      gpuPtrB ? HostArrayConstView2D<T>() : HostArrayConstView2D<T>(B, n + bColOffset, ldb, ldb);
+
+  auto gpuMatB = gpuPtrB ? GPUArrayConstView2D<T>(gpuPtrB, n + bColOffset, ldb, ldb)
+                         : GPUArrayConstView2D<T>();
+
+  for (IntType i = 0; i < numTiles; ++i) {
+    std::vector<RingProcessorSBS<T>> ringBlocks;
+    ringBlocks.reserve(numTiles * numRingProcs);
+    for (IntType j = 0; j < numRingProcs; ++j) {
+      auto matA = gpuPtrA
+                      ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
+                      : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, k, mLocal, lda),
+                                                  tileSizeGEMM, *(gpuBuffersIt++));
+
+      auto matC = gpuPtrC ? GPUMatrixAccessor<T>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
+                          : GPUMatrixAccessor<T>(HostArrayView2D<T>(C, n, mLocal, ldc),
+                                                 tileSizeGEMM, *(gpuBuffersIt++));
+
+      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(pinnedBuffersIt++),
+                              *(gpuBuffersIt++), std::move(matA), std::move(matC));
+    }
+
+    tiles.emplace_back(ringThreshold, maxBlockSize, *(commsIt++), std::move(ringBlocks), gen, alpha,
+                       beta, hostMatB, gpuMatB, bRowOffset, bColOffset);
   }
 
-  if (ctx.num_threads() > 1) {
-    // comm + worker thread
-    SPLA_OMP_PRAGMA("omp parallel num_threads(2)") {
-      GPUDeviceGuard deviceGuard(ctx.gpu_device_id());
-      IntType counter = 0;
-      for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-           blockColIdx += numBlockColsInTile, ++counter) {
-        auto &t = stripes[counter % ctx.num_tiles()];
-        auto &tNext = stripes[(counter + 1) % ctx.num_tiles()];
-        if (omp_get_thread_num() == 0) {
-          // wait for tile to be multiplied
-          while (t.state() != StripeState::Collected) {
+  /*************************************
+   * Start processing
+   *************************************/
+
+  std::vector<Block> blocks;
+  blocks.reserve(descB.comm().size());
+  std::unordered_set<IntType> betaColIndeces;
+  auto &colEvents = ctx.gpu_event_handles(20);
+
+  IntType tileIdx = 0;
+
+  // iterate grid wise
+  for (IntType colStartIdx = 0; colStartIdx < n;
+       colStartIdx += descB.proc_grid_cols() * colsInBlock) {
+    for (IntType rowStartIdx = 0; rowStartIdx < k;
+         rowStartIdx += descB.proc_grid_rows() * rowsInBlock) {
+      // iterate through blocks within grid
+      for (IntType colIdx = colStartIdx;
+           colIdx < std::min<IntType>(n, colStartIdx + descB.proc_grid_cols() * colsInBlock);
+           colIdx += colsInBlock) {
+        for (IntType rowIdx = rowStartIdx;
+             rowIdx < std::min<IntType>(k, rowStartIdx + descB.proc_grid_rows() * rowsInBlock);
+             rowIdx += rowsInBlock) {
+          const auto block = Block{rowIdx, colIdx, std::min<IntType>(rowsInBlock, k - rowIdx),
+                                   std::min<IntType>(colsInBlock, n - colIdx)};
+          blocks.emplace_back(block);
+          // Prepare processing when there are enough blocks to form ring
+          if (blocks.size() == descB.comm().size()) {
+            auto &t = tiles[tileIdx % numTiles];
+            t.prepare(blocks.begin(), blocks.end());
+            blocks.resize(0);
+            ++tileIdx;
+            t.process_step(betaColIndeces,
+                           colEvents);  // do one step for better comm / compute overlap
           }
-          t.start_exchange();
-          t.finalize_exchange();
-        } else {
-          // wait for tile once encountering the same tile more than once
-          if (counter >= ctx.num_tiles() - 1) {
-            while (tNext.state() != StripeState::Exchanged) {
+
+          if (tileIdx == numTiles) {
+            // All tiles are prepared -> start processing
+            bool tileToProcess = true;
+            while (tileToProcess) {
+              tileToProcess = false;
+              // Interleave processing to hide communication cost
+              for (auto &t : tiles) {
+                tileToProcess |= t.process_step(betaColIndeces, colEvents);
+              }
             }
-            tNext.multiply();
+            tileIdx = 0;
           }
-          t.collect(blockColIdx);
         }
       }
     }
-  } else {
-    // single thread
-    IntType counter = 0;
-    for (IntType blockColIdx = 0; blockColIdx < numBlockCols;
-         blockColIdx += numBlockColsInTile, ++counter) {
-      auto &t = stripes[counter % ctx.num_tiles()];
-      auto &tNext = stripes[(counter + 1) % ctx.num_tiles()];
+  }
 
-      if (tNext.state() == StripeState::InExchange) {
-        tNext.finalize_exchange();
-        tNext.multiply();
-      }
-
-      t.collect(blockColIdx);
-      t.start_exchange();
+  if (blocks.size()) {
+    // Prepare with remaining blocks
+    auto &t = tiles[tileIdx];
+    t.prepare(blocks.begin(), blocks.end());
+    t.process_step(betaColIndeces, colEvents);  // do one step for better comm / compute overlap
+    blocks.resize(0);
+  }
+  // Process remaining blocks
+  bool tileToProcess = true;
+  while (tileToProcess) {
+    tileToProcess = false;
+    for (auto &t : tiles) {
+      tileToProcess |= t.process_step(betaColIndeces, colEvents);
     }
   }
 
-  // finalize remaining stripes
-  for (auto &t : stripes) {
-    if (t.state() == StripeState::InExchange) {
-      t.finalize_exchange();
-    }
-    if (t.state() == StripeState::Exchanged) {
-      t.multiply();
-    }
-  }
-  for (auto &t : stripes) {
+  // synchronize all streams
+  for (auto &t : tiles) {
     t.synchronize();
   }
 }
