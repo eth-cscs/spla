@@ -36,7 +36,7 @@
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
 #include "mpi_util/mpi_check_status.hpp"
-#include "pgemm_ssb/block_size_selection_ssb.hpp"
+#include "util/block_size_selection.hpp"
 #include "pgemm_ssb/ring_ssb_host.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
@@ -69,7 +69,7 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
   const double ringThreshold = 0.65;
   const IntType minBlockSize = 150;
 
-  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       cFillMode, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold, descC.comm().size(), m,
       n, cRowOffset, cColOffset, ctx.tile_size_host(), minBlockSize);
 

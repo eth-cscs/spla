@@ -45,7 +45,7 @@
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "pgemm_sbs/ring_sbs_gpu.hpp"
-#include "pgemm_ssb/block_size_selection_ssb.hpp"
+#include "util/block_size_selection.hpp"
 #include "spla/context.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/spla.hpp"
@@ -112,7 +112,7 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
           : 500;  // If input is on host, smal block sizes lead to much more memory transfers
                   // required. Therefore use larger block sizes in that case.
 
-  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       SPLA_FILL_MODE_FULL, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
       descB.comm().size(), k, n, bRowOffset, bColOffset, ctx.tile_size_host(), minBlockSize);
 

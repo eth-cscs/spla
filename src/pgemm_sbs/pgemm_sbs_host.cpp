@@ -40,7 +40,7 @@
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "pgemm_sbs/ring_sbs_host.hpp"
-#include "pgemm_ssb/block_size_selection_ssb.hpp"
+#include "util/block_size_selection.hpp"
 #include "spla/context_internal.hpp"
 #include "spla/exceptions.hpp"
 #include "spla/matrix_distribution_internal.hpp"
@@ -88,7 +88,7 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
   IntType rowsInBlock = 500;
   IntType colsInBlock = 500;
 
-  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       SPLA_FILL_MODE_FULL, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold,
       descB.comm().size(), k, n, bRowOffset, bColOffset, ctx.tile_size_host(), minBlockSize);
 

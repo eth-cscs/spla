@@ -25,8 +25,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SPLA_BLOCK_SIZE_SELECTION_SSB_HPP
-#define SPLA_BLOCK_SIZE_SELECTION_SSB_HPP
+#ifndef SPLA_BLOCK_SIZE_SELECTION_HPP
+#define SPLA_BLOCK_SIZE_SELECTION_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -55,7 +55,7 @@ inline auto find_optimal_proc_grid(IntType commSize, IntType lowerDeviation, Int
   return {commSize, 1};
 }
 
-inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviationFactor,
+inline auto block_size_selection(bool isDisjointDistribution, double deviationFactor,
                                      IntType commSize, IntType m, IntType n,
                                      IntType targetBlockSize, IntType minBlockSize)
     -> std::pair<IntType, IntType> {
@@ -133,12 +133,12 @@ inline auto block_size_selection_ssb(bool isDisjointDistribution, double deviati
   return {rowsInBlock, colsInBlock};
 }
 
-inline auto block_size_selection_ssb(SplaFillMode mode, bool isDisjointDistribution,
+inline auto block_size_selection(SplaFillMode mode, bool isDisjointDistribution,
                                      double deviationFactor, IntType commSize, IntType m, IntType n,
                                      IntType rowOffset, IntType colOffset, IntType targetBlockSize,
                                      IntType minBlockSize) -> std::pair<IntType, IntType> {
   IntType rowsInBlock, colsInBlock;
-  std::tie(rowsInBlock, colsInBlock) = block_size_selection_ssb(
+  std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       isDisjointDistribution, deviationFactor, commSize, m, n, targetBlockSize, minBlockSize);
 
   if (mode != SPLA_FILL_MODE_FULL && !isDisjointDistribution) {
