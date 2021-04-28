@@ -30,7 +30,7 @@
 
 /*! \file pgemm_ssb.h
    \brief General matrix multiplication functions for computing \f$ C \leftarrow \alpha A^H B +
-   \beta C \f$ with stripe-stripe-block distribution.
+   \beta C \f$ with stripe-stripe-block distribution, where computation may be limited to triangular part.
    \verbatim
      ------ T     ------
      |    |       |    |
@@ -39,8 +39,8 @@
      |    |       |    |        -------         -------
      |    |       |    |        |  |  |         |  |  |
      ------   *   ------    +   -------   -->   -------
-     |    |       |    |        |  |  |         |  |  |
-     |    |       |    |        -------         -------
+     |    |       |    |           |  |         |  |  |
+     |    |       |    |           ----            ----
      ------       ------           C               C
      |    |       |    |
      |    |       |    |
