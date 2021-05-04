@@ -58,10 +58,22 @@ public:
 
   HostArrayConstView1D(const ValueType* data, const IntType size);
 
+  inline auto operator=(const HostArrayConstView1D<T>&) -> HostArrayConstView1D<T>& = default;
+
+  inline auto operator=(HostArrayConstView1D<T>&&) -> HostArrayConstView1D<T>& = default;
+
   inline auto operator()(const IntType idx) const -> const ValueType& {
     assert(idx < size_);
     assert(idx >= 0);
     return data_[idx];
+  }
+
+  inline auto operator==(const HostArrayConstView1D<T>& view) const -> bool {
+    return size_ == view.size_ && data_ == view.data_;
+  }
+
+  inline auto operator!=(const HostArrayConstView1D<T>& view) const -> bool {
+    return !(*this == view);
   }
 
   inline auto data() const noexcept -> const ValueType* { return data_; }
@@ -108,12 +120,24 @@ public:
 
   HostArrayConstView2D(const ValueType* data, const IntType dimOuter, const IntType dimInner);
 
+  inline auto operator=(const HostArrayConstView2D<T>&) -> HostArrayConstView2D<T>& = default;
+
+  inline auto operator=(HostArrayConstView2D<T>&&) -> HostArrayConstView2D<T>& = default;
+
   inline auto operator()(const IntType idxOuter, const IntType idxInner) const -> const ValueType& {
     assert(idxOuter < dims_[0]);
     assert(idxOuter >= 0);
     assert(idxInner < dims_[1]);
     assert(idxInner >= 0);
     return data_[(idxOuter * ldInner_) + idxInner];
+  }
+
+  inline auto operator==(const HostArrayConstView2D<T>& view) const -> bool {
+    return data_ == view.data_ && dims_ == view.dims_ && ldInner_ == view.ldInner_;
+  }
+
+  inline auto operator!=(const HostArrayConstView2D<T>& view) const -> bool {
+    return !(*this == view);
   }
 
   inline auto index(const IntType idxOuter, const IntType idxInner) const noexcept -> IntType {
@@ -172,6 +196,10 @@ public:
   HostArrayConstView3D(const ValueType* data, const IntType dimOuter, const IntType dimMid,
                        const IntType dimInner);
 
+  inline auto operator=(const HostArrayConstView3D<T>&) -> HostArrayConstView3D<T>& = default;
+
+  inline auto operator=(HostArrayConstView3D<T>&&) -> HostArrayConstView3D<T>& = default;
+
   inline auto operator()(const IntType idxOuter, const IntType idxMid, const IntType idxInner) const
       noexcept -> const ValueType& {
     assert(idxOuter < dims_[0]);
@@ -181,6 +209,15 @@ public:
     assert(idxInner < dims_[2]);
     assert(idxInner >= 0);
     return data_[(idxOuter * ldMid_ + idxMid) * ldInner_ + idxInner];
+  }
+
+  inline auto operator==(const HostArrayConstView3D<T>& view) const -> bool {
+    return data_ == view.data_ && dims_ == view.dims_ && ldInner_ == view.ldInner_ &&
+           ldMid_ == view.ldMid_;
+  }
+
+  inline auto operator!=(const HostArrayConstView3D<T>& view) const -> bool {
+    return !(*this == view);
   }
 
   inline auto index(const IntType idxOuter, const IntType idxMid, const IntType idxInner) const
