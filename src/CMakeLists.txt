@@ -67,7 +67,11 @@ target_include_directories(spla PRIVATE ${SPLA_EXTERNAL_INCLUDE_DIRS})
 target_include_directories(spla PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(spla PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(spla PRIVATE ${PROJECT_BINARY_DIR})
-target_link_libraries(spla PUBLIC ${SPLA_EXTERNAL_LIBS})
+
+
+target_link_libraries(spla PRIVATE ${SPLA_EXTERNAL_LIBS})
+# SPLA inteface needs MPI to be compiled. Avoid requiring CXX language for installed cmake config files, so only make public for build.
+target_link_libraries(spla PUBLIC $<BUILD_INTERFACE:MPI::MPI_CXX>)
 
 target_include_directories(spla INTERFACE ${SPLA_INTERFACE_INCLUDE_DIRS})
 target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
@@ -77,13 +81,7 @@ if(${SPLA_FORTRAN}) # Add include directory for fortran module
 	target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
 endif()
 
-# set list of interface libries for exporting (workaround for bug with exporting static library:
-# cmake uses MPI_CXX and OpenMP::OpenMP_CXX targets, which are not known externally)
-if(POLICY CMP0022)
-	set_target_properties(spla PROPERTIES INTERFACE_LINK_LIBRARIES "${SPLA_INTERFACE_LIBS}")
-else()
-	set_target_properties(spla PROPERTIES LINK_INTERFACE_LIBRARIES "${SPLA_INTERFACE_LIBS}")
-endif()
+
 
 # set packge config names
 if(SPLA_STATIC)
@@ -144,6 +142,10 @@ if(SPLA_INSTALL)
 	)
 
 	install(FILES ${PROJECT_BINARY_DIR}/SPLA.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+	install(DIRECTORY "${PROJECT_SOURCE_DIR}/cmake/modules"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/spla"
+        FILES_MATCHING PATTERN "*.cmake")
 
 	if(SPLA_FORTRAN)
 		install(FILES ${PROJECT_BINARY_DIR}/src/spla.mod DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spla)
