@@ -71,6 +71,7 @@ set(SPLA_BLAS_OPENBLAS OFF)
 set(SPLA_BLAS_SCI OFF)
 set(SPLA_BLAS_ATLAS OFF)
 set(SPLA_BLAS_GENERIC OFF)
+set(SPLA_BLAS_UNKNOWN OFF)
 
 # Fortran
 if(SPLA_FORTRAN)
@@ -285,7 +286,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 	endif()
 endif()
 
-# Fall back to CMake provided FindBLAS as last resort or for GENERIC blas library
+# Fall back to CMake provided FindBLAS as last resort
 if(NOT _SPLA_BLAS_FOUND)
 	find_package(BLAS REQUIRED)
 	message(STATUS "Host BLAS Backend: ${BLAS_LIBRARIES}")
@@ -299,6 +300,7 @@ if(NOT _SPLA_BLAS_FOUND)
 	endif()
 	set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
 	list(APPEND SPLA_EXTERNAL_LIBS BLAS::blas)
+	set(SPLA_BLAS_UNKNOWN ON)
 endif()
 
 

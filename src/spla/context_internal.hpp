@@ -150,12 +150,10 @@ public:
   // Set methods
 
   inline auto set_num_threads(IntType numThreads) -> void {
-#ifdef SPLA_OMP
     if (numThreads > 0)
       numThreads_ = numThreads;
     else
       numThreads_ = omp_get_max_threads();
-#endif
   }
 
   inline auto set_num_tiles(IntType numTilesPerThread) -> void {
