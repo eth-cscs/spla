@@ -115,6 +115,6 @@ jobs:
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        /root/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=ROCM
+        /root/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=ROCM -DCMAKE_PREFIX_PATH="/opt/rocm;/opt/rocm/hip"
         make -j2
 
