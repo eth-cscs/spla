@@ -33,8 +33,6 @@
    \leftarrow \alpha OP(A) OP(B) + \beta C \f$.
 */
 
-#include <complex>
-
 #include "spla/config.h"
 #include "spla/context.h"
 #include "spla/errors.h"
