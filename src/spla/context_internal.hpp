@@ -119,6 +119,8 @@ public:
 
   inline auto allocators() const -> const AllocatorCollection& { return allocators_; }
 
+  inline auto allocators() -> AllocatorCollection& { return allocators_; }
+
   // Set methods
 
   inline auto set_num_threads(IntType numThreads) -> void {

@@ -79,10 +79,25 @@ public:
 
   auto host() const -> const std::shared_ptr<Allocator<MemLoc::Host>>& { return allocHost_; }
 
+  auto set_host(std::shared_ptr<Allocator<MemLoc::Host>> allocator) -> void {
+    assert(allocator);
+    allocHost_ = std::move(allocator);
+  }
+
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
   auto pinned() const -> const std::shared_ptr<Allocator<MemLoc::Host>>& { return allocPinned_; }
 
+  auto set_pinned(std::shared_ptr<Allocator<MemLoc::Host>> allocator) -> void {
+    assert(allocator);
+    allocPinned_ = std::move(allocator);
+  }
+
   auto gpu() const -> const std::shared_ptr<Allocator<MemLoc::GPU>>& { return allocGPU_; }
+
+  auto set_gpu(std::shared_ptr<Allocator<MemLoc::GPU>> allocator) -> void {
+    assert(allocator);
+    allocGPU_ = std::move(allocator);
+  }
 #endif
 
 private:

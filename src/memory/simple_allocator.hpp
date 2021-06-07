@@ -26,16 +26,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPLA_POOL_ALLOCATOR_HPP
-#define SPLA_POOL_ALLOCATOR_HPP
+#ifndef SPLA_SIMPLE_ALLOCATOR_HPP
+#define SPLA_SIMPLE_ALLOCATOR_HPP
 
 #include <cassert>
 #include <cstddef>
-#include <map>
-#include <memory>
-#include <unordered_map>
 #include <functional>
 #include <mutex>
+#include <memory>
+#include <unordered_map>
 
 #include "spla/config.h"
 #include "memory/allocator.hpp"
@@ -45,78 +44,47 @@
 namespace spla {
 
 template <MemLoc LOCATION>
-class PoolAllocator : public Allocator<LOCATION> {
+class SimpleAllocator : public Allocator<LOCATION> {
 public:
-  PoolAllocator(std::function<void*(std::size_t)> allocateFunc,
-                std::function<void(void*)> deallocateFunc)
+  SimpleAllocator(std::function<void*(std::size_t)> allocateFunc,
+                  std::function<void(void*)> deallocateFunc)
       : allocateFunc_(std::move(allocateFunc)),
         deallocateFunc_(std::move(deallocateFunc)),
-        lock_(new std::mutex()) {
+        lock_(new std::mutex()),
+        memorySize_(0) {
     if (!allocateFunc_ || !deallocateFunc_) {
       throw InvalidAllocatorFunctionError();
     }
   }
 
-  PoolAllocator(const PoolAllocator&) = delete;
+  SimpleAllocator(const SimpleAllocator&) = delete;
 
-  PoolAllocator(PoolAllocator&&) = default;
+  SimpleAllocator(SimpleAllocator&&) = default;
 
-  auto operator=(const PoolAllocator&) -> PoolAllocator& = delete;
+  auto operator=(const SimpleAllocator&) -> SimpleAllocator& = delete;
 
-  auto operator=(PoolAllocator&&) -> PoolAllocator& = default;
+  auto operator=(SimpleAllocator &&) -> SimpleAllocator& = default;
 
-  ~PoolAllocator() override {
-    for (auto& pair : allocatedMem_) {
-      assert(false);  // No allocated memory should still exist with correct usage
-      deallocateFunc_(pair.first);
-      memorySize_ -= pair.second;
-    }
-    for (auto& pair : freeMem_) {
-      deallocateFunc_(pair.second);
-      memorySize_ -= pair.first;
-    }
-  }
+  ~SimpleAllocator() override {}
 
   auto allocate(std::size_t size) -> void* override {
     if (!size) return nullptr;
     std::lock_guard<std::mutex> guard(*lock_);
-    SCOPED_TIMING("pool_allocate");
+    SCOPED_TIMING("simple_allocate");
 
-    void* ptr = nullptr;
-    // find block which is greater or equal to size
-    auto boundIt = freeMem_.lower_bound(size);
-
-    if (boundIt == freeMem_.end()) {
-      // No memory block is large enough. Free the largest one and allocate new size.
-      if(!freeMem_.empty()) {
-        auto backIt = --freeMem_.end();
-        deallocateFunc_(backIt->second);
-        memorySize_ -= backIt->first;
-        freeMem_.erase(backIt);
-      }
-      ptr = allocateFunc_(size);
-      memorySize_ += size;
-      allocatedMem_.emplace(ptr, size);
-    } else {
-      // Use already allocated memory block.
-      ptr = boundIt->second;
-      allocatedMem_.emplace(boundIt->second, boundIt->first);
-      freeMem_.erase(boundIt);
-    }
-
+    void * ptr = allocateFunc_(size);
+    allocatedMem_.emplace(ptr, size);
+    memorySize_ += size;
     return ptr;
   }
 
   auto deallocate(void* ptr) -> void override {
     std::lock_guard<std::mutex> guard(*lock_);
-    SCOPED_TIMING("pool_deallocate");
-
+    SCOPED_TIMING("simple_deallocate");
+    deallocateFunc_(ptr);
     auto it = allocatedMem_.find(ptr);
-    assert(it != allocatedMem_.end());  // avoid throwing exception when deallocating
-    if (it != allocatedMem_.end()) {
-      freeMem_.emplace(it->second, it->first);
-      allocatedMem_.erase(it);
-    }
+    memorySize_ -= it->second;
+    allocatedMem_.erase(it);
   }
 
   auto size() -> std::uint_least64_t override {
@@ -127,10 +95,8 @@ private:
   std::function<void*(std::size_t)> allocateFunc_;
   std::function<void(void*)> deallocateFunc_;
 
-  std::multimap<std::size_t, void*> freeMem_;
-  std::unordered_map<void*, std::size_t> allocatedMem_;
-
   std::unique_ptr<std::mutex> lock_;
+  std::unordered_map<void*, std::size_t> allocatedMem_;
   std::uint_least64_t memorySize_;
 };
 }  // namespace spla

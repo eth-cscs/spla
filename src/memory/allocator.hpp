@@ -57,6 +57,8 @@ public:
   virtual auto deallocate(void* ptr) -> void = 0;
 
   inline auto location() -> MemLoc { return LOCATION; }
+
+  virtual auto size() -> std::uint_least64_t = 0;
 };
 }  // namespace spla
 

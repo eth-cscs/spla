@@ -123,6 +123,24 @@ interface
     integer(c_int), intent(out) :: deviceId
   end function
 
+  integer(c_int) function spla_ctx_allocated_memory_host(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
+  end function
+
+  integer(c_int) function spla_ctx_allocated_memory_pinned(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
+  end function
+
+  integer(c_int) function spla_ctx_allocated_memory_gpu(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
+  end function
+
   integer(c_int) function spla_ctx_set_num_threads(ctx, numThreads) bind(C)
     use iso_c_binding
     type(c_ptr), value :: ctx

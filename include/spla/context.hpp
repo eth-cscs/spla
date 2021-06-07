@@ -31,6 +31,8 @@
 #include <complex>
 #include <cstddef>
 #include <memory>
+#include <functional>
+#include <cstddef>
 
 #include "spla/config.h"
 #include "spla/types.h"
@@ -120,6 +122,27 @@ public:
   int gpu_device_id() const;
 
   /**
+   * Access a Context parameter.
+   * @return Total allocated memory on host in bytes used for internal buffers. Does not include
+   * allocations through standard C++ allocators. May change with use of context.
+   */
+  std::uint_least64_t allocated_memory_host() const;
+
+  /**
+   * Access a Context parameter.
+   * @return Total allocated pinned memory on host in bytes used for internal buffers. Does not include
+   * allocations through standard C++ allocators. May change with with use of context.
+   */
+  std::uint_least64_t allocated_memory_pinned() const;
+
+  /**
+   * Access a Context parameter.
+   * @return Total allocated memory on gpu in bytes used for internal buffers. Does not include
+   * allocations by device libraries like cuBLAS / rocBLAS. May change with with use of context.
+   */
+  std::uint_least64_t allocated_memory_gpu() const;
+
+  /**
    * Set the number of threads to be used.
    *
    * @param[in] numThreads Number of threads.
@@ -154,6 +177,36 @@ public:
    * @param[in] tileSizeGPU Tile size on GPU.
    */
   void set_tile_size_gpu(int tileSizeGPU);
+
+  /**
+   * Set the allocation and deallocation functions for host memory. Internal default uses a memory
+   * pool for better performance.
+   *
+   * @param[in] allocateFunc Function allocating given size in bytes.
+   * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+   */
+  void set_alloc_host(std::function<void *(std::size_t)> allocateFunc,
+                      std::function<void(void *)> deallocateFunc);
+
+  /**
+   * Set the allocation and deallocation functions for pinned host memory. Internal default uses a
+   * memory pool for better performance.
+   *
+   * @param[in] allocateFunc Function allocating given size in bytes.
+   * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+   */
+  void set_alloc_pinned(std::function<void *(std::size_t)> allocateFunc,
+                        std::function<void(void *)> deallocateFunc);
+
+  /**
+   * Set the allocation and deallocation functions for gpu memory. Internal default uses a
+   * memory pool for better performance.
+   *
+   * @param[in] allocateFunc Function allocating given size in bytes.
+   * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+   */
+  void set_alloc_gpu(std::function<void *(std::size_t)> allocateFunc,
+                     std::function<void(void *)> deallocateFunc);
 
 private:
   /*! \cond PRIVATE */

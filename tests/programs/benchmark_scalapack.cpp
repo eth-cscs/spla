@@ -209,6 +209,10 @@ int main(int argc, char** argv) {
   int worldRank;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   if (worldRank == 0) {
+    std::cout << "Context memory usage:" << std::endl;
+    std::cout << ctx.allocated_memory_host() / 1000000 << " MB host memory" << std::endl;
+    std::cout << ctx.allocated_memory_pinned() / 1000000 << " MB pinned host memory" << std::endl;
+    std::cout << ctx.allocated_memory_gpu() / 1000000 << " MB gpu memory" << std::endl;
     auto result = spla::timing::GlobalTimer.process();
     std::cout << result.print() << std::endl;
     std::ofstream file(outputFileName);
