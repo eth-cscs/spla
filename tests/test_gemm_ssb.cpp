@@ -11,6 +11,7 @@
 
 #include "gtest/gtest.h"
 #include "memory/buffer.hpp"
+#include "memory/allocator_collection.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
@@ -20,7 +21,6 @@
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_runtime_api.hpp"
-#include "memory/gpu_allocator.hpp"
 #endif
 
 // template<typename T>
@@ -254,39 +254,36 @@ protected:
     std::vector<T> vecCFromGPU;
     // compare starting from device buffers if GPU enabled
     if (ctx_.processing_unit() == SPLA_PU_GPU) {
-      Buffer<GPUAllocator> gpuBufferA;
-      gpuBufferA.resize<T>(vecA.size());
-      Buffer<GPUAllocator> gpuBufferB;
-      gpuBufferB.resize<T>(vecB.size());
-      Buffer<GPUAllocator> gpuBufferC;
-      gpuBufferC.resize<T>(vecC.size());
+      Buffer<T, MemLoc::GPU> gpuBufferA(allocators_.gpu(), vecA.size());
+      Buffer<T, MemLoc::GPU> gpuBufferB(allocators_.gpu(), vecB.size());
+      Buffer<T, MemLoc::GPU> gpuBufferC(allocators_.gpu(), vecC.size());
 
       if (vecA.size())
-        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data<T>()),
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data()),
                                       static_cast<const void*>(vecA.data()),
                                       vecA.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
       if (vecB.size())
-        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data()),
                                       static_cast<const void*>(vecB.data()),
                                       vecB.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
       if (vecC.size())
-        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+        gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data()),
                                       static_cast<const void*>(vecC.data()),
                                       vecC.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
 
       spla::pgemm_ssb(
           subMatrixRows, subMatrixCols, kLocalPerRank_[mpi_world_rank()], SPLA_OP_CONJ_TRANSPOSE,
-          T(1.0), gpuBufferA.empty() ? nullptr : gpuBufferA.data<T>() + localRowOffset,
+          T(1.0), gpuBufferA.empty() ? nullptr : gpuBufferA.data() + localRowOffset,
           localViewA.ld_inner(),
-          gpuBufferB.empty() ? nullptr : gpuBufferB.data<T>() + localRowOffset,
-          localViewB.ld_inner(), T(0.0), gpuBufferC.empty() ? nullptr : gpuBufferC.data<T>(), m_,
+          gpuBufferB.empty() ? nullptr : gpuBufferB.data() + localRowOffset,
+          localViewB.ld_inner(), T(0.0), gpuBufferC.empty() ? nullptr : gpuBufferC.data(), m_,
           subMatrixRowOffset, subMatrixColOffset, desc, ctx_);
 
       vecCFromGPU.resize(vecC.size());
 
       if (vecC.size())
         gpu::check_status(gpu::memcpy(
-            static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data<T>()),
+            static_cast<void*>(vecCFromGPU.data()), static_cast<const void*>(gpuBufferC.data()),
             vecCFromGPU.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
     }
 #endif
@@ -318,6 +315,7 @@ protected:
   int rowBlockSize_, colBlockSize_, m_, n_, k_;
   std::vector<int> kLocalPerRank_;
   spla::Context ctx_;
+  spla::AllocatorCollection allocators_;
 
   static std::mt19937 staticRandGen_;  // must produce same numbers on each rank
 };

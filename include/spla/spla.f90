@@ -62,7 +62,8 @@ integer(c_int), parameter ::                  &
     SPLA_GPU_NO_DEVICE_ERROR           = 13, &
     SPLA_GPU_INVALID_VALUE_ERROR       = 14, &
     SPLA_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
-    SPLA_GPU_BLAS_ERROR                = 16
+    SPLA_GPU_BLAS_ERROR                = 16, &
+    SPLA_INVALID_ALLOCATOR_FUNCTION    = 17
 
 interface
 

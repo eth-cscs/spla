@@ -31,80 +31,83 @@
 
 #include <cassert>
 #include <cstddef>
+#include <memory>
 
+#include "memory/allocator.hpp"
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 
 namespace spla {
 
-// Strictly growing memory buffer for trivial types
-template <class ALLOCATOR>
+template <typename T, MemLoc LOCATION>
 class Buffer {
 public:
-  Buffer() noexcept : data_(nullptr), sizeInBytes_(0) {}
+  static_assert(std::is_trivially_destructible<T>::value,
+                "Type in buffer must be trivially destructible! Memory is not initialized and "
+                "destructors are not "
+                "called!");
+
+  Buffer(std::shared_ptr<Allocator<LOCATION>> allocator, std::size_t size)
+      : size_(0), data_(nullptr), allocator_(std::move(allocator)) {
+    assert(allocator_);
+    this->resize(size);
+  }
 
   Buffer(const Buffer&) = delete;
 
-  Buffer(Buffer&& buffer) noexcept : Buffer() { *this = std::move(buffer); }
+  Buffer(Buffer&& buffer) { *this = std::move(buffer); }
 
-  ~Buffer() { this->deallocate(); }
-
-  auto operator=(const Buffer&) -> Buffer& = delete;
-
-  auto operator=(Buffer&& buffer) noexcept -> Buffer& {
-    this->deallocate();
-    this->data_ = buffer.data_;
-    this->sizeInBytes_ = buffer.sizeInBytes_;
-    buffer.data_ = nullptr;
-    buffer.sizeInBytes_ = 0;
-    return *this;
-  }
-
-  auto empty() const -> bool { return !data_; }
-
-  template <typename T>
-  auto resize(std::size_t size) -> void {
-    static_assert(std::is_trivially_destructible<T>::value,
-                  "Type in buffer must be trivially destructible! Memory is not initialized and "
-                  "destructors are not "
-                  "called!");
-    if (sizeInBytes_ < size * sizeof(T)) {
-      this->deallocate();
-      const auto targetSize = size * sizeof(T);
-      data_ = ALLOCATOR::allocate(targetSize);
-      assert(data_);
-      sizeInBytes_ = targetSize;
+  ~Buffer() {
+    if (allocator_ && size_) {
+      allocator_->deallocate(data_);
     }
   }
 
-  template <typename T>
-  auto size() -> std::size_t {
-    return sizeInBytes_ / sizeof(T);
+  auto operator=(const Buffer&) -> Buffer& = delete;
+
+  auto operator=(Buffer&& buffer) -> Buffer& {
+    this->resize(0);
+    size_ = buffer.size_;
+    data_ = buffer.data_;
+    allocator_ = std::move(buffer.allocator_);
+    buffer.size_ = 0;
+    buffer.data_ = nullptr;
+    return *this;
   }
 
-  template <typename T>
+  auto empty() const noexcept -> bool { return !data_; }
+
+  auto size() const noexcept -> std::size_t { return size_; }
+
   auto data() -> T* {
-    static_assert(std::is_trivially_destructible<T>::value,
-                  "Type in buffer must be trivially destructible! Memory is not initialized and "
-                  "destructors are not "
-                  "called!");
     assert(data_);
     return reinterpret_cast<T*>(data_);
   }
 
-  auto deallocate() noexcept(noexcept(ALLOCATOR::deallocate(nullptr))) -> void {
-    if (data_) {
-      ALLOCATOR::deallocate(this->data_);
-    }
-    sizeInBytes_ = 0;
-    data_ = nullptr;
+  auto data() const -> const T* {
+    assert(data_);
+    return reinterpret_cast<T*>(data_);
   }
 
-private:
-  std::size_t sizeInBytes_ = 0;
-  void* data_ = nullptr;
-};
+  auto resize(std::size_t newSize) -> void {
+    if (newSize != size_) {
+      if (newSize == 0) {
+        if (size_) allocator_->deallocate(data_);
+        size_ = 0;
+        data_ = nullptr;
+      } else {
+        if (size_) allocator_->deallocate(data_);
+        data_ = allocator_->allocate(newSize * sizeof(T));
+        size_ = newSize;
+      }
+    }
+  }
 
+protected:
+  std::size_t size_ = 0;
+  void* data_ = nullptr;
+  std::shared_ptr<Allocator<LOCATION>> allocator_;
+};
 }  // namespace spla
 
 #endif

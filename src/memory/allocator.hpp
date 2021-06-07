@@ -26,28 +26,38 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPLA_GPU_ALLOCATOR_HPP
-#define SPLA_GPU_ALLOCATOR_HPP
+#ifndef SPLA_ALLOCATOR_HPP
+#define SPLA_ALLOCATOR_HPP
+
+#include <cstddef>
 
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
 
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "gpu_util/gpu_runtime_api.hpp"
-
 namespace spla {
-class GPUAllocator {
+enum class MemLoc { Host, GPU };
+
+template<MemLoc LOCATION>
+class Allocator {
 public:
-  static inline void* allocate(std::size_t n) {
-    void* ptr = nullptr;
-    gpu::check_status(gpu::malloc(&ptr, n));
+  Allocator() = default;
 
-    return ptr;
-  }
+  Allocator(const Allocator&) = delete;
 
-  static inline void deallocate(void* ptr) noexcept { gpu::free(ptr); }
+  Allocator(Allocator&&) = default;
+
+  auto operator=(const Allocator&) -> Allocator& = delete;
+
+  auto operator=(Allocator&&) -> Allocator& = default;
+
+  virtual ~Allocator() = default;
+
+  virtual auto allocate(std::size_t size) -> void* = 0;
+
+  virtual auto deallocate(void* ptr) -> void = 0;
+
+  inline auto location() -> MemLoc { return LOCATION; }
 };
 }  // namespace spla
-#endif
 
 #endif

@@ -82,14 +82,13 @@ void pgemm_ssb_host_internal(int m, int n, int kLocal, SplaOperation opA, T alph
   HostArrayConstView2D<T> viewB(B, n, kLocal, ldb);
   HostArrayView2D<T> viewC(C, n + cColOffset, ldc, ldc);
 
-  auto &buffers = ctx.mpi_buffers(2 * numTiles);
   auto &comms = descC.get_comms(numTiles);
 
   std::array<RingSSBHost<T, BLOCK_GEN>, numTiles> tiles{
       RingSSBHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
-                                buffers[0], buffers[1], gen, opA, alpha, viewA, viewB, beta, viewC},
+                                ctx.allocators().host(), gen, opA, alpha, viewA, viewB, beta, viewC},
       RingSSBHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
-                                buffers[2], buffers[3], gen, opA, alpha, viewA, viewB, beta,
+                                ctx.allocators().host(), gen, opA, alpha, viewA, viewB, beta,
                                 viewC}};
 
   std::vector<Block> blocks;

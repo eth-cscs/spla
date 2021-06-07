@@ -5,13 +5,15 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "CLI/CLI.hpp"
 #include "memory/buffer.hpp"
-#include "memory/mpi_allocator.hpp"
+#include "memory/allocator_collection.hpp"
+#include "memory/pool_allocator.hpp"
 #include "mpi_util/mpi_init_handle.hpp"
 #include "spla/context.hpp"
 #include "spla/exceptions.hpp"
@@ -21,13 +23,9 @@
 #include "timing/rt_graph.hpp"
 #include "timing/timing.hpp"
 
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "memory/gpu_allocator.hpp"
-#include "memory/pinned_allocator.hpp"
-#endif
-
-template <typename T, typename ALLOCATOR>
-void run_pgemm_ssb(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, int numRepeats) {
+template <typename T, spla::MemLoc LOCATION>
+void run_pgemm_ssb(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, spla::Context& ctx,
+                   int m, int n, int k, int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -40,12 +38,9 @@ void run_pgemm_ssb(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
   const int maxRowsC = (m / (blacsBlockSize * blockRows) + 1) * blacsBlockSize;
   const int maxColsC = (n / (blacsBlockSize * blockCols) + 1) * blacsBlockSize;
 
-  spla::Buffer<ALLOCATOR> A;
-  spla::Buffer<ALLOCATOR> B;
-  spla::Buffer<ALLOCATOR> C;
-  A.template resize<T>(maxRowsPerRank * m);
-  B.template resize<T>(maxRowsPerRank * n);
-  C.template resize<T>(maxRowsC * maxColsC);
+  spla::Buffer<T, LOCATION> A(allocator, maxRowsPerRank * m);
+  spla::Buffer<T, LOCATION> B(allocator, maxRowsPerRank * n);
+  spla::Buffer<T, LOCATION> C(allocator, maxRowsC * maxColsC);
 
   const T alpha = 2.0;
   const T beta = 0.0;
@@ -56,22 +51,21 @@ void run_pgemm_ssb(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
       MPI_COMM_WORLD, 'R', blockRows, blockCols, blacsBlockSize, blacsBlockSize);
 
   // run once to warm up
-  spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.template data<T>(),
-                  localNumRows, B.template data<T>(), localNumRows, beta, C.template data<T>(),
-                  maxRowsC, 0, 0, arrayDesc, ctx);
+  spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.data(), localNumRows,
+                  B.data(), localNumRows, beta, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_ssb");
-    spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.template data<T>(),
-                    localNumRows, B.template data<T>(), localNumRows, beta, C.template data<T>(),
-                    maxRowsC, 0, 0, arrayDesc, ctx);
+    spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.data(), localNumRows,
+                    B.data(), localNumRows, beta, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
   }
   STOP_TIMING("spla");
 }
 
-template <typename T, typename ALLOCATOR>
-void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, int numRepeats) {
+template <typename T, spla::MemLoc LOCATION>
+void run_pgemm_sbs(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, spla::Context& ctx,
+                   int m, int n, int k, int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -84,12 +78,9 @@ void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
   const int maxRowsB = (k / (blacsBlockSize * blockRows) + 1) * blacsBlockSize;
   const int maxColsB = (n / (blacsBlockSize * blockCols) + 1) * blacsBlockSize;
 
-  spla::Buffer<ALLOCATOR> A;
-  spla::Buffer<ALLOCATOR> B;
-  spla::Buffer<ALLOCATOR> C;
-  A.template resize<T>(maxRowsPerRank * k);
-  B.template resize<T>(maxRowsB * maxColsB);
-  C.template resize<T>(maxRowsPerRank * n);
+  spla::Buffer<T, LOCATION> A(allocator, maxRowsPerRank * k);
+  spla::Buffer<T, LOCATION> B(allocator, maxRowsB * maxColsB);
+  spla::Buffer<T, LOCATION> C(allocator, maxRowsPerRank * n);
 
   const T alpha = 2.0;
   const T beta = 0.0;
@@ -100,16 +91,14 @@ void run_pgemm_sbs(spla::Context& ctx, int m, int n, int k, int blacsBlockSize, 
       MPI_COMM_WORLD, 'R', blockRows, blockCols, blacsBlockSize, blacsBlockSize);
 
   // run once to warm up
-  spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
-                  B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
-                  localNumRows, ctx);
+  spla::pgemm_sbs(localNumRows, n, k, alpha, A.data(), localNumRows, B.data(), maxRowsB, 0, 0,
+                  arrayDesc, beta, C.data(), localNumRows, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_sbs");
-    spla::pgemm_sbs(localNumRows, n, k, alpha, A.template data<T>(), localNumRows,
-                    B.template data<T>(), maxRowsB, 0, 0, arrayDesc, beta, C.template data<T>(),
-                    localNumRows, ctx);
+    spla::pgemm_sbs(localNumRows, n, k, alpha, A.data(), localNumRows, B.data(), maxRowsB, 0, 0,
+                    arrayDesc, beta, C.data(), localNumRows, ctx);
   }
   STOP_TIMING("spla");
 }
@@ -174,26 +163,28 @@ int main(int argc, char** argv) {
     std::cout << "threads = " << ctx.num_threads() << std::endl;
   }
 
+  spla::AllocatorCollection allocators;
+
   if (funcName == "ssb") {
     if (procName == "cpu") {
       if (typeName == "scalar")
-        run_pgemm_ssb<double, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_ssb<double>(allocators.host(), ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                                repeats);
+        run_pgemm_ssb<std::complex<double>>(allocators.host(), ctx, m, n, k, blacsBlockSize,
+                                            repeats);
     }
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     else if (procName == "gpu") {
       if (typeName == "scalar")
-        run_pgemm_ssb<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_ssb<double>(allocators.pinned(),ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
+        run_pgemm_ssb<std::complex<double>>(allocators.pinned(),ctx, m, n, k, blacsBlockSize,
                                                                    repeats);
     } else if (procName == "gpu-gpu") {
       if (typeName == "scalar")
-        run_pgemm_ssb<double, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_ssb<double>(allocators.gpu(),ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_ssb<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize,
+        run_pgemm_ssb<std::complex<double>>(allocators.gpu(),ctx, m, n, k, blacsBlockSize,
                                                                 repeats);
     }
 #else
@@ -204,24 +195,24 @@ int main(int argc, char** argv) {
   } else {
     if (procName == "cpu") {
       if (typeName == "scalar")
-        run_pgemm_sbs<double, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_sbs<double>(allocators.host(), ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::MPIAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                                repeats);
+        run_pgemm_sbs<std::complex<double>>(allocators.host(), ctx, m, n, k, blacsBlockSize,
+                                            repeats);
     }
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     else if (procName == "gpu") {
       if (typeName == "scalar")
-        run_pgemm_sbs<double, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_sbs<double>(allocators.pinned(), ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::PinnedAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                                   repeats);
+        run_pgemm_sbs<std::complex<double>>(allocators.pinned(), ctx, m, n, k, blacsBlockSize,
+                                            repeats);
     } else if (procName == "gpu-gpu") {
       if (typeName == "scalar")
-        run_pgemm_sbs<double, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize, repeats);
+        run_pgemm_sbs<double>(allocators.gpu(), ctx, m, n, k, blacsBlockSize, repeats);
       else
-        run_pgemm_sbs<std::complex<double>, spla::GPUAllocator>(ctx, m, n, k, blacsBlockSize,
-                                                                repeats);
+        run_pgemm_sbs<std::complex<double>>(allocators.gpu(), ctx, m, n, k, blacsBlockSize,
+                                            repeats);
     }
 #else
     else {

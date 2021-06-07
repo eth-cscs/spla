@@ -45,7 +45,6 @@
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
-#include "pgemm_ssb/add_kernel.hpp"
 #include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"

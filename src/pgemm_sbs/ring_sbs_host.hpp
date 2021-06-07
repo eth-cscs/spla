@@ -38,7 +38,7 @@
 #include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/mpi_allocator.hpp"
+#include "memory/allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "mpi_util/mpi_window_handle.hpp"
@@ -56,7 +56,7 @@ public:
   using ValueType = T;
 
   RingSBSHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-              MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
+              MPICommunicatorHandle comm, const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
               BLOCK_GEN baseMatGen, ValueType alpha, const HostArrayConstView2D<ValueType>& A,
               const HostArrayConstView2D<ValueType>& B, IntType bRowOffset, IntType bColOffset,
               ValueType beta, HostArrayView2D<ValueType> C);
@@ -94,7 +94,7 @@ private:
   HostArrayView1D<ValueType> recvView_;
   HostArrayView1D<ValueType> sendView_;
   BLOCK_GEN baseMatGen_;
-  std::shared_ptr<Buffer<MPIAllocator>> buffer_;
+  Buffer<T, MemLoc::Host> buffer_;
   MPICommunicatorHandle comm_;
   HostArrayConstView2D<ValueType> A_;
   HostArrayConstView2D<ValueType> B_;

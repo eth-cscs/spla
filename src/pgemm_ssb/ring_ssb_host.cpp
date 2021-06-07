@@ -36,6 +36,7 @@
 #include "block_generation/block_cyclic_generator.hpp"
 #include "block_generation/mirror_generator.hpp"
 #include "gemm/gemm_host.hpp"
+#include "memory/allocator.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_datatype_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
@@ -52,16 +53,15 @@ static constexpr int ringTag = 2;
 template <typename T, typename BLOCK_GEN>
 RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSize,
                                        IntType numThreads, MPICommunicatorHandle comm,
-                                       std::shared_ptr<Buffer<MPIAllocator>> buffer,
-                                       std::shared_ptr<Buffer<MPIAllocator>> resultBuffer,
+                                       const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
                                        BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
                                        const HostArrayConstView2D<ValueType> &A,
                                        const HostArrayConstView2D<ValueType> &B, ValueType beta,
                                        HostArrayView2D<ValueType> C)
     : state_(TileState::Empty),
       baseMatGen_(std::move(baseMatGen)),
-      buffer_(std::move(buffer)),
-      resultBuffer_(std::move(resultBuffer)),
+      buffer_(allocator, 0),
+      resultBuffer_(allocator, 0),
       comm_(std::move(comm)),
       A_(A),
       B_(B),
@@ -73,11 +73,10 @@ RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSiz
       maxBlockSize_(maxBlockSize),
       ringThreshold_(ringThreshold) {
   assert(A_.dim_inner() == B_.dim_inner());
-  assert(buffer_);
   assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
-  buffer_->resize<ValueType>(2 * maxBlockSize_);
-  sendView_ = HostArrayView1D<T>(buffer_->data<T>(), maxBlockSize_);
-  recvView_ = HostArrayView1D<T>(buffer_->data<T>() + maxBlockSize_, maxBlockSize_);
+  buffer_.resize(2 * maxBlockSize_);
+  sendView_ = HostArrayView1D<T>(buffer_.data(), maxBlockSize_);
+  recvView_ = HostArrayView1D<T>(buffer_.data() + maxBlockSize_, maxBlockSize_);
 
   sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
   recvRank_ = (comm_.rank() + 1) % comm_.size();
@@ -117,20 +116,20 @@ auto RingSSBHost<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin
   }
 
   std::memset(recvView_.data(), 0, recvView_.size() * sizeof(T));
-  resultBuffer_->resize<T>(std::max<std::size_t>(requiredBufferSize, 1));
+  resultBuffer_.resize(std::max<std::size_t>(requiredBufferSize, 1));
   resultRecvs_.resize(myBlockInfos_.size());
 
   if (useRing_) {
     IntType offset = 0;
     for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
       const auto &pair = myBlockInfos_[i];
-      MPI_Irecv(resultBuffer_->data<T>() + offset, pair.second.numCols * pair.second.numRows,
+      MPI_Irecv(resultBuffer_.data() + offset, pair.second.numCols * pair.second.numRows,
                 MPIMatchElementaryType<T>::get(), pair.first, resultTag, comm_.get(),
                 resultRecvs_[i].get_and_activate());
       offset += pair.second.numCols * pair.second.numRows;
     }
   } else {
-    std::memset(resultBuffer_->data<T>(), 0, resultBuffer_->size<T>() * sizeof(T));
+    std::memset(resultBuffer_.data(), 0, resultBuffer_.size() * sizeof(T));
   }
 
   state_ = TileState::Prepared;
@@ -270,7 +269,7 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring_finalize() -> void {
     resultRecvs_[i].wait_if_active();
     const auto &info = myBlockInfos_[i].second;
 
-    add_kernel(info.numRows, info.numCols, resultBuffer_->data<T>() + offset, info.numRows, beta_,
+    add_kernel(info.numRows, info.numCols, resultBuffer_.data() + offset, info.numRows, beta_,
                &C_(info.localColIdx, info.localRowIdx), C_.ld_inner());
     offset += info.numCols * info.numRows;
   }
