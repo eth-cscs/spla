@@ -26,11 +26,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include "spla/context.hpp"
+#include <memory>
+#include <cstddef>
 
 #include "spla/context.h"
 #include "spla/context_internal.hpp"
 #include "spla/errors.h"
 #include "spla/exceptions.hpp"
+#include "memory/simple_allocator.hpp"
 
 namespace spla {
 Context::Context(SplaProcessingUnit pu) : ctxInternal_(new ContextInternal(pu)) {}
@@ -49,6 +52,26 @@ int Context::op_threshold_gpu() const { return ctxInternal_->op_threshold_gpu();
 
 int Context::gpu_device_id() const { return ctxInternal_->gpu_device_id(); }
 
+std::uint_least64_t Context::allocated_memory_host() const {
+  return ctxInternal_->allocators().host()->size();
+}
+
+std::uint_least64_t Context::allocated_memory_pinned() const {
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+  return ctxInternal_->allocators().pinned()->size();
+#else
+  return 0;
+#endif
+}
+
+std::uint_least64_t Context::allocated_memory_gpu() const {
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+  return ctxInternal_->allocators().gpu()->size();
+#else
+  return 0;
+#endif
+}
+
 void Context::set_num_threads(int numThreads) { ctxInternal_->set_num_threads(numThreads); }
 
 void Context::set_num_tiles(int numTilesPerThread) {
@@ -63,6 +86,37 @@ void Context::set_tile_size_gpu(int tileSizeGPU) { ctxInternal_->set_tile_size_g
 
 void Context::set_op_threshold_gpu(int opThresholdGPU) {
   ctxInternal_->set_op_threshold_gpu(opThresholdGPU);
+}
+
+void Context::set_alloc_host(std::function<void*(std::size_t)> allocateFunc,
+                             std::function<void(void*)> deallocateFunc) {
+  if(!allocateFunc || !deallocateFunc) {
+    throw InvalidAllocatorFunctionError();
+  }
+  ctxInternal_->allocators().set_host(std::shared_ptr<Allocator<MemLoc::Host>>(
+      new SimpleAllocator<MemLoc::Host>(allocateFunc, deallocateFunc)));
+}
+
+void Context::set_alloc_pinned(std::function<void*(std::size_t)> allocateFunc,
+                               std::function<void(void*)> deallocateFunc) {
+  if(!allocateFunc || !deallocateFunc) {
+    throw InvalidAllocatorFunctionError();
+  }
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+  ctxInternal_->allocators().set_pinned(std::shared_ptr<Allocator<MemLoc::Host>>(
+      new SimpleAllocator<MemLoc::Host>(allocateFunc, deallocateFunc)));
+#endif
+}
+
+void Context::set_alloc_gpu(std::function<void*(std::size_t)> allocateFunc,
+                            std::function<void(void*)> deallocateFunc) {
+  if(!allocateFunc || !deallocateFunc) {
+    throw InvalidAllocatorFunctionError();
+  }
+#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
+  ctxInternal_->allocators().set_gpu(std::shared_ptr<Allocator<MemLoc::GPU>>(
+      new SimpleAllocator<MemLoc::GPU>(allocateFunc, deallocateFunc)));
+#endif
 }
 
 }  // namespace spla
@@ -179,6 +233,48 @@ SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId) {
   return SplaError::SPLA_SUCCESS;
 }
 
+SplaError spla_ctx_allocated_memory_host(SplaContext ctx, uint_least64_t* size) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    *size = reinterpret_cast<spla::Context*>(ctx)->allocated_memory_host();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_allocated_memory_pinned(SplaContext ctx, uint_least64_t* size) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    *size = reinterpret_cast<spla::Context*>(ctx)->allocated_memory_host();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_allocated_memory_gpu(SplaContext ctx, uint_least64_t* size) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    *size = reinterpret_cast<spla::Context*>(ctx)->allocated_memory_host();
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
 SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads) {
   if (!ctx) {
     return SplaError::SPLA_INVALID_HANDLE_ERROR;
@@ -241,6 +337,57 @@ SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThresholdGPU) {
   }
   try {
     reinterpret_cast<spla::Context*>(ctx)->set_op_threshold_gpu(opThresholdGPU);
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_set_alloc_host(SplaContext ctx, void* (*allocateFunc)(std::size_t),
+                                  void (*deallocateFunc)(void*)) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<spla::Context*>(ctx)->set_alloc_host(
+        std::function<void*(std::size_t)>(allocateFunc),
+        std::function<void(void*)>(deallocateFunc));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_set_alloc_pinned(SplaContext ctx, void* (*allocateFunc)(std::size_t),
+                                    void (*deallocateFunc)(void*)) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<spla::Context*>(ctx)->set_alloc_pinned(
+        std::function<void*(std::size_t)>(allocateFunc),
+        std::function<void(void*)>(deallocateFunc));
+  } catch (const spla::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return SplaError::SPLA_UNKNOWN_ERROR;
+  }
+  return SplaError::SPLA_SUCCESS;
+}
+
+SplaError spla_ctx_set_alloc_gpu(SplaContext ctx, void* (*allocateFunc)(std::size_t),
+                                 void (*deallocateFunc)(void*)) {
+  if (!ctx) {
+    return SplaError::SPLA_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<spla::Context*>(ctx)->set_alloc_gpu(
+        std::function<void*(std::size_t)>(allocateFunc),
+        std::function<void(void*)>(deallocateFunc));
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

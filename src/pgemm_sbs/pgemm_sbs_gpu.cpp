@@ -128,8 +128,6 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
    * Create tiles
    *************************************/
 
-  auto pinnedBuffersIt = ctx.pinned_buffers(numTiles * (numRingProcs + 1)).begin();
-  auto gpuBuffersIt = ctx.gpu_buffers(numTiles * numRingProcs * 3).begin();
   auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingProcs).begin();
   auto commsIt = descB.get_comms(numTiles).begin();
 
@@ -149,14 +147,14 @@ void pgemm_sbs_gpu_internal(int mLocal, int n, int k, T alpha, const T *A, int l
       auto matA = gpuPtrA
                       ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, k, mLocal, lda))
                       : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, k, mLocal, lda),
-                                                  tileSizeGEMM, *(gpuBuffersIt++));
+                                                  tileSizeGEMM, ctx.allocators().gpu());
 
       auto matC = gpuPtrC ? GPUMatrixAccessor<T>(GPUArrayView2D<T>(gpuPtrC, n, mLocal, ldc))
                           : GPUMatrixAccessor<T>(HostArrayView2D<T>(C, n, mLocal, ldc),
-                                                 tileSizeGEMM, *(gpuBuffersIt++));
+                                                 tileSizeGEMM, ctx.allocators().gpu());
 
-      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(pinnedBuffersIt++),
-                              *(gpuBuffersIt++), std::move(matA), std::move(matC));
+      ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), ctx.allocators().pinned(),
+                              ctx.allocators().gpu(), std::move(matA), std::move(matC));
     }
 
     tiles.emplace_back(ringThreshold, maxBlockSize, *(commsIt++), std::move(ringBlocks), gen, alpha,

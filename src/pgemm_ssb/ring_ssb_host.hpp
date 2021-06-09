@@ -34,10 +34,10 @@
 #include <vector>
 
 #include "block_generation/block.hpp"
+#include "memory/allocator.hpp"
 #include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/mpi_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "mpi_util/mpi_window_handle.hpp"
@@ -57,11 +57,10 @@ public:
   using ValueType = T;
 
   RingSSBHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-              MPICommunicatorHandle comm, std::shared_ptr<Buffer<MPIAllocator>> buffer,
-              std::shared_ptr<Buffer<MPIAllocator>> resultBuffer, BLOCK_GEN baseMatGen,
-              SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
-              const HostArrayConstView2D<ValueType> &B, ValueType beta,
-              HostArrayView2D<ValueType> C);
+              MPICommunicatorHandle comm, const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
+              BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
+              const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
+              ValueType beta, HostArrayView2D<ValueType> C);
 
   // Prepare to process input blocks
   auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
@@ -100,8 +99,8 @@ private:
   HostArrayView1D<ValueType> recvView_;
   HostArrayView1D<ValueType> sendView_;
   BLOCK_GEN baseMatGen_;
-  std::shared_ptr<Buffer<MPIAllocator>> buffer_;
-  std::shared_ptr<Buffer<MPIAllocator>> resultBuffer_;
+  Buffer<T, MemLoc::Host> buffer_;
+  Buffer<T, MemLoc::Host> resultBuffer_;
   MPICommunicatorHandle comm_;
   HostArrayConstView2D<ValueType> A_;
   HostArrayConstView2D<ValueType> B_;

@@ -76,6 +76,16 @@ public:
 };
 
 /**
+   * Invalid allocator function error.
+ */
+class SPLA_EXPORT InvalidAllocatorFunctionError : public GenericError {
+public:
+  const char* what() const noexcept override { return "SPLA: Invalid allocator function error"; }
+
+  SplaError error_code() const noexcept override { return SplaError::SPLA_INVALID_ALLOCATOR_FUNCTION; }
+};
+
+/**
  * Generic MPI Error
  */
 class SPLA_EXPORT MPIError : public GenericError {

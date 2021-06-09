@@ -52,12 +52,12 @@ static constexpr int ringTag = 2;
 template <typename T, typename BLOCK_GEN>
 RingSBSHost<T, BLOCK_GEN>::RingSBSHost(
     double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
-    std::shared_ptr<Buffer<MPIAllocator>> buffer, BLOCK_GEN baseMatGen, ValueType alpha,
+    const std::shared_ptr<Allocator<MemLoc::Host>> allocator, BLOCK_GEN baseMatGen, ValueType alpha,
     const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
     IntType bRowOffset, IntType bColOffset, ValueType beta, HostArrayView2D<ValueType> C)
     : state_(TileState::Empty),
       baseMatGen_(std::move(baseMatGen)),
-      buffer_(std::move(buffer)),
+      buffer_(allocator, 0),
       comm_(std::move(comm)),
       A_(A),
       B_(B),
@@ -70,10 +70,9 @@ RingSBSHost<T, BLOCK_GEN>::RingSBSHost(
       maxBlockSize_(maxBlockSize),
       ringThreshold_(ringThreshold) {
   assert(A_.dim_inner() == C_.dim_inner());
-  assert(buffer_);
-  buffer_->resize<ValueType>(2 * maxBlockSize_);
-  sendView_ = HostArrayView1D<T>(buffer_->data<T>(), maxBlockSize_);
-  recvView_ = HostArrayView1D<T>(buffer_->data<T>() + maxBlockSize_, maxBlockSize_);
+  buffer_.resize(2 * maxBlockSize_);
+  sendView_ = HostArrayView1D<T>(buffer_.data(), maxBlockSize_);
+  recvView_ = HostArrayView1D<T>(buffer_.data() + maxBlockSize_, maxBlockSize_);
 
   sendRank_ = comm_.rank() == 0 ? comm_.size() - 1 : comm_.rank() - 1;
   recvRank_ = (comm_.rank() + 1) % comm_.size();

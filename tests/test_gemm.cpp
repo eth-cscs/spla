@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <random>
 #include <sstream>
 #include <tuple>
@@ -7,18 +8,19 @@
 
 #include "gtest/gtest.h"
 #include "memory/buffer.hpp"
+#include "memory/allocator_collection.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_match_elementary_type.hpp"
 #include "spla/config.h"
+#include "spla/exceptions.hpp"
 #include "spla/spla.hpp"
 #include "util/blas_interface.hpp"
 #include "util/common_types.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_runtime_api.hpp"
-#include "memory/gpu_allocator.hpp"
 #endif
 
 using namespace spla;
@@ -104,34 +106,31 @@ protected:
     ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
                        k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
-    Buffer<GPUAllocator> gpuBufferA;
-    gpuBufferA.resize<T>(vecA_.size());
-    Buffer<GPUAllocator> gpuBufferB;
-    gpuBufferB.resize<T>(vecB_.size());
-    Buffer<GPUAllocator> gpuBufferC;
-    gpuBufferC.resize<T>(vecC_.size());
+    Buffer<T, MemLoc::GPU> gpuBufferA(allocators_.gpu(), vecA_.size());
+    Buffer<T, MemLoc::GPU> gpuBufferB(allocators_.gpu(), vecB_.size());
+    Buffer<T, MemLoc::GPU> gpuBufferC(allocators_.gpu(), vecC_.size());
 
     if (vecA_.size())
-      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data<T>()),
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferA.data()),
                                     static_cast<const void*>(vecA_.data()),
                                     vecA_.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
     if (vecB_.size())
-      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data<T>()),
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferB.data()),
                                     static_cast<const void*>(vecB_.data()),
                                     vecB_.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
     if (vecC_.size())
-      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data<T>()),
+      gpu::check_status(gpu::memcpy(static_cast<void*>(gpuBufferC.data()),
                                     static_cast<const void*>(vecC_.data()),
                                     vecC_.size() * sizeof(T), gpu::flag::MemcpyHostToDevice));
 
     // compute with public gemm interface
-    gemm(opA_, opB_, m_, n_, k_, 2.0, gpuBufferA.empty() ? nullptr : gpuBufferA.data<T>(), lda_,
-         gpuBufferA.empty() ? nullptr : gpuBufferB.data<T>(), ldb_, 3.0,
-         gpuBufferC.empty() ? nullptr : gpuBufferC.data<T>(), ldc_, ctx);
+    gemm(opA_, opB_, m_, n_, k_, 2.0, gpuBufferA.empty() ? nullptr : gpuBufferA.data(), lda_,
+         gpuBufferA.empty() ? nullptr : gpuBufferB.data(), ldb_, 3.0,
+         gpuBufferC.empty() ? nullptr : gpuBufferC.data(), ldc_, ctx);
 
     if (vecC_.size())
       gpu::check_status(gpu::memcpy(static_cast<void*>(vecC_.data()),
-                                    static_cast<const void*>(gpuBufferC.data<T>()),
+                                    static_cast<const void*>(gpuBufferC.data()),
                                     vecC_.size() * sizeof(T), gpu::flag::MemcpyDeviceToHost));
 
     for (std::size_t i = 0; i < vecC_.size(); ++i) {
@@ -144,6 +143,7 @@ protected:
   SplaOperation opA_, opB_;
   int m_, n_, k_, lda_, ldb_, ldc_;
   std::vector<T> vecA_, vecB_, vecC_, vecCRef_;
+  AllocatorCollection allocators_;
 
   static std::mt19937 staticRandGen_;  // must produce same numbers on each rank
 };
@@ -159,6 +159,7 @@ TEST_P(GemmScalar, Host) {
   try {
     this->mulitply_host();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }
@@ -168,6 +169,7 @@ TEST_P(GemmScalar, GPU) {
   try {
     this->mulitply_gpu();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }
@@ -176,6 +178,7 @@ TEST_P(GemmScalar, GPUFromGPU) {
   try {
     this->mulitply_gpu_from_gpu();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }
@@ -185,6 +188,7 @@ TEST_P(GemmComplex, Host) {
   try {
     this->mulitply_host();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }
@@ -194,6 +198,7 @@ TEST_P(GemmComplex, GPU) {
   try {
     this->mulitply_gpu();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }
@@ -202,6 +207,7 @@ TEST_P(GemmComplex, GPUFromGPU) {
   try {
     this->mulitply_gpu_from_gpu();
   } catch (const std::exception& e) {
+    std::cerr << "error: " << e.what() << std::endl;
     ASSERT_TRUE(false);
   }
 }

@@ -130,8 +130,6 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
    * Create tiles
    *************************************/
 
-  auto pinnedBuffersIt = ctx.pinned_buffers(numTiles * (numRingProcs + 1)).begin();
-  auto gpuBuffersIt = ctx.gpu_buffers(numTiles * numRingProcs * 3).begin();
   auto blasHandlesIt = ctx.gpu_blas_handles(numTiles * numRingProcs).begin();
   auto eventHandlesIt = ctx.gpu_event_handles(numTiles * numRingProcs).begin();
   auto streamHandlesIt = ctx.gpu_stream_handles(numTiles * numRingProcs).begin();
@@ -152,19 +150,19 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
       auto matA = gpuPtrA
                       ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, m, kLocal, lda))
                       : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, m, kLocal, lda),
-                                                  tileSizeGEMM, *(gpuBuffersIt++));
+                                                  tileSizeGEMM, ctx.allocators().gpu());
 
       auto matB = gpuPtrB
                       ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrB, n, kLocal, ldb))
                       : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(B, n, kLocal, ldb),
-                                                  tileSizeGEMM, *(gpuBuffersIt++));
+                                                  tileSizeGEMM, ctx.allocators().gpu());
       ringBlocks.emplace_back(maxBlockSize, *(blasHandlesIt++), *(eventHandlesIt++),
-                              *(streamHandlesIt++), *(pinnedBuffersIt++), *(gpuBuffersIt++),
-                              std::move(matA), std::move(matB));
+                              *(streamHandlesIt++), ctx.allocators().pinned(),
+                              ctx.allocators().gpu(), std::move(matA), std::move(matB));
     }
 
     tiles.emplace_back(ringThreshold, maxBlockSize, *(commsIt++), std::move(ringBlocks),
-                       *(pinnedBuffersIt++), gen, opA, alpha, beta, hostMatC, gpuMatC);
+                       ctx.allocators().pinned(), gen, opA, alpha, beta, hostMatC, gpuMatC);
   }
 
   /*************************************
