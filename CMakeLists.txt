@@ -224,11 +224,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 		message(STATUS "Host BLAS Backend: BLIS")
 		list(APPEND SPLA_EXTERNAL_LIBS BLIS::blis)
 		set(SPLA_BLAS_BLIS ON)
-		# try to find header file
-		find_file(_BLAS_HEADER NAMES blis.h cblas.h HINTS ${BLIS_INCLUDE_DIRS})
-		if(_BLAS_HEADER)
-			get_filename_component(SPLA_BLAS_HEADER_NAME ${_BLAS_HEADER} NAME)
-		endif()
+		set(SPLA_BLAS_HEADER_NAME blis.h)
 		set(_SPLA_BLAS_FOUND TRUE)
 	endif()
 endif()

@@ -48,10 +48,6 @@ using ConstDoubleComplexPtr = const void *;
 
 #endif
 
-#ifdef SPLA_BLAS_BLIS
-#include <blis.h>
-#endif
-
 // use blas header if found
 #if defined(SPLA_BLAS_HEADER_NAME)
 
