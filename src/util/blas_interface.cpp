@@ -174,7 +174,7 @@ auto is_parallel() -> bool {
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads() != 1;
 #elif defined(SPLA_BLAS_BLIS)
-  return bli_thread_get_num_threads() != 1;
+  return bli_info_get_enable_threading();
 #else
   return false;
 #endif
