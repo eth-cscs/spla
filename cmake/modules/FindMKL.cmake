@@ -67,7 +67,7 @@ Imported targets
 
 MKL (BLAS, LAPACK, FFT) tarets:
 
-  mkl::mkl_[gf|intel]_[32bit|64bit]_[seq|omp|tbb]_[st|dyn] e.g.
+  mkl::[gf|intel]_[32bit|64bit]_[seq|omp|tbb]_[st|dyn] e.g.
 
   mkl::mkl_intel_32bit_omp_dyn
 
@@ -81,7 +81,7 @@ ScaLAPACK targets:
 
   mkl::scalapack_[mpich|ompi]_[gf|intel]_[32bit|64bit]_[seq|omp|tbb]_[st|dyn] e.g.
 
-  mkl::scalapack_intel_mpich_64bit_omp_dyn
+  mkl::scalapack_mpich_intel_64bit_omp_dyn
 
 Result variables
 ^^^^^^^^^^^^^^^^
@@ -246,7 +246,7 @@ foreach(_libtype "ST" "DYN")
                 set(_mkl_threading_lib ${MKL_${_threading}_LIB_${_libtype}})
 
                 string(TOLOWER "${_iface}_${_bits}_${_threading}_${_libtype}" _tgt_config)
-                set(_mkl_tgt mkl::mkl_${_tgt_config})
+                set(_mkl_tgt mkl::${_tgt_config})
 
                 if(MKL_FOUND
                    AND _mkl_interface_lib

@@ -49,10 +49,13 @@ endif()
 list(APPEND SPLA_TEST_INCLUDE_DIRS ${cli11_SOURCE_DIR}/include)
 
 
-if(NOT SPLA_BLAS_MKL)
+if(SPLA_BLAS_MKL)
+	list(APPEND SPLA_TEST_LIBRARIES mkl::scalapack_${SPLA_MKL_TARGET})
+else()
 	find_package(SCALAPACK REQUIRED)
 	list(APPEND SPLA_TEST_LIBRARIES SCALAPACK::SCALAPACK)
 endif()
+
 if(UNIX AND NOT APPLE)
 	# on Daint, dl library appears to be required
 	find_library(SPLA_DL_LIBRARY dl)
