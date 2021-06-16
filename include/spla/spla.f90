@@ -649,32 +649,6 @@ interface
     type(c_ptr), value :: ctx
   end function
 
-  !--------------------------
-  !     For testing only
-  !--------------------------
-
-  integer(c_int) function spla_timer_start(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_stop(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_export_json(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_print() bind(C)
-    use iso_c_binding
-  end function
-
 end interface
 
 end

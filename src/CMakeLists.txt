@@ -2,6 +2,7 @@ set(SPLA_SOURCE_FILES
 	block_generation/block_cyclic_generator.cpp
 	util/blas_interface.cpp
 	timing/rt_graph.cpp
+	timing/timing.cpp
 	pgemm_ssb/pgemm_ssb_host.cpp
 	pgemm_ssb/ring_ssb_host.cpp
 	pgemm_ssb/add_kernel.cpp
@@ -28,30 +29,57 @@ if(SPLA_CUDA OR SPLA_ROCM)
 		)
 endif()
 
-if(SPLA_TIMING)
-	list(APPEND SPLA_SOURCE_FILES timing/timing.cpp)
-endif()
+# Creates spla library with given name. All common target modifications should be done here.
+macro(spla_create_library _TARGET_NAME)
+	add_library(${_TARGET_NAME} ${SPLA_LIBRARY_TYPE}
+		${SPLA_SOURCE_FILES}
+		)
 
-add_library(spla ${SPLA_LIBRARY_TYPE}
-	${SPLA_SOURCE_FILES}
-	)
-
-set_property(TARGET spla PROPERTY VERSION ${SPLA_VERSION})
-set_property(TARGET spla PROPERTY SOVERSION ${SPLA_SO_VERSION})
+	set_property(TARGET ${_TARGET_NAME} PROPERTY VERSION ${SPLA_VERSION})
+	set_property(TARGET ${_TARGET_NAME} PROPERTY SOVERSION ${SPLA_SO_VERSION})
 
 
-# build fortran module
-if(SPLA_FORTRAN)
-	add_library(spla_fortran OBJECT ${PROJECT_SOURCE_DIR}/include/spla/spla.f90)
-endif()
-
-# Don't export any symbols of external static libaries. Only works on linux.
-if(UNIX AND NOT APPLE)
-	if(${CMAKE_VERSION} VERSION_LESS "3.13.5") 
-		set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-Wl,--exclude-libs,ALL")
-	else()
-		target_link_options(spla PRIVATE "-Wl,--exclude-libs,ALL")
+	# Don't export any symbols of external static libaries. Only works on linux.
+	if(UNIX AND NOT APPLE)
+		if(${CMAKE_VERSION} VERSION_LESS "3.13.5") 
+			set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-Wl,--exclude-libs,ALL")
+		else()
+			target_link_options(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
+		endif()
 	endif()
+
+
+	target_compile_options(${_TARGET_NAME} PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
+	target_include_directories(${_TARGET_NAME} PRIVATE ${SPLA_EXTERNAL_INCLUDE_DIRS})
+	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_BINARY_DIR})
+
+
+	target_link_libraries(${_TARGET_NAME} PRIVATE ${SPLA_EXTERNAL_LIBS})
+	# SPLA inteface needs MPI to be compiled. Avoid requiring CXX language for installed cmake config files, so only make public for build.
+	target_link_libraries(${_TARGET_NAME} PUBLIC $<BUILD_INTERFACE:MPI::MPI_CXX>)
+
+	target_include_directories(${_TARGET_NAME} INTERFACE ${SPLA_INTERFACE_INCLUDE_DIRS})
+	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
+	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
+	if(${SPLA_FORTRAN}) # Add include directory for fortran module
+		target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include/spla>)
+		target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
+	endif()
+
+endmacro()
+
+spla_create_library(spla)
+set_target_properties(spla PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE CXX_VISIBILITY_PRESET hidden)
+
+if(SPLA_BUILD_TESTS)
+	# create library with default visibility if tests are build, to allow linking to internal symbols
+	spla_create_library(spla_test)
+	set_target_properties(spla_test PROPERTIES VISIBILITY_INLINES_HIDDEN FALSE CXX_VISIBILITY_PRESET default)
+	target_compile_options(spla_test PUBLIC -DSPLA_STATIC_DEFINE)
+	# enable internal timings
+	target_compile_options(spla_test PUBLIC -DSPLA_TIMING)
 endif()
 
 # generate export header to control symbol visibility
@@ -62,25 +90,10 @@ configure_file("${CMAKE_CURRENT_BINARY_DIR}/spla_export.h"
 	COPYONLY
 )
 
-target_compile_options(spla PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
-target_include_directories(spla PRIVATE ${SPLA_EXTERNAL_INCLUDE_DIRS})
-target_include_directories(spla PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_include_directories(spla PRIVATE ${PROJECT_SOURCE_DIR}/src)
-target_include_directories(spla PRIVATE ${PROJECT_BINARY_DIR})
-
-
-target_link_libraries(spla PRIVATE ${SPLA_EXTERNAL_LIBS})
-# SPLA inteface needs MPI to be compiled. Avoid requiring CXX language for installed cmake config files, so only make public for build.
-target_link_libraries(spla PUBLIC $<BUILD_INTERFACE:MPI::MPI_CXX>)
-
-target_include_directories(spla INTERFACE ${SPLA_INTERFACE_INCLUDE_DIRS})
-target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
-target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
-if(${SPLA_FORTRAN}) # Add include directory for fortran module
-	target_include_directories(spla INTERFACE $<INSTALL_INTERFACE:include/spla>)
-	target_include_directories(spla INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
+# build fortran module
+if(SPLA_FORTRAN)
+	add_library(spla_fortran OBJECT ${PROJECT_SOURCE_DIR}/include/spla/spla.f90)
 endif()
-
 
 
 # set packge config names

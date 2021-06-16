@@ -36,7 +36,6 @@ option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
 option(SPLA_FORTRAN "Compile fortran module" OFF)
-option(SPLA_TIMING "Enable internal timing. For developement puposes." OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
@@ -63,7 +62,6 @@ endif()
 if(NOT ${SPLA_HOST_BLAS} IN_LIST _SPLA_HOST_BLAS_LIST)
 	message(FATAL_ERROR "Invalid Host BLAS backend")
 endif()
-
 
 set(SPLA_BLAS_MKL OFF)
 set(SPLA_BLAS_BLIS OFF)
@@ -97,17 +95,6 @@ set(SPLA_BLAS_BLIS OFF)
 set(SPLA_BLAS_SCI OFF)
 set(SPLA_BLAS_ATLAS OFF)
 set(SPLA_RESTRICT_ATTR " ")
-
-# Hide symbols by default if tests are not build
-if(NOT SPLA_BUILD_TESTS)
-	set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-	set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-else()
-	# disable visibility macros if tests are build
-	list(APPEND SPLA_DEFINITIONS -DSPLA_STATIC_DEFINE)
-	set(CMAKE_CXX_VISIBILITY_PRESET default)
-	set(CMAKE_VISIBILITY_INLINES_HIDDEN 0)
-endif()
 
 # check if restrict attribute is available
 include(CheckCXXSourceCompiles)
@@ -316,12 +303,6 @@ else()
 endif()
 if(NOT _SPLA_CBLAS_FOUND)
 	message(FATAL_ERROR "CBlas symbols are required but not found in blas library!")
-endif()
-
-
-if(SPLA_BUILD_TESTS)
-	# enable timing with testing
-	set(SPLA_TIMING ON)
 endif()
 
 # generate config.h

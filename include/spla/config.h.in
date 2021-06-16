@@ -36,7 +36,6 @@
 #cmakedefine SPLA_CUDA
 #cmakedefine SPLA_ROCM
 #cmakedefine SPLA_OMP
-#cmakedefine SPLA_TIMING
 #cmakedefine SPLA_BLAS_MKL
 #cmakedefine SPLA_BLAS_OPENBLAS
 #cmakedefine SPAL_BLAS_ATLAS
