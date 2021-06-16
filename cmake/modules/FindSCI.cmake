@@ -37,6 +37,8 @@
 #
 #   SCI_FOUND           - True if sci is found
 #   SCI_LIBRARIES       - The required libraries
+#   SCI_LIBRARIES       - The required libraries
+#   SCI_MPI_LIBRARIES   - The required libraries with MPI
 #   SCI_INCLUDE_DIRS    - The required include directory
 #
 # The following import target is created
@@ -44,28 +46,66 @@
 # ::
 #
 #   SCI::sci
+#   SCI::sci_mpi
 
-#set paths to look for library from ROOT variables.If new policy is set, find_library() automatically uses them.
+# set paths to look for library from ROOT variables.If new policy is set, find_library() automatically uses them.
 if(NOT POLICY CMP0074)
     set(_SCI_PATHS ${SCI_ROOT} $ENV{SCI_ROOT})
 endif()
 
+set(_sci_lib "sci_gnu")
+
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+    set(_sci_lib "sci_intel")
+elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+    set(_sci_lib "sci_cray")
+endif()
+
+set(_sci_mpi_lib ${_sci_lib}_mpi)
+
+# use multi-threaded version if OpenMP available
+find_package(OpenMP QUIET COMPONENTS CXX)
+if(TARGET OpenMP::OpenMP_CXX)
+    set(_sci_lib ${_sci_lib}_mp ${_sci_lib})
+    set(_sci_mpi_lib ${_sci_mpi_lib}_mp ${_sci_mpi_lib})
+endif()
+
 find_library(
     SCI_LIBRARIES
-    NAMES "sci" "sci_gnu" "sci_intel" "sci_cray"
+    NAMES ${_sci_lib}
     HINTS ${_SCI_PATHS}
+    ENV CRAY_LIBSCI_PREFIX_DIR
+    PATH_SUFFIXES "lib" "lib64"
+)
+find_library(
+    SCI_MPI_LIBRARIES
+    NAMES ${_sci_mpi_lib}
+    HINTS ${_SCI_PATHS}
+    ENV CRAY_LIBSCI_PREFIX_DIR
     PATH_SUFFIXES "lib" "lib64"
 )
 find_path(
     SCI_INCLUDE_DIRS
     NAMES "cblas.h"
     HINTS ${_SCI_PATHS}
+    ENV CRAY_LIBSCI_PREFIX_DIR
     PATH_SUFFIXES "include"
 )
 
 # check if found
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SCI REQUIRED_VARS SCI_INCLUDE_DIRS SCI_LIBRARIES)
+
+if(SCI_LIBRARIES AND TARGET OpenMP::OpenMP_CXX)
+    list(APPEND SCI_LIBRARIES $<LINK_ONLY:OpenMP::OpenMP_CXX>)
+endif()
+
+if(SCI_MPI_LIBRARIES)
+    find_package(MPI COMPONENTS CXX QUIET)
+    if(TARGET MPI::MPI_CXX)
+        list(APPEND SCI_MPI_LIBRARIES $<LINK_ONLY:MPI::MPI_CXX>)
+    endif()
+endif()
 
 # add target to link against
 if(SCI_FOUND)
@@ -74,7 +114,16 @@ if(SCI_FOUND)
     endif()
     set_property(TARGET SCI::sci PROPERTY INTERFACE_LINK_LIBRARIES ${SCI_LIBRARIES})
     set_property(TARGET SCI::sci PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${SCI_INCLUDE_DIRS})
+
+    if(SCI_MPI_LIBRARIES)
+        if(NOT TARGET SCI::sci_mpi)
+            add_library(SCI::sci_mpi INTERFACE IMPORTED)
+        endif()
+        set_property(TARGET SCI::sci_mpi PROPERTY INTERFACE_LINK_LIBRARIES ${SCI_MPI_LIBRARIES} SCI::sci)
+        list(APPEND SCI_MPI_LIBRARIES ${SCI_LIBRARIES})
+    endif()
 endif()
+
 
 # prevent clutter in cache
 MARK_AS_ADVANCED(SCI_FOUND SCI_LIBRARIES SCI_INCLUDE_DIRS)
