@@ -175,6 +175,8 @@ auto is_parallel() -> bool {
   return mkl_get_max_threads() != 1;
 #elif defined(SPLA_BLAS_BLIS)
   return bli_info_get_enable_threading();
+#elif defined(SPLA_BLAS_SCI)
+  return true;
 #else
   return false;
 #endif
