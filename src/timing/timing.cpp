@@ -28,14 +28,10 @@
 
 #include "timing/timing.hpp"
 
-#ifdef SPLA_TIMING
-#include <fstream>
-#include <iostream>
-#include <string>
-
 #include "spla/config.h"
 #include "spla/errors.h"
 #include "spla/types.h"
+#include "timing/rt_graph.hpp"
 
 namespace spla {
 namespace timing {
@@ -43,28 +39,49 @@ namespace timing {
 }  // namespace timing
 }  // namespace spla
 
+#ifdef SPLA_TIMING
+#include <fstream>
+#include <iostream>
+#include <string>
+
 extern "C" {
 
 SPLA_EXPORT SplaError spla_timer_start(int n, const char* name) {
-  spla::timing::GlobalTimer.start(std::string(name, n));
-  return SPLA_SUCCESS;
+  try {
+    spla::timing::GlobalTimer.start(std::string(name, n));
+    return SPLA_SUCCESS;
+  } catch (...) {
+    return SPLA_UNKNOWN_ERROR;
+  }
 }
 
 SPLA_EXPORT SplaError spla_timer_stop(int n, const char* name) {
-  spla::timing::GlobalTimer.stop(std::string(name, n));
-  return SPLA_SUCCESS;
+  try {
+    spla::timing::GlobalTimer.stop(std::string(name, n));
+    return SPLA_SUCCESS;
+  } catch (...) {
+    return SPLA_UNKNOWN_ERROR;
+  }
 }
 
 SPLA_EXPORT SplaError spla_timer_export_json(int n, const char* name) {
-  std::string fileName(name, n);
-  std::ofstream file(fileName);
-  file << spla::timing::GlobalTimer.process().json();
-  return SPLA_SUCCESS;
+  try {
+    std::string fileName(name, n);
+    std::ofstream file(fileName);
+    file << spla::timing::GlobalTimer.process().json();
+    return SPLA_SUCCESS;
+  } catch (...) {
+    return SPLA_UNKNOWN_ERROR;
+  }
 }
 
 SPLA_EXPORT SplaError spla_timer_print() {
-  std::cout << spla::timing::GlobalTimer.process().print();
-  return SPLA_SUCCESS;
+  try {
+    std::cout << spla::timing::GlobalTimer.process().print();
+    return SPLA_SUCCESS;
+  } catch (...) {
+    return SPLA_UNKNOWN_ERROR;
+  }
 }
 }
 #endif

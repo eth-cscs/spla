@@ -38,12 +38,11 @@
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "memory/buffer.hpp"
-#include "memory/gpu_allocator.hpp"
+#include "memory/allocator.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/pinned_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "mpi_util/mpi_window_handle.hpp"
@@ -59,33 +58,29 @@ template <typename T>
 struct RingProcessorSSB {
   RingProcessorSSB(IntType blockSize_, GPUBlasHandle blasHandle_, GPUEventHandle event_,
                    GPUStreamHandle recvStream_,
-                   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-                   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
+                   const std::shared_ptr<Allocator<MemLoc::Host>>& allocHost,
+                   const std::shared_ptr<Allocator<MemLoc::GPU>>& allocGPU,
                    GPUConstMatrixAccessor<T> matA_, GPUConstMatrixAccessor<T> matB_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
         event(std::move(event_)),
         recvStream(std::move(recvStream_)),
-        bufferHost(std::move(bufferHost_)),
-        bufferGPU(std::move(bufferGPU_)),
+        bufferHost(allocHost, blockSize),
+        bufferGPU(allocGPU, 2 * blockSize),
         matA(std::move(matA_)),
         matB(std::move(matB_)) {
-    assert(bufferHost);
-    assert(bufferGPU);
-    bufferHost->resize<T>(blockSize);
-    bufferGPU->resize<T>(2 * blockSize);
 
-    tileViewHost = HostArrayView1D<T>(bufferHost->data<T>(), blockSize);
-    tileViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>(), blockSize);
-    recvViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>() + blockSize, blockSize);
+    tileViewHost = HostArrayView1D<T>(bufferHost.data(), blockSize);
+    tileViewGPU = GPUArrayView1D<T>(bufferGPU.data(), blockSize);
+    recvViewGPU = GPUArrayView1D<T>(bufferGPU.data() + blockSize, blockSize);
   }
 
   IntType blockSize;
   GPUBlasHandle blasHandle;
   GPUEventHandle event;
   GPUStreamHandle recvStream;
-  std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
-  std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
+  Buffer<T, MemLoc::Host> bufferHost;
+  Buffer<T, MemLoc::GPU> bufferGPU;
   GPUConstMatrixAccessor<T> matA;
   GPUConstMatrixAccessor<T> matB;
   HostArrayView1D<T> tileViewHost;
@@ -102,7 +97,7 @@ public:
 
   RingSSBGPU(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
              std::vector<RingProcessorSSB<T>> ringProcs,
-             std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost, BLOCK_GEN baseMatGen,
+             const std::shared_ptr<Allocator<MemLoc::Host>>& allocHost, BLOCK_GEN baseMatGen,
              SplaOperation opA, ValueType alpha, ValueType beta,
              HostArrayView2D<ValueType> HostMatC, GPUArrayView2D<ValueType> GPUMatC);
 
@@ -149,7 +144,7 @@ private:
   MPICommunicatorHandle comm_;
   BLOCK_GEN baseMatGen_;
   std::vector<RingProcessorSSB<T>> ringProcs_;
-  std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost_;
+  Buffer<T, MemLoc::Host> resultBufferHost_;
   HostArrayView2D<ValueType> HostMatC_;
   GPUArrayView2D<ValueType> GPUMatC_;
   const ValueType alpha_, beta_;

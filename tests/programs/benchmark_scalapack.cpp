@@ -2,24 +2,22 @@
 
 #include <array>
 #include <complex>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <vector>
 
 #include "CLI/CLI.hpp"
+#include "memory/allocator_collection.hpp"
 #include "memory/buffer.hpp"
-#include "memory/mpi_allocator.hpp"
+#include "memory/pool_allocator.hpp"
 #include "mpi_util/mpi_init_handle.hpp"
 #include "spla/matrix_distribution.hpp"
 #include "spla/spla.hpp"
 #include "timing/rt_graph.hpp"
 #include "timing/timing.hpp"
-
-#if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-#include "memory/gpu_allocator.hpp"
-#include "memory/pinned_allocator.hpp"
-#endif
 
 extern "C" {
 
@@ -83,8 +81,9 @@ static void call_pdgemr2d(int m, int n, double* a, int ia, int ja, int* desca, d
   pdgemr2d_(&m, &n, a, &ia, &ja, desca, b, &ib, &jb, descb, &ictxt);
 }
 
-template <typename T, typename ALLOCATOR>
-void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numThreads,
+template <typename T>
+void run_gemm(const std::shared_ptr<spla::Allocator<spla::MemLoc::Host>>& allocator,
+              spla::Context& ctx, int globalRows, int colsA, int colsB, int numThreads,
               int blacsBlockSize, int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
@@ -95,12 +94,9 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
       std::max(std::min(globalRows - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
   const int maxRowsC = (colsA / (blacsBlockSize * worldSize) + 1) * blacsBlockSize;
 
-  spla::Buffer<ALLOCATOR> A;
-  spla::Buffer<ALLOCATOR> B;
-  spla::Buffer<ALLOCATOR> C;
-  A.template resize<T>(maxRowsPerRank * colsA);
-  B.template resize<T>(maxRowsPerRank * colsB);
-  C.template resize<T>(maxRowsC * colsB);
+  spla::Buffer<T, spla::MemLoc::Host> A(allocator, maxRowsPerRank * colsA);
+  spla::Buffer<T, spla::MemLoc::Host> B(allocator, maxRowsPerRank * colsB);
+  spla::Buffer<T, spla::MemLoc::Host> C(allocator, maxRowsC * colsB);
 
   rt_graph::Timer timer;
 
@@ -109,16 +105,14 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
   ctx.set_num_threads(numThreads);
 
   // run once to warm up
-  spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.template data<T>(),
-                  localNumRows, B.template data<T>(), localNumRows, 0.0, C.template data<T>(),
-                  maxRowsC, 0, 0, arrayDesc, ctx);
+  spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.data(), localNumRows,
+                  B.data(), localNumRows, 0.0, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
 
   START_TIMING("spla - host memory");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.template data<T>(),
-                    localNumRows, B.template data<T>(), localNumRows, 0.0, C.template data<T>(),
-                    maxRowsC, 0, 0, arrayDesc, ctx);
+    spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.data(), localNumRows,
+                    B.data(), localNumRows, 0.0, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
   }
   STOP_TIMING("spla - host memory");
 
@@ -136,23 +130,19 @@ void run_gemm(spla::Context& ctx, int globalRows, int colsA, int colsB, int numT
   call_descinit(descC.data(), colsA, colsB, blacsBlockSize, blacsBlockSize, 0, 0, grid, maxRowsC,
                 &info);
 
-  call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<T>(), 1, 1, descA.data(),
-             B.template data<T>(), 1, 1, descB.data(), 0.0, C.template data<T>(), 1, 1,
-             descC.data());
+  call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.data(), 1, 1, descA.data(), B.data(), 1, 1,
+             descB.data(), 0.0, C.data(), 1, 1, descC.data());
 
   START_TIMING("ScaLAPACK");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("multiply");
-    call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.template data<T>(), 1, 1, descA.data(),
-               B.template data<T>(), 1, 1, descB.data(), 0.0, C.template data<T>(), 1, 1,
-               descC.data());
+    call_pgemm('C', 'N', colsA, colsB, globalRows, 1.0, A.data(), 1, 1, descA.data(), B.data(), 1,
+               1, descB.data(), 0.0, C.data(), 1, 1, descC.data());
   }
   STOP_TIMING("ScaLAPACK");
 
   Cblacs_gridexit(grid);
   Cfree_blacs_system_handle(blacsCtx);
-
-  if (worldRank == 0) std::cout << spla::timing::GlobalTimer.process().print() << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -166,10 +156,12 @@ int main(int argc, char** argv) {
   int blacsBlockSize = 256;
   std::string procName;
   std::string typeName;
+  std::string outputFileName;
   int lengthTarget = 256;
 
   CLI::App app{"spla benchmark"};
   app.add_option("-r", repeats, "Number of repeats")->default_val("100");
+  app.add_option("-o", outputFileName, "Output file name")->default_val("timers.json");
   app.add_option("-n", colsB, "Number of columns in C")->required();
   app.add_option("-m", colsA, "Number of rows in C")->required();
   app.add_option("-k", rows, "Number of rows in A and B")->required();
@@ -192,24 +184,39 @@ int main(int argc, char** argv) {
   ctx.set_num_threads(numThreads);
   ctx.set_tile_size_gpu(4096);
 
+  spla::AllocatorCollection allocators;
+
   if (ctx.processing_unit() == SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     if (typeName == "scalar")
-      run_gemm<double, spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
-                                              repeats);
+      run_gemm<double>(allocators.pinned(), ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
+                       repeats);
     else
-      run_gemm<std::complex<double>, spla::PinnedAllocator>(ctx, rows, colsA, colsB, numThreads,
-                                                            blacsBlockSize, repeats);
+      run_gemm<std::complex<double>>(allocators.pinned(), ctx, rows, colsA, colsB, numThreads,
+                                     blacsBlockSize, repeats);
 #else
     throw spla::GPUSupportError();
 #endif
   } else {
     if (typeName == "scalar")
-      run_gemm<double, spla::MPIAllocator>(ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
-                                           repeats);
+      run_gemm<double>(allocators.host(), ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
+                       repeats);
     else
-      run_gemm<std::complex<double>, spla::MPIAllocator>(ctx, rows, colsA, colsB, numThreads,
-                                                         blacsBlockSize, repeats);
+      run_gemm<std::complex<double>>(allocators.host(), ctx, rows, colsA, colsB, numThreads,
+                                     blacsBlockSize, repeats);
+  }
+
+  int worldRank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+  if (worldRank == 0) {
+    std::cout << "Context memory usage:" << std::endl;
+    std::cout << ctx.allocated_memory_host() / 1000000 << " MB host memory" << std::endl;
+    std::cout << ctx.allocated_memory_pinned() / 1000000 << " MB pinned host memory" << std::endl;
+    std::cout << ctx.allocated_memory_gpu() / 1000000 << " MB gpu memory" << std::endl;
+    auto result = spla::timing::GlobalTimer.process();
+    std::cout << result.print() << std::endl;
+    std::ofstream file(outputFileName);
+    file << result.json();
   }
 
   return 0;

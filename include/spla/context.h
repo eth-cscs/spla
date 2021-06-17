@@ -28,6 +28,9 @@
 #ifndef SPLA_CONTEXT_H
 #define SPLA_CONTEXT_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "spla/config.h"
 #include "spla/errors.h"
 #include "spla/types.h"
@@ -117,6 +120,34 @@ SPLA_EXPORT SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThreshol
 SPLA_EXPORT SplaError spla_ctx_gpu_device_id(SplaContext ctx, int* deviceId);
 
 /**
+ * Access a Context parameter.
+ * @param[in] ctx Context handle.
+ * @param[in] size Total allocated memory on host in bytes used for internal buffers. Does not
+ * include allocations through standard C++ allocators. May change with with use of context.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_allocated_memory_host(SplaContext ctx, uint_least64_t* size) ;
+
+/**
+ * Access a Context parameter.
+ * @param[in] ctx Context handle.
+ * @param[in] size Total allocated pinned memory on host in bytes used for internal buffers. Does
+ * not include allocations through standard C++ allocators. May change with with use of context.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_allocated_memory_pinned(SplaContext ctx, uint_least64_t* size) ;
+
+/**
+ * Access a Context parameter.
+ * @param[in] ctx Context handle.
+ * @param[in] size Total allocated memory on gpu in bytes used for internal buffers. Does not
+ * include allocations by device libraries like cuBLAS / rocBLAS. May change with with use of
+ * context.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_allocated_memory_gpu(SplaContext ctx, uint_least64_t* size) ;
+
+/**
  * Set the number of threads to be used.
  *
  * @param[in] ctx Context handle.
@@ -161,6 +192,42 @@ SPLA_EXPORT SplaError spla_ctx_set_op_threshold_gpu(SplaContext ctx, int opThres
  * @return Error code or SPLA_SUCCESS.
  */
 SPLA_EXPORT SplaError spla_ctx_set_tile_size_gpu(SplaContext ctx, int tileSizeGPU);
+
+/**
+ * Set the allocation and deallocation functions for host memory. Internal default uses a memory
+ * pool for better performance. Not available in Fortran module.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] allocateFunc Function allocating given size in bytes.
+ * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_set_alloc_host(SplaContext ctx, void* (*allocateFunc)(size_t),
+                                              void (*deallocateFunc)(void*));
+
+/**
+ * Set the allocation and deallocation functions for pinned host memory. Internal default uses a
+ * memory pool for better performance. Not available in Fortran module.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] allocateFunc Function allocating given size in bytes.
+ * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_set_alloc_pinned(SplaContext ctx, void* (*allocateFunc)(size_t),
+                                                void (*deallocateFunc)(void*));
+
+/**
+ * Set the allocation and deallocation functions for gpu memory. Internal default uses a
+ * memory pool for better performance. Not available in Fortran module.
+ *
+ * @param[in] ctx Context handle.
+ * @param[in] allocateFunc Function allocating given size in bytes.
+ * @param[in] deallocateFunc Function to deallocate memory allocated using allocateFunc.
+ * @return Error code or SPLA_SUCCESS.
+ */
+SPLA_EXPORT SplaError spla_ctx_set_alloc_gpu(SplaContext ctx, void* (*allocateFunc)(size_t),
+                                             void (*deallocateFunc)(void*));
 
 #ifdef __cplusplus
 }

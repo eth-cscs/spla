@@ -62,7 +62,8 @@ integer(c_int), parameter ::                  &
     SPLA_GPU_NO_DEVICE_ERROR           = 13, &
     SPLA_GPU_INVALID_VALUE_ERROR       = 14, &
     SPLA_GPU_INVALID_DEVICE_PTR_ERROR  = 15, &
-    SPLA_GPU_BLAS_ERROR                = 16
+    SPLA_GPU_BLAS_ERROR                = 16, &
+    SPLA_INVALID_ALLOCATOR_FUNCTION    = 17
 
 interface
 
@@ -120,6 +121,24 @@ interface
     use iso_c_binding
     type(c_ptr), value :: ctx
     integer(c_int), intent(out) :: deviceId
+  end function
+
+  integer(c_int) function spla_ctx_allocated_memory_host(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
+  end function
+
+  integer(c_int) function spla_ctx_allocated_memory_pinned(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
+  end function
+
+  integer(c_int) function spla_ctx_allocated_memory_gpu(ctx, memSize) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    integer(c_int_least64_t), intent(out) :: memSize
   end function
 
   integer(c_int) function spla_ctx_set_num_threads(ctx, numThreads) bind(C)
@@ -628,32 +647,6 @@ interface
     type(c_ptr), value ::C
     integer(c_int), value :: ldc
     type(c_ptr), value :: ctx
-  end function
-
-  !--------------------------
-  !     For testing only
-  !--------------------------
-
-  integer(c_int) function spla_timer_start(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_stop(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_export_json(n, nameArray) bind(C)
-    use iso_c_binding
-    integer(c_int), value :: n
-    type(c_ptr), value :: nameArray
-  end function
-
-  integer(c_int) function spla_timer_print() bind(C)
-    use iso_c_binding
   end function
 
 end interface

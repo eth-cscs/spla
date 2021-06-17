@@ -38,8 +38,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "memory/buffer.hpp"
-#include "memory/mpi_allocator.hpp"
+#include "memory/allocator_collection.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "spla/config.h"
 #include "spla/context.hpp"
@@ -51,8 +50,6 @@
 #include "gpu_util/gpu_blas_handle.hpp"
 #include "gpu_util/gpu_event_handle.hpp"
 #include "gpu_util/gpu_stream_handle.hpp"
-#include "memory/gpu_allocator.hpp"
-#include "memory/pinned_allocator.hpp"
 #endif
 
 namespace spla {
@@ -78,34 +75,7 @@ public:
     }
   }
 
-  inline auto mpi_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<MPIAllocator>>>& {
-    const IntType numMissing = numBuffers - static_cast<IntType>(mpiBuffers_.size());
-    for (IntType i = 0; i < numMissing; ++i) {
-      mpiBuffers_.emplace_back(new Buffer<MPIAllocator>());
-    }
-    return mpiBuffers_;
-  }
-
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-  inline auto pinned_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<PinnedAllocator>>>& {
-    const IntType numMissing = numBuffers - static_cast<IntType>(pinnedBuffers_.size());
-    for (IntType i = 0; i < numMissing; ++i) {
-      pinnedBuffers_.emplace_back(new Buffer<PinnedAllocator>());
-    }
-    return pinnedBuffers_;
-  }
-
-  inline auto gpu_buffers(IntType numBuffers)
-      -> std::deque<std::shared_ptr<Buffer<GPUAllocator>>>& {
-    const IntType numMissing = numBuffers - static_cast<IntType>(gpuBuffers_.size());
-    for (IntType i = 0; i < numMissing; ++i) {
-      gpuBuffers_.emplace_back(new Buffer<GPUAllocator>());
-    }
-    return gpuBuffers_;
-  }
-
   inline auto gpu_blas_handles(IntType numHandles) -> std::deque<GPUBlasHandle>& {
     const IntType numMissing = numHandles - static_cast<IntType>(gpuBlasHandles_.size());
     if (static_cast<IntType>(gpuBlasHandles_.size()) < numHandles) {
@@ -147,15 +117,17 @@ public:
 
   inline auto gpu_device_id() const -> int { return gpuDeviceId_; }
 
+  inline auto allocators() const -> const AllocatorCollection& { return allocators_; }
+
+  inline auto allocators() -> AllocatorCollection& { return allocators_; }
+
   // Set methods
 
   inline auto set_num_threads(IntType numThreads) -> void {
-#ifdef SPLA_OMP
     if (numThreads > 0)
       numThreads_ = numThreads;
     else
       numThreads_ = omp_get_max_threads();
-#endif
   }
 
   inline auto set_num_tiles(IntType numTilesPerThread) -> void {
@@ -187,10 +159,8 @@ private:
   IntType opThresholdGPU_;
   int gpuDeviceId_;
 
-  std::deque<std::shared_ptr<Buffer<MPIAllocator>>> mpiBuffers_;
+  AllocatorCollection allocators_;
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
-  std::deque<std::shared_ptr<Buffer<GPUAllocator>>> gpuBuffers_;
-  std::deque<std::shared_ptr<Buffer<PinnedAllocator>>> pinnedBuffers_;
   std::deque<GPUBlasHandle> gpuBlasHandles_;
   std::deque<GPUEventHandle> gpuEventHandles_;
   std::deque<GPUStreamHandle> gpuStreamHandles_;

@@ -101,7 +101,6 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
   }
 
   auto &blasHandles = ctx.gpu_blas_handles(ctx.num_tiles());
-  auto &gpuBuffers = ctx.gpu_buffers(3 * ctx.num_tiles());
   std::vector<GPUConstMatrixAccessor<T>> matAccessorsA;
   std::vector<GPUConstMatrixAccessor<T>> matAccessorsB;
   std::vector<GPUMatrixAccessor<T>> matAccessorsC;
@@ -113,18 +112,18 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
         gpuPtrA
             ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrA, numColsA, numRowsA, lda))
             : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(A, numColsA, numRowsA, lda),
-                                        maxNumElementsInTile, gpuBuffers[i * 3]));
+                                        maxNumElementsInTile, ctx.allocators().gpu()));
 
     matAccessorsB.emplace_back(
         gpuPtrB
             ? GPUConstMatrixAccessor<T>(GPUArrayConstView2D<T>(gpuPtrB, numColsB, numRowsB, ldb))
             : GPUConstMatrixAccessor<T>(HostArrayConstView2D<T>(B, numColsB, numRowsB, ldb),
-                                        maxNumElementsInTile, gpuBuffers[i * 3 + 1]));
+                                        maxNumElementsInTile, ctx.allocators().gpu()));
 
     matAccessorsC.emplace_back(gpuPtrC ? GPUMatrixAccessor<T>(GPUArrayView2D<T>(gpuPtrC, n, m, ldc))
                                        : GPUMatrixAccessor<T>(HostArrayView2D<T>(C, n, m, ldc),
                                                               maxNumElementsInTile,
-                                                              gpuBuffers[i * 3 + 2]));
+                                                              ctx.allocators().gpu()));
   }
 
   IntType rowBlockSize = m;

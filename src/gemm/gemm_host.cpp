@@ -70,18 +70,17 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType
   if (ldb < 1) ldb = 1;
   if (ldc < 1) ldc = 1;
 
-  const bool inParallel = omp_in_parallel();
+#ifdef SPLA_OMP
+  const bool useOMP = true;
+#else
+  const bool useOMP = false;
+#endif
 
   // if blas library is parallelized or not thread safe, call it directly
-  if ((blas::is_parallel() && !inParallel) || !blas::is_thread_safe()) {
-    SPLA_OMP_PRAGMA("omp master") {  // no implicit barrier
-      BlasThreadsGuard threadGuard(numThreads);
-      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda, B, ldb, beta, C,
-                 ldc);
-    }
-    if (inParallel) {
-      SPLA_OMP_PRAGMA("omp barrier")
-    }
+  if (!useOMP || blas::is_parallel() || !blas::is_thread_safe()) {
+    BlasThreadsGuard threadGuard(numThreads);
+    blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda, B, ldb, beta, C,
+               ldc);
     return;
   }
 
@@ -104,35 +103,18 @@ void gemm_host(IntType numThreads, SplaOperation opA, SplaOperation opB, IntType
   const IntType rowBlockSize =
       std::min<IntType>((m + numThreadRows - 1) / numThreadRows, minBlockSize);
 
-  if (omp_in_parallel()) {
-    SPLA_OMP_PRAGMA("omp for schedule(dynamic) collapse(2)")
-    for (IntType col = 0; col < n; col += colBlockSize) {
-      for (IntType row = 0; row < m; row += rowBlockSize) {
-        const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-        const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
-        const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
-        const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
-        const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
-        const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
-                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
-                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
-      }
-    }
-  } else {
-    SPLA_OMP_PRAGMA("omp parallel for schedule(dynamic) collapse(2) num_threads(numThreads)")
-    for (IntType col = 0; col < n; col += colBlockSize) {
-      for (IntType row = 0; row < m; row += rowBlockSize) {
-        const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
-        const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
-        const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
-        const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
-        const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
-        const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
-        blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
-                   viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
-                   viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
-      }
+  SPLA_OMP_PRAGMA("omp parallel for schedule(dynamic) collapse(2) num_threads(numThreads)")
+  for (IntType col = 0; col < n; col += colBlockSize) {
+    for (IntType row = 0; row < m; row += rowBlockSize) {
+      const IntType currentCols = std::min<IntType>(viewC.dim_outer() - col, colBlockSize);
+      const IntType currentRows = std::min<IntType>(viewC.dim_inner() - row, rowBlockSize);
+      const IntType rowA = opA == SplaOperation::SPLA_OP_NONE ? row : 0;
+      const IntType colA = opA == SplaOperation::SPLA_OP_NONE ? 0 : row;
+      const IntType rowB = opB == SplaOperation::SPLA_OP_NONE ? 0 : col;
+      const IntType colB = opB == SplaOperation::SPLA_OP_NONE ? col : 0;
+      blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, currentRows, currentCols, k, alpha,
+                 viewA.size() ? &viewA(colA, rowA) : nullptr, lda,
+                 viewB.size() ? &viewB(colB, rowB) : nullptr, ldb, beta, &viewC(col, row), ldc);
     }
   }
 }

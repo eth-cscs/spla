@@ -95,7 +95,7 @@ template <typename T, typename BLOCK_GEN>
 RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(double ringThreshold, IntType maxBlockSize,
                                      MPICommunicatorHandle comm,
                                      std::vector<RingProcessorSSB<T>> ringProcs,
-                                     std::shared_ptr<Buffer<PinnedAllocator>> resultBufferHost,
+                                     const std::shared_ptr<Allocator<MemLoc::Host>> &allocHost,
                                      BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
                                      ValueType beta, HostArrayView2D<ValueType> HostMatC,
                                      GPUArrayView2D<ValueType> GPUMatC)
@@ -103,7 +103,7 @@ RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(double ringThreshold, IntType maxBlockSize,
       comm_(std::move(comm)),
       baseMatGen_(std::move(baseMatGen)),
       ringProcs_(std::move(ringProcs)),
-      resultBufferHost_(std::move(resultBufferHost)),
+      resultBufferHost_(allocHost, 0),
       HostMatC_(HostMatC),
       GPUMatC_(GPUMatC),
       alpha_(alpha),
@@ -112,7 +112,6 @@ RingSSBGPU<T, BLOCK_GEN>::RingSSBGPU(double ringThreshold, IntType maxBlockSize,
       maxBlockSize_(maxBlockSize),
       ringThreshold_(ringThreshold) {
   assert(ringProcs_.size() >= 2);  // Ring algorithm relies on at least 2
-  assert(resultBufferHost_);
   assert(opA_ == SplaOperation::SPLA_OP_CONJ_TRANSPOSE || opA_ == SplaOperation::SPLA_OP_TRANSPOSE);
 }
 
@@ -157,7 +156,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
     gpu::check_status(gpu::stream_synchronize(proc.blasHandle.stream_handle().get()));
   }
 
-  resultBufferHost_->resize<T>(std::max<std::size_t>(requiredBufferSize, 1));
+  resultBufferHost_.resize(std::max<std::size_t>(requiredBufferSize, 1));
 
   resultRecvs_.resize(myBlockInfos_.size());
 
@@ -166,7 +165,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::prepare(std::vector<Block>::const_iterator begin,
     IntType offset = 0;
     for (IntType i = 0; i < myBlockInfos_.size(); ++i) {
       const auto &pair = myBlockInfos_[i];
-      MPI_Irecv(resultBufferHost_->data<T>() + offset, pair.second.numCols * pair.second.numRows,
+      MPI_Irecv(resultBufferHost_.data() + offset, pair.second.numCols * pair.second.numRows,
                 MPIMatchElementaryType<T>::get(), pair.first, resultTag, comm_.get(),
                 resultRecvs_[i].get_and_activate());
       offset += pair.second.numCols * pair.second.numRows;
@@ -462,8 +461,9 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
           STOP_TIMING("mpi_wait")
           const auto &info = myBlockInfos_[i].second;
 
-          add_kernel(info.numRows, info.numCols, resultBufferHost_->data<hostType>() + offset,
-                     info.numRows, betaHost, &matCHostConverted(info.localColIdx, info.localRowIdx),
+          add_kernel(info.numRows, info.numCols,
+                     reinterpret_cast<hostType *>(resultBufferHost_.data()) + offset, info.numRows,
+                     betaHost, &matCHostConverted(info.localColIdx, info.localRowIdx),
                      matCHostConverted.ld_inner());
           offset += info.numCols * info.numRows;
         }
@@ -480,7 +480,7 @@ auto RingSSBGPU<T, BLOCK_GEN>::finalize() -> void {
 
           copy_to_gpu_async<T, T>(
               ringProcs_.back().blasHandle.stream_handle().get(),
-              HostArrayConstView1D<T>(resultBufferHost_->data<T>() + offset,
+              HostArrayConstView1D<T>(resultBufferHost_.data() + offset,
                                       info.numCols * info.numRows),
               GPUArrayView1D<T>(ringProcs_.back().tileViewGPU.data(), info.numCols * info.numRows));
 

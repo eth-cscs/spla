@@ -39,13 +39,12 @@
 #include "gpu_util/gpu_event_handle.hpp"
 #include "gpu_util/gpu_matrix_accessor.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
+#include "memory/allocator.hpp"
 #include "memory/buffer.hpp"
-#include "memory/gpu_allocator.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
-#include "memory/pinned_allocator.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
 #include "mpi_util/mpi_request_handle.hpp"
 #include "mpi_util/mpi_window_handle.hpp"
@@ -60,29 +59,25 @@ namespace spla {
 template <typename T>
 struct RingProcessorSBS {
   RingProcessorSBS(IntType blockSize_, GPUBlasHandle blasHandle_,
-                   std::shared_ptr<Buffer<PinnedAllocator>> bufferHost_,
-                   std::shared_ptr<Buffer<GPUAllocator>> bufferGPU_,
+                   const std::shared_ptr<Allocator<MemLoc::Host>>& allocHost,
+                   const std::shared_ptr<Allocator<MemLoc::GPU>>& allocGPU,
                    GPUConstMatrixAccessor<T> matA_, GPUMatrixAccessor<T> matC_)
       : blockSize(blockSize_),
         blasHandle(std::move(blasHandle_)),
-        bufferHost(std::move(bufferHost_)),
-        bufferGPU(std::move(bufferGPU_)),
+        bufferHost(allocHost, 2 * blockSize),
+        bufferGPU(allocGPU, blockSize),
         matA(std::move(matA_)),
         matC(std::move(matC_)) {
-    assert(bufferHost);
-    assert(bufferGPU);
-    bufferHost->resize<T>(2 * blockSize);
-    bufferGPU->resize<T>(blockSize);
 
-    tileViewGPU = GPUArrayView1D<T>(bufferGPU->data<T>(), blockSize);
-    sendView = HostArrayView1D<T>(bufferHost->data<T>(), blockSize);
-    recvView = HostArrayView1D<T>(bufferHost->data<T>() + blockSize, blockSize);
+    tileViewGPU = GPUArrayView1D<T>(bufferGPU.data(), blockSize);
+    sendView = HostArrayView1D<T>(bufferHost.data(), blockSize);
+    recvView = HostArrayView1D<T>(bufferHost.data() + blockSize, blockSize);
   }
 
   IntType blockSize;
   GPUBlasHandle blasHandle;
-  std::shared_ptr<Buffer<PinnedAllocator>> bufferHost;
-  std::shared_ptr<Buffer<GPUAllocator>> bufferGPU;
+  Buffer<T, MemLoc::Host> bufferHost;
+  Buffer<T, MemLoc::GPU> bufferGPU;
   GPUConstMatrixAccessor<T> matA;
   GPUMatrixAccessor<T> matC;
   HostArrayView1D<T> sendView;

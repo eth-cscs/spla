@@ -38,10 +38,10 @@
 #include "gpu_util/gpu_stream_handle.hpp"
 #include "gpu_util/gpu_transfer.hpp"
 #include "memory/buffer.hpp"
-#include "memory/gpu_allocator.hpp"
 #include "memory/gpu_array_const_view.hpp"
 #include "memory/gpu_array_view.hpp"
 #include "memory/host_array_const_view.hpp"
+#include "memory/allocator.hpp"
 #include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
 
@@ -59,14 +59,19 @@ public:
         maxTileSize_(matrix.size()) {}
 
   GPUMatrixAccessor(const HostArrayView2D<ValueType> &matrix, IntType maxTileSize,
-                    std::shared_ptr<Buffer<GPUAllocator>> buffer)
+                    std::shared_ptr<Buffer<T, MemLoc::GPU>> bufferGPU)
       : matrixHost_(matrix),
         rows_(matrix.dim_inner()),
         cols_(matrix.dim_outer()),
         maxTileSize_(maxTileSize),
-        buffer_(std::move(buffer)) {
-    assert(buffer_);
+        bufferGPU_(std::move(bufferGPU)) {
+    assert(bufferGPU_);
   }
+
+  GPUMatrixAccessor(const HostArrayView2D<ValueType> &matrix, IntType maxTileSize,
+                    const std::shared_ptr<Allocator<MemLoc::GPU>> &gpuAllocator)
+      : GPUMatrixAccessor(matrix, maxTileSize,
+                          std::make_shared<Buffer<T, MemLoc::GPU>>(gpuAllocator, 0)) {}
 
   auto max_tile_size() const -> IntType { return maxTileSize_; }
 
@@ -79,8 +84,8 @@ public:
   auto copy_back(GPUArrayView2D<ValueType> view, IntType rowOffset, IntType colOffset,
                  const gpu::StreamType &stream) -> void {
     if (matrixGPU_.empty()) {
-      assert(buffer_->data<ValueType>() <= view.data() &&
-             buffer_->data<ValueType>() + buffer_->size<ValueType>() >=
+      assert(bufferGPU_->data() <= view.data() &&
+             bufferGPU_->data() + bufferGPU_->size() >=
                  view.data() + view.ld_inner() * view.dim_outer());
       copy_from_gpu_async(
           stream, GPUArrayConstView2D<ValueType>(view),
@@ -95,13 +100,13 @@ public:
     assert(colOffset + cols <= cols_);
     assert(rows * cols <= maxTileSize_);
     if (matrixGPU_.empty()) {
-      // grow buffer to twice the current required size to avoid reallocation for small size
+      // grow bufferGPU to twice the current required size to avoid reallocation for small size
       // increases
-      if (buffer_->size<ValueType>() < cols * rows) {
-        buffer_->resize<ValueType>(std::min<IntType>(2 * cols * rows, maxTileSize_));
+      if (bufferGPU_->size() < cols * rows) {
+        bufferGPU_->resize(std::min<IntType>(2 * cols * rows, maxTileSize_));
       }
-      assert(buffer_->size<ValueType>() >= cols * rows);
-      GPUArrayView2D<ValueType> tile(buffer_->data<ValueType>(), cols, rows);
+      assert(bufferGPU_->size() >= cols * rows);
+      GPUArrayView2D<ValueType> tile(bufferGPU_->data(), cols, rows);
       copy_to_gpu_async(stream,
                         HostArrayConstView2D<ValueType>(&matrixHost_(colOffset, rowOffset), cols,
                                                         rows, matrixHost_.ld_inner()),
@@ -122,7 +127,7 @@ public:
       return GPUMatrixAccessor<ValueType>(
           HostArrayView2D<ValueType>((matrixHost_.data() + matrixHost_.index(colOffset, rowOffset)),
                                      cols, rows, matrixHost_.ld_inner()),
-          maxTileSize_, buffer_);
+          maxTileSize_, bufferGPU_);
     } else {
       return GPUMatrixAccessor<ValueType>(
           GPUArrayView2D<ValueType>(matrixGPU_.data() + matrixGPU_.index(colOffset, rowOffset),
@@ -135,7 +140,7 @@ private:
   GPUArrayView2D<ValueType> matrixGPU_;
   IntType rows_, cols_;
   IntType maxTileSize_;
-  std::shared_ptr<Buffer<GPUAllocator>> buffer_;
+  std::shared_ptr<Buffer<T, MemLoc::GPU>> bufferGPU_;
 };
 
 template <typename T>
@@ -150,14 +155,20 @@ public:
         maxTileSize_(matrix.size()) {}
 
   GPUConstMatrixAccessor(const HostArrayConstView2D<ValueType> &matrix, IntType maxTileSize,
-                         std::shared_ptr<Buffer<GPUAllocator>> buffer)
+                         std::shared_ptr<Buffer<T, MemLoc::GPU>> bufferGPU)
       : matrixHost_(matrix),
         rows_(matrix.dim_inner()),
         cols_(matrix.dim_outer()),
         maxTileSize_(maxTileSize),
-        buffer_(std::move(buffer)) {
-    assert(buffer_);
+        bufferGPU_(std::move(bufferGPU)),
+        currentOrigin_(new HostArrayConstView2D<T>()) {
+    assert(bufferGPU_);
   }
+
+  GPUConstMatrixAccessor(const HostArrayConstView2D<ValueType> &matrix, IntType maxTileSize,
+                         const std::shared_ptr<Allocator<MemLoc::GPU>> &gpuAllocator)
+      : GPUConstMatrixAccessor(matrix, maxTileSize,
+                               std::make_shared<Buffer<T, MemLoc::GPU>>(gpuAllocator, 0)) {}
 
   auto max_tile_size() const -> IntType { return maxTileSize_; }
 
@@ -173,17 +184,24 @@ public:
     assert(colOffset + cols <= cols_);
     assert(rows * cols <= maxTileSize_);
     if (matrixGPU_.empty()) {
-      // grow buffer to twice the current required size to avoid reallocation for small size
+      // grow bufferGPU to twice the current required size to avoid reallocation for small size
       // increases
-      if (buffer_->size<ValueType>() < cols * rows) {
-        buffer_->resize<ValueType>(std::min<IntType>(2 * cols * rows, maxTileSize_));
+      if (bufferGPU_->size() < cols * rows) {
+        bufferGPU_->resize(std::min<IntType>(2 * cols * rows, maxTileSize_));
       }
-      assert(buffer_->size<ValueType>() >= cols * rows);
-      GPUArrayView2D<ValueType> tile(buffer_->data<ValueType>(), cols, rows);
-      copy_to_gpu_async(stream,
-                        HostArrayConstView2D<ValueType>(&matrixHost_(colOffset, rowOffset), cols,
-                                                        rows, matrixHost_.ld_inner()),
-                        tile);
+      assert(bufferGPU_->size() >= cols * rows);
+      GPUArrayView2D<ValueType> tile(bufferGPU_->data(), cols, rows);
+
+      HostArrayConstView2D<ValueType> tileHost(&matrixHost_(colOffset, rowOffset), cols, rows,
+                                               matrixHost_.ld_inner());
+
+      // Only copy if not already in device memory
+      if (!currentOrigin_ || *currentOrigin_ != tileHost) {
+        copy_to_gpu_async(stream, tileHost, tile);
+      }
+
+      *currentOrigin_ = tileHost;
+
       return tile;
     } else {
       return GPUArrayConstView2D<ValueType>(
@@ -201,7 +219,7 @@ public:
           HostArrayConstView2D<ValueType>(
               (matrixHost_.data() + matrixHost_.index(colOffset, rowOffset)), cols, rows,
               matrixHost_.ld_inner()),
-          maxTileSize_, buffer_);
+          maxTileSize_, bufferGPU_, currentOrigin_);
     } else {
       return GPUConstMatrixAccessor<ValueType>(
           GPUArrayConstView2D<ValueType>(matrixGPU_.data() + matrixGPU_.index(colOffset, rowOffset),
@@ -210,11 +228,25 @@ public:
   }
 
 private:
+  GPUConstMatrixAccessor(const HostArrayConstView2D<ValueType> &matrix, IntType maxTileSize,
+                         std::shared_ptr<Buffer<T, MemLoc::GPU>> bufferGPU,
+                         std::shared_ptr<HostArrayConstView2D<ValueType>> currentOrigin)
+      : matrixHost_(matrix),
+        rows_(matrix.dim_inner()),
+        cols_(matrix.dim_outer()),
+        maxTileSize_(maxTileSize),
+        bufferGPU_(std::move(bufferGPU)),
+        currentOrigin_(std::move(currentOrigin)) {
+    assert(bufferGPU_);
+    assert(currentOrigin_);
+  }
+
   HostArrayConstView2D<ValueType> matrixHost_;
   GPUArrayConstView2D<ValueType> matrixGPU_;
   IntType rows_, cols_;
   IntType maxTileSize_;
-  std::shared_ptr<Buffer<GPUAllocator>> buffer_;
+  std::shared_ptr<Buffer<T, MemLoc::GPU>> bufferGPU_;
+  std::shared_ptr<HostArrayConstView2D<ValueType>> currentOrigin_;
 };
 
 }  // namespace spla

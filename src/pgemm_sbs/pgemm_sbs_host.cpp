@@ -98,16 +98,15 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
       std::max<IntType>(rowsInBlock * colsInBlock, ctx.tile_size_host() * ctx.tile_size_host());
 
   constexpr IntType numTiles = 2;
-  auto &buffers = ctx.mpi_buffers(numTiles);
   auto &comms = descB.get_comms(numTiles);
 
   std::array<RingSBSHost<T, BLOCK_GEN>, numTiles> tiles{
       RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
-                                buffers[0], gen, alpha, viewA, viewB, bRowOffset, bColOffset, beta,
-                                viewC},
+                                ctx.allocators().host(), gen, alpha, viewA, viewB, bRowOffset,
+                                bColOffset, beta, viewC},
       RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
-                                buffers[1], gen, alpha, viewA, viewB, bRowOffset, bColOffset, beta,
-                                viewC}};
+                                ctx.allocators().host(), gen, alpha, viewA, viewB, bRowOffset,
+                                bColOffset, beta, viewC}};
 
   std::vector<Block> blocks;
   blocks.reserve(descB.comm().size());

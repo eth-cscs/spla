@@ -98,7 +98,11 @@ enum SplaError {
   /**
    * GPU blas error.
    */
-  SPLA_GPU_BLAS_ERROR
+  SPLA_GPU_BLAS_ERROR,
+  /**
+   * Invalid allocator function error.
+   */
+  SPLA_INVALID_ALLOCATOR_FUNCTION
 };
 
 #ifndef __cplusplus

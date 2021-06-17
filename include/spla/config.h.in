@@ -36,12 +36,13 @@
 #cmakedefine SPLA_CUDA
 #cmakedefine SPLA_ROCM
 #cmakedefine SPLA_OMP
-#cmakedefine SPLA_TIMING
 #cmakedefine SPLA_BLAS_MKL
 #cmakedefine SPLA_BLAS_OPENBLAS
 #cmakedefine SPAL_BLAS_ATLAS
 #cmakedefine SPLA_BLAS_SCI
 #cmakedefine SPLA_BLAS_BLIS
+#cmakedefine SPLA_BLAS_GENERIC
+#cmakedefine SPLA_BLAS_UNKNOWN
 #cmakedefine SPLA_BLAS_HEADER_NAME <@SPLA_BLAS_HEADER_NAME@>
 #cmakedefine SPLA_RESTRICT_ATTR @SPLA_RESTRICT_ATTR@
 

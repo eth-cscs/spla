@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.4.0)
+project(spla LANGUAGES CXX VERSION 1.5.0)
 set(SPLA_SO_VERSION 1)
 set(SPLA_VERSION ${PROJECT_VERSION})
 
@@ -36,7 +36,6 @@ option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
 option(SPLA_FORTRAN "Compile fortran module" OFF)
-option(SPLA_TIMING "Enable internal timing. For developement puposes." OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
@@ -64,6 +63,14 @@ if(NOT ${SPLA_HOST_BLAS} IN_LIST _SPLA_HOST_BLAS_LIST)
 	message(FATAL_ERROR "Invalid Host BLAS backend")
 endif()
 
+set(SPLA_BLAS_MKL OFF)
+set(SPLA_BLAS_BLIS OFF)
+set(SPLA_BLAS_OPENBLAS OFF)
+set(SPLA_BLAS_SCI OFF)
+set(SPLA_BLAS_ATLAS OFF)
+set(SPLA_BLAS_GENERIC OFF)
+set(SPLA_BLAS_UNKNOWN OFF)
+
 # Fortran
 if(SPLA_FORTRAN)
 	enable_language(Fortran)
@@ -88,17 +95,6 @@ set(SPLA_BLAS_BLIS OFF)
 set(SPLA_BLAS_SCI OFF)
 set(SPLA_BLAS_ATLAS OFF)
 set(SPLA_RESTRICT_ATTR " ")
-
-# Hide symbols by default if tests are not build
-if(NOT SPLA_BUILD_TESTS)
-	set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-	set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-else()
-	# disable visibility macros if tests are build
-	list(APPEND SPLA_DEFINITIONS -DSPLA_STATIC_DEFINE)
-	set(CMAKE_CXX_VISIBILITY_PRESET default)
-	set(CMAKE_VISIBILITY_INLINES_HIDDEN 0)
-endif()
 
 # check if restrict attribute is available
 include(CheckCXXSourceCompiles)
@@ -142,25 +138,39 @@ list(APPEND SPLA_EXTERNAL_LIBS MPI::MPI_CXX)
 
 
 if(SPLA_OMP)
-	find_package(OpenMP REQUIRED)
+	find_package(OpenMP REQUIRED COMPONENTS CXX)
 	list(APPEND SPLA_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
 endif()
 
 # CUDA
 if(SPLA_CUDA)
-	enable_language(CUDA)
-	find_library(CUDA_CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-	find_library(CUDA_BLAS_LIBRARY cublas PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-	list(APPEND SPLA_EXTERNAL_LIBS ${CUDA_CUDART_LIBRARY} ${CUDA_BLAS_LIBRARY})
-	list(APPEND SPLA_EXTERNAL_INCLUDE_DIRS ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+	if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0") 
+		find_package(CUDAToolkit REQUIRED)
+	else()
+		enable_language(CUDA)
+		find_library(CUDA_CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		if(NOT TARGET CUDA::cudart)
+			add_library(CUDA::cudart INTERFACE IMPORTED)
+		endif()
+		set_property(TARGET CUDA::cudart PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUDART_LIBRARY})
+		set_property(TARGET CUDA::cudart PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+		find_library(CUDA_CUBLAS_LIBRARY cublas PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		if(NOT TARGET CUDA::cublas)
+			add_library(CUDA::cublas INTERFACE IMPORTED)
+		endif()
+		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUBLAS_LIBRARY})
+		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+	endif()
+
+	list(APPEND SPLA_EXTERNAL_LIBS CUDA::cudart CUDA::cublas)
 endif()
 
 # ROCm
 if(SPLA_ROCM)
-  find_package(ROCBLAS REQUIRED)
-  find_package(HIPLIBS REQUIRED)
-  list(APPEND SPLA_EXTERNAL_LIBS ROCBLAS::rocblas HIPLIBS::hiplibs)
-  list(APPEND SPLA_DEFINITIONS -D__HIP_PLATFORM_HCC__) # required for parsing hip headers
+	find_package(hip CONFIG REQUIRED)
+	find_package(rocblas CONFIG REQUIRED)
+  list(APPEND SPLA_EXTERNAL_LIBS hip::host roc::rocblas)
 endif()
 
 # find BLAS backend for Host computation.
@@ -174,21 +184,21 @@ endif()
 if(${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "MKL")
 	find_package(MKL QUIET ${_SPLA_FIND_BLAS_OPTION})
 	if(SPLA_OMP)
-		if(SPLA_BUILD_TESTS)
-			set(SPLA_MKL_TARGET mkl::scalapack_mpich_intel_32bit_omp_dyn)
-		else()
-			set(SPLA_MKL_TARGET mkl::mkl_intel_32bit_omp_dyn)
+		if(TARGET mkl::intel_32bit_omp_dyn)
+			set(SPLA_MKL_TARGET intel_32bit_omp_dyn)
+		elseif(TARGET mkl::intel_32bit_omp_st)
+			set(SPLA_MKL_TARGET intel_32bit_omp_st)
 		endif()
 	else()
-		if(SPLA_BUILD_TESTS)
-			set(SPLA_MKL_TARGET mkl::scalapack_mpich_intel_32bit_seq_dyn)
-		else()
-			set(SPLA_MKL_TARGET mkl::mkl_intel_32bit_seq_dyn)
+		if(TARGET mkl::intel_32bit_seq_dyn)
+			set(SPLA_MKL_TARGET intel_32bit_seq_dyn)
+		elseif(TARGET mkl::intel_32bit_seq_st)
+			set(SPLA_MKL_TARGET intel_32bit_seq_st)
 		endif()
 	endif()
-	if(TARGET ${SPLA_MKL_TARGET})
+	if(TARGET mkl::${SPLA_MKL_TARGET})
 		message(STATUS "Host BLAS Backend: MKL")
-		list(APPEND SPLA_EXTERNAL_LIBS ${SPLA_MKL_TARGET})
+		list(APPEND SPLA_EXTERNAL_LIBS mkl::${SPLA_MKL_TARGET})
 		set(SPLA_BLAS_MKL ON)
 		set(SPLA_BLAS_HEADER_NAME mkl.h)
 		set(_SPLA_BLAS_FOUND TRUE)
@@ -201,7 +211,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 		message(STATUS "Host BLAS Backend: BLIS")
 		list(APPEND SPLA_EXTERNAL_LIBS BLIS::blis)
 		set(SPLA_BLAS_BLIS ON)
-		set(SPLA_BLAS_HEADER_NAME cblas.h)
+		set(SPLA_BLAS_HEADER_NAME blis.h)
 		set(_SPLA_BLAS_FOUND TRUE)
 	endif()
 endif()
@@ -253,6 +263,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 		message(STATUS "Host BLAS Backend: GENERIC")
 		message(STATUS "Host BLAS libs: ${GenericBLAS_LIBRARIES}")
 		list(APPEND SPLA_EXTERNAL_LIBS GenericBLAS::blas)
+		set(SPLA_BLAS_GENERIC ON)
 		set(_SPLA_BLAS_FOUND TRUE)
 		# try to find header file
 		find_file(_BLAS_HEADER NAMES cblas.h HINTS ${GenericBLAS_INCLUDE_DIRS})
@@ -262,7 +273,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 	endif()
 endif()
 
-# Fall back to CMake provided FindBLAS as last resort or for GENERIC blas library
+# Fall back to CMake provided FindBLAS as last resort
 if(NOT _SPLA_BLAS_FOUND)
 	find_package(BLAS REQUIRED)
 	message(STATUS "Host BLAS Backend: ${BLAS_LIBRARIES}")
@@ -276,6 +287,7 @@ if(NOT _SPLA_BLAS_FOUND)
 	endif()
 	set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
 	list(APPEND SPLA_EXTERNAL_LIBS BLAS::blas)
+	set(SPLA_BLAS_UNKNOWN ON)
 endif()
 
 
@@ -291,12 +303,6 @@ else()
 endif()
 if(NOT _SPLA_CBLAS_FOUND)
 	message(FATAL_ERROR "CBlas symbols are required but not found in blas library!")
-endif()
-
-
-if(SPLA_BUILD_TESTS)
-	# enable timing with testing
-	set(SPLA_TIMING ON)
 endif()
 
 # generate config.h

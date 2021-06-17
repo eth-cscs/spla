@@ -52,7 +52,7 @@ endif()
 
 find_library(
     BLIS_LIBRARIES
-    NAMES "blis"
+    NAMES "blis-mt" "blis"
     HINTS ${_BLIS_PATHS}
     PATH_SUFFIXES "blis/lib" "blis/lib64" "blis"
 )
@@ -62,16 +62,10 @@ find_path(
     HINTS ${_BLIS_PATHS}
     PATH_SUFFIXES "blis" "blis/include" "include/blis"
 )
-find_path(
-    BLIS_CBLAS_INCLUDE_DIRS
-    NAMES "cblas_blis.h" "cblas-blis.h" "cblas.h" 
-    HINTS ${_BLIS_PATHS}
-    PATH_SUFFIXES "blis" "blis/include" "include/blis"
-)
 
 # check if found
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(BLIS REQUIRED_VARS BLIS_INCLUDE_DIRS BLIS_LIBRARIES BLIS_CBLAS_INCLUDE_DIRS)
+find_package_handle_standard_args(BLIS REQUIRED_VARS BLIS_INCLUDE_DIRS BLIS_LIBRARIES)
 
 # add target to link against
 if(BLIS_FOUND)
@@ -79,8 +73,8 @@ if(BLIS_FOUND)
         add_library(BLIS::blis INTERFACE IMPORTED)
     endif()
     set_property(TARGET BLIS::blis PROPERTY INTERFACE_LINK_LIBRARIES ${BLIS_LIBRARIES})
-    set_property(TARGET BLIS::blis PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${BLIS_INCLUDE_DIRS} ${BLIS_CBLAS_INCLUDE_DIRS})
+    set_property(TARGET BLIS::blis PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${BLIS_INCLUDE_DIRS})
 endif()
 
 # prevent clutter in cache
-MARK_AS_ADVANCED(BLIS_FOUND BLIS_LIBRARIES BLIS_INCLUDE_DIRS BLIS_CBLAS_INCLUDE_DIRS)
+MARK_AS_ADVANCED(BLIS_FOUND BLIS_LIBRARIES BLIS_INCLUDE_DIRS)
