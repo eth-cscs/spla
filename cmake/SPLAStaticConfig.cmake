@@ -1,4 +1,11 @@
 include(CMakeFindDependencyMacro)
+macro(find_dependency_components)
+	if(${ARGV0}_FOUND AND ${CMAKE_VERSION} VERSION_LESS "3.15.0")
+		# find_dependency does not handle new components correctly before 3.15.0
+		set(${ARGV0}_FOUND FALSE)
+	endif()
+	find_dependency(${ARGV})
+endmacro()
 
 # Only look for modules we installed and save value
 set(_CMAKE_MODULE_PATH_SAVE ${CMAKE_MODULE_PATH})
@@ -30,29 +37,22 @@ endif()
 
 # find required targets
 if(NOT TARGET MPI::MPI_CXX)
-	# CXX component is always required for static library
-	if(MPI_FOUND)
-		set(MPI_FOUND FALSE)
 	endif()
-	find_dependency(MPI COMPONENTS CXX)
+	find_dependency_components(MPI COMPONENTS CXX)
 endif()
 
 if("C" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_C)
-	if(MPI_FOUND)
-		set(MPI_FOUND FALSE)
-	endif()
-	find_dependency(MPI COMPONENTS C)
+	find_dependency_components(MPI COMPONENTS C)
 endif()
 
 if("Fortran" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_Fortran)
-	if(MPI_FOUND)
-		set(MPI_FOUND FALSE)
-	endif()
-	find_dependency(MPI COMPONENTS Fortran)
+	find_dependency_components(MPI COMPONENTS Fortran)
 endif()
 
 if(SPLA_OMP)
-	find_dependency(OpenMP COMPONENTS CXX)
+	if(NOT TARGET OpenMP::OpenMP_CXX)
+		find_dependency_components(OpenMP COMPONENTS CXX)
+	endif()
 endif()
 
 if(SPLA_ROCM)
@@ -63,7 +63,7 @@ endif()
 
 if(SPLA_CUDA)
 	if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0") 
-		find_dependency(CUDAToolkit REQUIRED)
+		find_dependency(CUDAToolkit)
 	else()
 		enable_language(CUDA)
 		find_library(CUDA_CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
