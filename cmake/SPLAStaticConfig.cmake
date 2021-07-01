@@ -96,6 +96,11 @@ elseif(SPLA_BLAS_GENERIC)
 	find_dependency(GenericBLAS)
 else()
 	find_dependency(BLAS)
+	if(NOT TARGET BLAS::blas)
+		# target is only available with CMake 3.18.0 and later
+		add_library(BLAS::blas INTERFACE IMPORTED)
+		set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+	endif()
 endif()
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path
