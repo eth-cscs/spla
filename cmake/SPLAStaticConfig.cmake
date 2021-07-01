@@ -37,7 +37,6 @@ endif()
 
 # find required targets
 if(NOT TARGET MPI::MPI_CXX)
-	endif()
 	find_dependency_components(MPI COMPONENTS CXX)
 endif()
 
