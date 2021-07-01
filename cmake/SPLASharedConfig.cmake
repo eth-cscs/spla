@@ -24,7 +24,6 @@ if("CXX" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_CXX)
 endif()
 
 if("C" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_C)
-	endif()
 	find_dependency_components(MPI COMPONENTS C)
 endif()
 
