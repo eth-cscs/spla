@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.5.0)
+project(spla LANGUAGES CXX VERSION 1.5.1)
 set(SPLA_SO_VERSION 1)
 set(SPLA_VERSION ${PROJECT_VERSION})
 
@@ -283,9 +283,10 @@ if(NOT _SPLA_BLAS_FOUND)
 	endif()
 	set(_SPLA_BLAS_FOUND TRUE)
 	if(NOT TARGET BLAS::blas)
+		# target is only available with CMake 3.18.0 and later
 		add_library(BLAS::blas INTERFACE IMPORTED)
+		set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
 	endif()
-	set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
 	list(APPEND SPLA_EXTERNAL_LIBS BLAS::blas)
 	set(SPLA_BLAS_UNKNOWN ON)
 endif()

@@ -1,4 +1,11 @@
 include(CMakeFindDependencyMacro)
+macro(find_dependency_components)
+	if(${ARGV0}_FOUND AND ${CMAKE_VERSION} VERSION_LESS "3.15.0")
+		# find_dependency does not handle new components correctly before 3.15.0
+		set(${ARGV0}_FOUND FALSE)
+	endif()
+	find_dependency(${ARGV})
+endmacro()
 
 # Only look for modules we installed and save value
 set(_CMAKE_MODULE_PATH_SAVE ${CMAKE_MODULE_PATH})
@@ -29,18 +36,22 @@ if(SPLA_FIND_REQUIRED AND NOT "CXX" IN_LIST _LANGUAGES)
 endif()
 
 # find required targets
-find_dependency(MPI COMPONENTS CXX)
-
-if("C" IN_LIST _LANGUAGES)
-	find_dependency(MPI COMPONENTS C)
+if(NOT TARGET MPI::MPI_CXX)
+	find_dependency_components(MPI COMPONENTS CXX)
 endif()
 
-if("Fortran" IN_LIST _LANGUAGES)
-	find_dependency(MPI COMPONENTS Fortran)
+if("C" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_C)
+	find_dependency_components(MPI COMPONENTS C)
+endif()
+
+if("Fortran" IN_LIST _LANGUAGES AND NOT TARGET MPI::MPI_Fortran)
+	find_dependency_components(MPI COMPONENTS Fortran)
 endif()
 
 if(SPLA_OMP)
-	find_dependency(OpenMP COMPONENTS CXX)
+	if(NOT TARGET OpenMP::OpenMP_CXX)
+		find_dependency_components(OpenMP COMPONENTS CXX)
+	endif()
 endif()
 
 if(SPLA_ROCM)
@@ -51,7 +62,7 @@ endif()
 
 if(SPLA_CUDA)
 	if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0") 
-		find_dependency(CUDAToolkit REQUIRED)
+		find_dependency(CUDAToolkit)
 	else()
 		enable_language(CUDA)
 		find_library(CUDA_CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
@@ -84,6 +95,11 @@ elseif(SPLA_BLAS_GENERIC)
 	find_dependency(GenericBLAS)
 else()
 	find_dependency(BLAS)
+	if(NOT TARGET BLAS::blas)
+		# target is only available with CMake 3.18.0 and later
+		add_library(BLAS::blas INTERFACE IMPORTED)
+		set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+	endif()
 endif()
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path
@@ -97,10 +113,10 @@ if(NOT DEFINED SPLA_FOUND OR SPLA_FOUND)
 	include("${CMAKE_CURRENT_LIST_DIR}/SPLAStaticTargets.cmake")
 
 	target_link_libraries(SPLA::spla INTERFACE MPI::MPI_CXX)
-	if("C" IN_LIST _LANGUAGES)
+	if(TARGET MPI::MPI_C)
 		target_link_libraries(SPLA::spla INTERFACE MPI::MPI_C)
 	endif()
-	if("Fortran" IN_LIST _LANGUAGES)
+	if(TARGET MPI::MPI_Fortran)
 		target_link_libraries(SPLA::spla INTERFACE MPI::MPI_Fortran)
 	endif()
 endif()
