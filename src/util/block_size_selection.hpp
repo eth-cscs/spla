@@ -138,7 +138,7 @@ inline auto block_size_selection(SplaFillMode mode, bool isDisjointDistribution,
   std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       isDisjointDistribution, deviationFactor, commSize, m, n, targetBlockSize, minBlockSize);
 
-  if (mode != SPLA_FILL_MODE_FULL && !isDisjointDistribution) {
+  if (mode != SPLA_FILL_MODE_FULL && isDisjointDistribution) {
     // For triangular case, the number of blocks that have to be computed is lower than the total ->
     // more blocks required for ring communication
     IntType numActiveBlocks = 0;
@@ -168,13 +168,13 @@ inline auto block_size_selection(SplaFillMode mode, bool isDisjointDistribution,
       if (rowsInBlock * colsInBlock < minBlockSize * minBlockSize) {
         // If block size is smaller than minimum, use minimum block size instead of target block
         // size, to still allow savings due to triangular result
-        rowsInBlock = std::min<IntType>(minBlockSize, m);
-        colsInBlock = std::min<IntType>(minBlockSize, n);
-        if (rowsInBlock < minBlockSize) {
-          colsInBlock *= static_cast<double>(minBlockSize) / static_cast<double>(rowsInBlock);
+        rowsInBlock = std::min<IntType>(targetBlockSize, m);
+        colsInBlock = std::min<IntType>(targetBlockSize, n);
+        if (rowsInBlock < targetBlockSize) {
+          colsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(rowsInBlock);
         }
         if (colsInBlock < targetBlockSize) {
-          rowsInBlock *= static_cast<double>(minBlockSize) / static_cast<double>(colsInBlock);
+          rowsInBlock *= static_cast<double>(targetBlockSize) / static_cast<double>(colsInBlock);
         }
         rowsInBlock = std::min<IntType>(rowsInBlock, m);
         colsInBlock = std::min<IntType>(colsInBlock, n);
