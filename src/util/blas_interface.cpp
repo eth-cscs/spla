@@ -31,22 +31,27 @@
 
 #include "spla/config.h"
 
+namespace spla {
+namespace blas {
 // OpenBlas uses different types
 #if defined(SPLA_BLAS_OPENBLAS)
 
-using FloatComplexPtr = float *;
-using DoubleComplexPtr = double *;
-using ConstFloatComplexPtr = const float *;
-using ConstDoubleComplexPtr = const double *;
+using FloatComplex = float;
+using DoubleComplex = double;
+
+#elif defined(SPLA_BLAS_ARMPL)
+
+using FloatComplex = armpl_singlecomplex_t;
+using DoubleComplex = armpl_doublecomplex_t;
 
 #else
 
-using FloatComplexPtr = void *;
-using DoubleComplexPtr = void *;
-using ConstFloatComplexPtr = const void *;
-using ConstDoubleComplexPtr = const void *;
+using FloatComplex = void;
+using DoubleComplex = void;
 
 #endif
+}  // namespace blas
+}  // namespace spla
 
 // use blas header if found
 #if defined(SPLA_BLAS_HEADER_NAME)
@@ -124,10 +129,10 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_cgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
-              static_cast<int>(K), reinterpret_cast<ConstFloatComplexPtr>(&alpha),
-              reinterpret_cast<ConstFloatComplexPtr>(A), static_cast<int>(lda),
-              reinterpret_cast<ConstFloatComplexPtr>(B), static_cast<int>(ldb),
-              reinterpret_cast<ConstFloatComplexPtr>(&beta), reinterpret_cast<FloatComplexPtr>(C),
+              static_cast<int>(K), reinterpret_cast<const FloatComplex *>(&alpha),
+              reinterpret_cast<const FloatComplex *>(A), static_cast<int>(lda),
+              reinterpret_cast<const FloatComplex *>(B), static_cast<int>(ldb),
+              reinterpret_cast<const FloatComplex *>(&beta), reinterpret_cast<FloatComplex *>(C),
               static_cast<int>(ldc));
 }
 
@@ -139,10 +144,10 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_zgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
-              static_cast<int>(K), reinterpret_cast<ConstDoubleComplexPtr>(&alpha),
-              reinterpret_cast<ConstDoubleComplexPtr>(A), static_cast<int>(lda),
-              reinterpret_cast<ConstDoubleComplexPtr>(B), static_cast<int>(ldb),
-              reinterpret_cast<ConstDoubleComplexPtr>(&beta), reinterpret_cast<DoubleComplexPtr>(C),
+              static_cast<int>(K), reinterpret_cast<const DoubleComplex *>(&alpha),
+              reinterpret_cast<const DoubleComplex *>(A), static_cast<int>(lda),
+              reinterpret_cast<const DoubleComplex *>(B), static_cast<int>(ldb),
+              reinterpret_cast<const DoubleComplex *>(&beta), reinterpret_cast<DoubleComplex *>(C),
               static_cast<int>(ldc));
 }
 
@@ -151,7 +156,9 @@ auto get_num_threads() -> IntType {
   return openblas_get_num_threads();
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads();
-#elif defined(SPLA_BLAS_BLIS)
+#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
+  return armpl_get_num_threads();
+#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
   return bli_thread_get_num_threads();
 #else
   return 1;
@@ -163,7 +170,9 @@ auto set_num_threads(IntType numThreads) -> void {
   openblas_set_num_threads(numThreads);
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   mkl_set_num_threads(numThreads);
-#elif defined(SPLA_BLAS_BLIS)
+#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
+  armpl_set_num_threads(numThreads);
+#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
   bli_thread_set_num_threads(numThreads);
 #endif
 }
@@ -173,7 +182,9 @@ auto is_parallel() -> bool {
   return openblas_get_parallel();
 #elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
   return mkl_get_max_threads() != 1;
-#elif defined(SPLA_BLAS_BLIS)
+#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
+  return  armpl_get_max_threads() != 1;
+#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
   return bli_info_get_enable_threading();
 #elif defined(SPLA_BLAS_SCI)
   return true;

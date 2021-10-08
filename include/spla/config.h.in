@@ -37,6 +37,7 @@
 #cmakedefine SPLA_ROCM
 #cmakedefine SPLA_OMP
 #cmakedefine SPLA_BLAS_MKL
+#cmakedefine SPLA_BLAS_ARMPL
 #cmakedefine SPLA_BLAS_OPENBLAS
 #cmakedefine SPAL_BLAS_ATLAS
 #cmakedefine SPLA_BLAS_SCI
