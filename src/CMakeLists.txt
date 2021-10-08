@@ -42,7 +42,7 @@ macro(spla_create_library _TARGET_NAME)
 	# Don't export any symbols of external static libaries. Only works on linux.
 	if(UNIX AND NOT APPLE)
 		if(${CMAKE_VERSION} VERSION_LESS "3.13.5") 
-			set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-Wl,--exclude-libs,ALL")
+			target_link_libraries(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
 		else()
 			target_link_options(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
 		endif()
@@ -50,10 +50,7 @@ macro(spla_create_library _TARGET_NAME)
 
 
 	target_compile_options(${_TARGET_NAME} PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${SPLA_EXTERNAL_INCLUDE_DIRS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
-	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
-	target_include_directories(${_TARGET_NAME} PRIVATE ${PROJECT_BINARY_DIR})
+	target_include_directories(${_TARGET_NAME} PRIVATE ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_INCLUDE_DIRS})
 
 
 	target_link_libraries(${_TARGET_NAME} PRIVATE ${SPLA_EXTERNAL_LIBS})
@@ -65,7 +62,7 @@ macro(spla_create_library _TARGET_NAME)
 	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
 	if(${SPLA_FORTRAN}) # Add include directory for fortran module
 		target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include/spla>)
-		target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>)
+		target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src>)
 	endif()
 
 endmacro()
@@ -97,7 +94,8 @@ endif()
 
 
 # set packge config names
-if(SPLA_STATIC)
+get_target_property(_LIB_TYPE spla TYPE)
+if(_LIB_TYPE STREQUAL "STATIC_LIBRARY")
 	set(SPLA_VERSION_FILE "SPLAStaticConfigVersion.cmake")
 	set(SPLA_CONFIG_FILE "SPLAStaticConfig.cmake")
 	set(SPLA_TARGETS_FILE "SPLAStaticTargets.cmake")
