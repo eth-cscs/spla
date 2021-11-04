@@ -51,7 +51,7 @@ public:
                 std::function<void(void*)> deallocateFunc)
       : allocateFunc_(std::move(allocateFunc)),
         deallocateFunc_(std::move(deallocateFunc)),
-        lock_(new std::mutex()) {
+        lock_(new std::mutex()), memorySize_(0) {
     if (!allocateFunc_ || !deallocateFunc_) {
       throw InvalidAllocatorFunctionError();
     }

@@ -46,26 +46,12 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 
   if (status != gpu::status::Success) {
     gpu::get_last_error();  // clear error from cache
-#ifndef SPLA_ROCM
     // Invalid value is always indicated before CUDA 11 for valid host pointers, which have not been
     // registered. -> Don't throw error in this case.
     if (status != gpu::status::ErrorInvalidValue) gpu::check_status(status);
-#endif
   }
 
   std::pair<const T*, const T*> ptrPair{nullptr, nullptr};
-
-  // Workaround due to bug with HIP when parsing pointers with offset from allocated memory start
-  // and memoryType of attributes
-#ifdef SPLA_ROCM
-  if (!attr.devicePointer) {
-    // host
-    ptrPair.first = inputPointer;
-  } else {
-    // device
-    ptrPair.second = inputPointer;
-  }
-#else
 
   // get memory type - cuda 10 changed attribute name
 #if defined(SPLA_CUDA) && (CUDART_VERSION >= 10000)
@@ -76,10 +62,19 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 
   if (memoryType != gpu::flag::MemoryTypeDevice) {
     ptrPair.first = attr.hostPointer ? static_cast<const T*>(attr.hostPointer) : inputPointer;
+#if defined(SPLA_ROCM) && (HIP_VERSION < 310)
+    // Workaround due to bug with HIP when parsing pointers with offset from allocated memory start.
+    // Fixed in ROCm 3.10.
+    ptrPair.first = inputPointer;
+#endif
   } else {
     ptrPair.second = static_cast<const T*>(attr.devicePointer);
-  }
+#if defined(SPLA_ROCM) && (HIP_VERSION < 310)
+    // Workaround due to bug with HIP when parsing pointers with offset from allocated memory start.
+    // Fixed in ROCm 3.10.
+    ptrPair.second = inputPointer;
 #endif
+  }
 
   return ptrPair;
 }
