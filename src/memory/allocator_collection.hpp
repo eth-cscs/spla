@@ -34,6 +34,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 
@@ -56,7 +57,11 @@ public:
               if (MPI_Alloc_mem(size, MPI_INFO_NULL, &ptr) != MPI_SUCCESS) throw MPIAllocError();
               return ptr;
             },
-            [](void* ptr) -> void { MPI_Free_mem(ptr); }))
+            [](void* ptr) -> void {
+              int finalized = 0;
+              MPI_Finalized(&finalized);
+              if (!finalized) MPI_Free_mem(ptr);
+            }))
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
         ,
         allocPinned_(new PoolAllocator<MemLoc::Host>(
@@ -75,6 +80,13 @@ public:
             [](void* ptr) -> void { gpu::free(ptr); }))
 #endif
   {
+    int mpiInitialized = 0;
+    MPI_Initialized(&mpiInitialized);
+
+    // if MPI has not been initialized, use malloc as fallback
+    if(!mpiInitialized) {
+      allocHost_.reset(new PoolAllocator<MemLoc::Host>(std::malloc, std::free));
+    }
   }
 
   auto host() const -> const std::shared_ptr<Allocator<MemLoc::Host>>& { return allocHost_; }
