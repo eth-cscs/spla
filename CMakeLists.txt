@@ -285,6 +285,11 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 	endif()
 endif()
 
+if(NOT _SPLA_BLAS_FOUND AND NOT ${SPLA_HOST_BLAS} STREQUAL "AUTO")
+	message(FATAL_ERROR
+		"Could not find selected host blas backend \"${SPLA_HOST_BLAS}\". Set root path or CMAKE_PREFIX_PATH correctly or use \"AUTO\" blas backend for fall back mode.")
+endif()
+
 # Fall back to CMake provided FindBLAS as last resort
 if(NOT _SPLA_BLAS_FOUND)
 	find_package(BLAS REQUIRED)
