@@ -121,23 +121,23 @@ endif()
 
 # Determine MKL's library folder
 #
-set(_mkl_libpath_suffix "lib/intel64")
+set(_mkl_libpath_suffix "intel64" "lib/intel64" "lib" "lib64")
 if(CMAKE_SIZEOF_VOID_P EQUAL 4) # 32 bit
     set(_mkl_libpath_suffix "lib/ia32")
 endif()
 
 if(WIN32)
-    string(APPEND _mkl_libpath_suffix "_win")
+    list(APPEND _mkl_libpath_suffix "intel64_win" "lib/intel64_win")
     set(_mkl_libname_prefix "")
     set(_mkl_shared_lib "_dll.lib")
     set(_mkl_static_lib ".lib")
 elseif(APPLE)
-    string(APPEND _mkl_libpath_suffix "_mac")
+    list(APPEND _mkl_libpath_suffix "intel64_mac" "lib/intel64_mac")
     set(_mkl_libname_prefix "lib")
     set(_mkl_shared_lib ".dylib")
     set(_mkl_static_lib ".a")
 else() # LINUX
-    string(APPEND _mkl_libpath_suffix "_lin")
+    list(APPEND _mkl_libpath_suffix "intel64_lin" "lib/intel64_lin")
     set(_mkl_libname_prefix "lib")
     set(_mkl_shared_lib ".so")
     set(_mkl_static_lib ".a")
@@ -155,6 +155,7 @@ function(__mkl_find_library _varname _libname)
           HINTS ${_mkl_search_paths}
           PATH_SUFFIXES ${_mkl_libpath_suffix})
     mark_as_advanced(${_varname}_DYN)
+
     find_library(${_varname}_ST
           NAMES ${_mkl_libname_prefix}${_libname}${_mkl_static_lib}
           HINTS ${_mkl_search_paths}

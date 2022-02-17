@@ -126,8 +126,8 @@ int main(int argc, char** argv) {
   app.add_option("-r", repeats, "Number of repeats")->default_val("100");
   app.add_option("-l", lengthTarget, "Length target")->default_val("1024");
   app.add_option("-n", n, "Number of columns in C")->required();
-  app.add_option("-m", m, "Number of k in C")->required();
-  app.add_option("-k", k, "Number of k in A and B")->required();
+  app.add_option("-m", m, "Number of rows in C")->required();
+  app.add_option("-k", k, "Number of rows in A and B")->required();
   app.add_option("-o", outputFileName, "Output file name")->default_val("timers.json");
   app.add_option("-t,--threads", numThreads, "Number of threads")->default_val("-1");
   app.add_set("--type", typeName, std::set<std::string>{"scalar", "complex"}, "Data type")

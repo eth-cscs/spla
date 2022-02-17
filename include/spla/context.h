@@ -105,7 +105,7 @@ SPLA_EXPORT SplaError spla_ctx_tile_size_gpu(SplaContext ctx, int* tileSizeGPU);
  * Access a Context parameter.
  * @param[in] ctx Context handle.
  * @param[out] opThresholdGPU Operations threshold, below which computation may be done on Host,
- * even if processing unit is set to GPU.
+ * even if processing unit is set to GPU. For GEMM, the number of operations is estimatex as 2mnk.
  * @return Error code or SPLA_SUCCESS.
  */
 SPLA_EXPORT SplaError spla_ctx_op_threshold_gpu(SplaContext ctx, int* opThresholdGPU);
@@ -176,7 +176,7 @@ SPLA_EXPORT SplaError spla_ctx_set_tile_size_host(SplaContext ctx, int tileSizeH
 
 /**
  * Set the operations threshold, below which computation may be done on Host, even if processing
- * unit is set to GPU.
+ * unit is set to GPU. For GEMM, the number of operations is estimatex as 2mnk.
  *
  * @param[in] ctx Context handle.
  * @param[in] opThresholdGPU Threshold in number of operations.

@@ -26,6 +26,7 @@ The function `gemm(...)` computes a local general matrix product, that works sim
 ### Stripe-Stripe-Block
 The `pgemm_ssb(...)` function computes
 
+<p align="center"><img src="./docs/images/ssb_formula.svg" width="20%"></p>
 ![ethz](docs/images/ssb_formula.svg)
 
 where matrices A and B are stored in a "stripe" distribution with variable block length. Matrix C can be in any supported block distribution, including the block-cyclic ScaLAPACK layout. Matrix A may be read as transposed or conjugate transposed.
@@ -37,7 +38,7 @@ For computation of triangular block distributed matrices, the `pgemm_ssbtr(...)`
 ### Stripe-Block-Stripe
 The `pgemm_sbs(...)` function computes
 
-![ethz](docs/images/sbs_formula.svg)
+<p align="center"><img src="./docs/images/sbs_formula.svg" width="20%"></p>
 
 where matrices A and C are stored in a "stripe" distribution with variable block length. Matrix B can be in any supported block distribution, including the block-cyclic ScaLAPACK layout.
 
@@ -108,8 +109,8 @@ int main(int argc, char** argv) {
   int world_size = 1;
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-  int m = 1000;
-  int n = 1000;
+  int m = 100;
+  int n = 100;
   int k_local = 100;
 
   int block_size = 256;
@@ -124,33 +125,35 @@ int main(int argc, char** argv) {
   int ldb = k_local;
   int ldc = m;
 
-  // Create context, which holds any resources SPLA will require, allowing reuse between functions
-  // calls. The given processing unit will be used for any computations.
-  spla::Context ctx(SPLA_PU_HOST);
+  {
+    // Create context, which holds any resources SPLA will require, allowing reuse between functions
+    // calls. The given processing unit will be used for any computations.
+    spla::Context ctx(SPLA_PU_HOST);
 
-  // Create matrix distribution for C
-  auto c_dist = spla::MatrixDistribution::create_blacs_block_cyclic(
-      MPI_COMM_WORLD, 'R', proc_grid_rows, proc_grid_cols, block_size, block_size);
+    // Create matrix distribution for C
+    auto c_dist = spla::MatrixDistribution::create_blacs_block_cyclic(
+        MPI_COMM_WORLD, 'R', proc_grid_rows, proc_grid_cols, block_size, block_size);
+    // This is mostly equivalent to the following ScaLAPACK calls combined:
+    /*
+    int info = 0;
+    int rsrc = 0;
+    int csrc = 0;
+    int blacs_ctx = Csys2blacs_handle(MPI_COMM_WORLD);
+    Cblacs_gridinit(&blacs_ctx, 'R', proc_grid_rows, proc_grid_cols);
+    int desc[9];
+    descinit_(desc.data(), &m, &n, &block_size, &block_size, &rsrc, &csrc, &blacs_ctx, &ldc,
+                  &info);
+    */
 
-  // This is mostly equivalent to the following ScaLAPACK calls combined:
-  /*
-  int info = 0;
-  int rsrc = 0;
-  int csrc = 0;
-  int blacs_ctx = Csys2blacs_handle(MPI_COMM_WORLD);
-  Cblacs_gridinit(&blacs_ctx, 'R', proc_grid_rows, proc_grid_cols);
-  int desc[9];
-  descinit_(desc.data(), &m, &n, &block_size, &block_size, &rsrc, &csrc, &blacs_ctx, &ldc,
-                &info);
-  */
+    double alpha = 1.0;
+    double beta = 0.0;
 
-  double alpha = 1.0;
-  double beta = 0.0;
+    // Compute parallel stripe-stripe-block matrix multiplication. To describe the stripe
+    // distribution of matrices A and B, only the local k dimension is required.
+    spla::pgemm_ssb(m, n, k_local, SPLA_OP_TRANSPOSE, alpha, A.data(), lda, B.data(), ldb, beta,
+                    C.data(), ldc, 0, 0, c_dist, ctx);
 
-  // Compute parallel stripe-stripe-block matrix multiplication. To describe the stripe distribution
-  // of matrices A and B, only the local k dimension is required.
-  spla::pgemm_ssb(m, n, k_local, SPLA_OP_TRANSPOSE, alpha, A.data(), lda, B.data(), ldb, beta,
-                  C.data(), ldc, 0, 0, c_dist, ctx);
+  }  // Make sure context goes out of scope before MPI_Finalize() is called.
 
   MPI_Finalize();
   return 0;

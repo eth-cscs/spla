@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.5.2)
+project(spla LANGUAGES CXX VERSION 1.5.3)
 set(SPLA_SO_VERSION 1)
 set(SPLA_VERSION ${PROJECT_VERSION})
 
@@ -176,14 +176,9 @@ endif()
 
 # find BLAS backend for Host computation.
 set(_SPLA_BLAS_FOUND FALSE)
-set(_SPLA_FIND_BLAS_OPTION)
-if(NOT ${SPLA_HOST_BLAS} STREQUAL "AUTO")
-	set(_SPLA_FIND_BLAS_OPTION REQUIRED)
-endif()
-
 
 if(${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "MKL")
-	find_package(MKL QUIET ${_SPLA_FIND_BLAS_OPTION})
+	find_package(MKL QUIET)
 	if(SPLA_OMP)
 		if(TARGET mkl::intel_32bit_omp_dyn)
 			set(SPLA_MKL_TARGET intel_32bit_omp_dyn)
@@ -207,7 +202,7 @@ if(${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "MKL")
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "ARMPL"))
-	find_package(ARMPL ${_SPLA_FIND_BLAS_OPTION})
+	find_package(ARMPL)
 	if(TARGET ARM::pl)
 		message(STATUS "Host BLAS Backend: ARMPL")
 		list(APPEND SPLA_EXTERNAL_LIBS ARM::pl)
@@ -218,7 +213,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "BLIS"))
-	find_package(BLIS ${_SPLA_FIND_BLAS_OPTION})
+	find_package(BLIS)
 	if(TARGET BLIS::blis)
 		message(STATUS "Host BLAS Backend: BLIS")
 		list(APPEND SPLA_EXTERNAL_LIBS BLIS::blis)
@@ -229,7 +224,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "OPENBLAS"))
-	find_package(OPENBLAS ${_SPLA_FIND_BLAS_OPTION})
+	find_package(OPENBLAS)
 	if(TARGET OPENBLAS::openblas)
 		message(STATUS "Host BLAS Backend: OPENBLAS")
 		list(APPEND SPLA_EXTERNAL_LIBS OPENBLAS::openblas)
@@ -244,7 +239,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "CRAY_LIBSCI"))
-	find_package(SCI ${_SPLA_FIND_BLAS_OPTION})
+	find_package(SCI)
 	if(TARGET SCI::sci)
 		message(STATUS "Host BLAS Backend: CRAY_LIBSCI")
 		list(APPEND SPLA_EXTERNAL_LIBS SCI::sci)
@@ -255,7 +250,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "ATLAS"))
-	find_package(ATLAS ${_SPLA_FIND_BLAS_OPTION})
+	find_package(ATLAS)
 	if(TARGET ATLAS::atlas)
 		message(STATUS "Host BLAS Backend: ATLAS")
 		list(APPEND SPLA_EXTERNAL_LIBS ATLAS::atlas)
@@ -270,7 +265,7 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 endif()
 
 if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST_BLAS} STREQUAL "GENERIC"))
-	find_package(GenericBLAS ${_SPLA_FIND_BLAS_OPTION})
+	find_package(GenericBLAS)
 	if(TARGET GenericBLAS::blas)
 		message(STATUS "Host BLAS Backend: GENERIC")
 		message(STATUS "Host BLAS libs: ${GenericBLAS_LIBRARIES}")
@@ -283,6 +278,11 @@ if(NOT ${_SPLA_BLAS_FOUND} AND (${SPLA_HOST_BLAS} STREQUAL "AUTO" OR ${SPLA_HOST
 			get_filename_component(SPLA_BLAS_HEADER_NAME ${_BLAS_HEADER} NAME)
 		endif()
 	endif()
+endif()
+
+if(NOT _SPLA_BLAS_FOUND AND NOT ${SPLA_HOST_BLAS} STREQUAL "AUTO")
+	message(FATAL_ERROR
+		"Could not find selected host blas backend \"${SPLA_HOST_BLAS}\". Set root path or CMAKE_PREFIX_PATH correctly or use \"AUTO\" blas backend for fall back mode.")
 endif()
 
 # Fall back to CMake provided FindBLAS as last resort
