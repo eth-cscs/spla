@@ -159,7 +159,7 @@ interface
     integer(c_int), value :: tileSizeHost
   end function
 
-  integer(c_int) function spla_ctx_set_tile_threshold_gpu(ctx, opThresholdGPU) bind(C)
+  integer(c_int) function spla_ctx_set_op_threshold_gpu(ctx, opThresholdGPU) bind(C)
     use iso_c_binding
     type(c_ptr), value :: ctx
     integer(c_int), value :: opThresholdGPU
@@ -171,6 +171,26 @@ interface
     integer(c_int), value :: tileSizeGPU
   end function
 
+  integer(c_int) function spla_ctx_set_alloc_host(ctx, allocateFunc, deallocateFunc) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    type(c_funptr), value :: allocateFunc
+    type(c_funptr), value :: deallocateFunc
+  end function
+
+  integer(c_int) function spla_ctx_set_alloc_pinned(ctx, allocateFunc, deallocateFunc) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    type(c_funptr), value :: allocateFunc
+    type(c_funptr), value :: deallocateFunc
+  end function
+
+  integer(c_int) function spla_ctx_set_alloc_gpu(ctx, allocateFunc, deallocateFunc) bind(C)
+    use iso_c_binding
+    type(c_ptr), value :: ctx
+    type(c_funptr), value :: allocateFunc
+    type(c_funptr), value :: deallocateFunc
+  end function
 
   !--------------------------
   !    Matrix Distribution
@@ -566,7 +586,7 @@ interface
 
 
   !--------------------------
-  !         pgemm_sbs
+  !         gemm
   !--------------------------
 
   integer(c_int) function spla_sgemm(opA, opB, m, n, k, &

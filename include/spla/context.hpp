@@ -110,7 +110,7 @@ public:
   /**
    * Access a Context parameter.
    * @return Operations threshold, below which computation may be done on Host, even if processing
-   * unit is set to GPU.
+   * unit is set to GPU. For GEMM, the number of operations is estimatex as 2mnk.
    */
   int op_threshold_gpu() const;
 
@@ -165,7 +165,7 @@ public:
 
   /**
    * Set the operations threshold, below which computation may be done on Host, even if processing
-   * unit is set to GPU.
+   * unit is set to GPU. For GEMM, the number of operations is estimatex as 2mnk.
    *
    * @param[in] opThresholdGPU Threshold in number of operations.
    */
