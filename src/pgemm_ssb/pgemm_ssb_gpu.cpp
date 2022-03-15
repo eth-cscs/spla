@@ -108,15 +108,12 @@ void pgemm_ssb_gpu_internal(int m, int n, int kLocal, SplaOperation opA, T alpha
   IntType colsInBlock = 1;
 
   const double ringThreshold = 0.65;
-  const IntType minBlockSize =
-      gpuPtrA && gpuPtrB
-          ? 250
-          : 500;  // If input is on host, smal block sizes lead to much more memory transfers
-                  // required. Therefore use larger block sizes in that case.
+  const IntType minBlockSize = 375; // must be the same on all ranks (cannot depend on input location)
 
   std::tie(rowsInBlock, colsInBlock) = block_size_selection(
       cFillMode, IsDisjointGenerator<BLOCK_GEN>::value, 1.0 - ringThreshold, descC.comm().size(), m,
       n, cRowOffset, cColOffset, ctx.tile_size_host(), minBlockSize);
+
 
   // Compute maximum block sizes such that memory allocations for increasing m / n can be avoided
   const IntType maxBlockSize =
