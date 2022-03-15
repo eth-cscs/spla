@@ -34,7 +34,7 @@ void run_pgemm_ssb(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, 
   const int blockCols = worldSize / blockRows;
 
   const int maxRowsPerRank = (k + worldSize - 1) / worldSize;
-  const int localNumRows = std::min(k - worldRank * maxRowsPerRank, maxRowsPerRank);
+  const int localNumRows = std::max(std::min(k - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
   const int maxRowsC = (m / (blacsBlockSize * blockRows) + 1) * blacsBlockSize;
   const int maxColsC = (n / (blacsBlockSize * blockCols) + 1) * blacsBlockSize;
 
@@ -51,14 +51,17 @@ void run_pgemm_ssb(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, 
       MPI_COMM_WORLD, 'R', blockRows, blockCols, blacsBlockSize, blacsBlockSize);
 
   // run once to warm up
-  spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.data(), localNumRows,
-                  B.data(), localNumRows, beta, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
+  spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.size() ? A.data() : nullptr,
+                  localNumRows, B.size() ? B.data() : nullptr, localNumRows, beta,
+                  C.size() ? C.data() : nullptr, maxRowsC, 0, 0, arrayDesc, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_ssb");
-    spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha, A.data(), localNumRows,
-                    B.data(), localNumRows, beta, C.data(), maxRowsC, 0, 0, arrayDesc, ctx);
+    spla::pgemm_ssb(m, n, localNumRows, SPLA_OP_CONJ_TRANSPOSE, alpha,
+                    A.size() ? A.data() : nullptr, localNumRows, B.size() ? B.data() : nullptr,
+                    localNumRows, beta, C.size() ? C.data() : nullptr, maxRowsC, 0, 0, arrayDesc,
+                    ctx);
   }
   STOP_TIMING("spla");
 }
@@ -74,7 +77,7 @@ void run_pgemm_sbs(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, 
   const int blockCols = worldSize / blockRows;
 
   const int maxRowsPerRank = (m + worldSize - 1) / worldSize;
-  const int localNumRows = std::min(m - worldRank * maxRowsPerRank, maxRowsPerRank);
+  const int localNumRows = std::max(std::min(m - worldRank * maxRowsPerRank, maxRowsPerRank), 0);
   const int maxRowsB = (k / (blacsBlockSize * blockRows) + 1) * blacsBlockSize;
   const int maxColsB = (n / (blacsBlockSize * blockCols) + 1) * blacsBlockSize;
 
@@ -91,14 +94,16 @@ void run_pgemm_sbs(const std::shared_ptr<spla::Allocator<LOCATION>>& allocator, 
       MPI_COMM_WORLD, 'R', blockRows, blockCols, blacsBlockSize, blacsBlockSize);
 
   // run once to warm up
-  spla::pgemm_sbs(localNumRows, n, k, alpha, A.data(), localNumRows, B.data(), maxRowsB, 0, 0,
-                  arrayDesc, beta, C.data(), localNumRows, ctx);
+  spla::pgemm_sbs(localNumRows, n, k, alpha, A.size() ? A.data() : nullptr, localNumRows,
+                  B.size() ? B.data() : nullptr, maxRowsB, 0, 0, arrayDesc, beta,
+                  C.size() ? C.data() : nullptr, localNumRows, ctx);
 
   START_TIMING("spla");
   for (int r = 0; r < numRepeats; ++r) {
     SCOPED_TIMING("pgemm_sbs");
-    spla::pgemm_sbs(localNumRows, n, k, alpha, A.data(), localNumRows, B.data(), maxRowsB, 0, 0,
-                    arrayDesc, beta, C.data(), localNumRows, ctx);
+    spla::pgemm_sbs(localNumRows, n, k, alpha, A.size() ? A.data() : nullptr, localNumRows,
+                    B.size() ? B.data() : nullptr, maxRowsB, 0, 0, arrayDesc, beta,
+                    C.size() ? C.data() : nullptr, localNumRows, ctx);
   }
   STOP_TIMING("spla");
 }
