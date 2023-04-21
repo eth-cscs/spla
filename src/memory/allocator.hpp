@@ -30,6 +30,7 @@
 #define SPLA_ALLOCATOR_HPP
 
 #include <cstddef>
+#include <cstdint>
 
 #include "spla/config.h"
 #include "spla/exceptions.hpp"
