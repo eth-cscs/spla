@@ -8,7 +8,7 @@ jobs:
   #########################
   build-test-gcc-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -43,7 +43,7 @@ jobs:
   ###########################
   build-test-clang-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -78,7 +78,7 @@ jobs:
   # Build with CUDA
   #################
   build-cuda:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     container: nvidia/cuda:9.2-devel-ubuntu18.04
 
     steps:
@@ -103,7 +103,7 @@ jobs:
   # Build with ROCm
   #################
   build-rocm:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     container: adhocman/master:ubuntu18.04_rocm
 
     steps:
