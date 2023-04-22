@@ -87,7 +87,7 @@ public:
    * Access a Context parameter.
    * @return Maximum number of threads used for computations.
    */
-  int num_threads() const;
+  SPLA_DEPRECATED int num_threads() const;
 
   /**
    * Access a Context parameter.
@@ -147,7 +147,7 @@ public:
    *
    * @param[in] numThreads Number of threads.
    */
-  void set_num_threads(int numThreads);
+  SPLA_DEPRECATED void set_num_threads(int numThreads);
 
   /**
    * Set the number of tiles.
