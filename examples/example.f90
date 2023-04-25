@@ -24,10 +24,11 @@ program main
     lda = k_local
     ldb = k_local
     ldc = m
+    block_size = 256
 
 
-    proc_grid_rows = sqrt(real(world_size));
-    proc_grid_cols = world_size / proc_grid_rows;
+    proc_grid_rows = sqrt(real(world_size))
+    proc_grid_cols = world_size / proc_grid_rows
 
     ! Create context, which holds any resources SPLA will require, allowing reuse between functions
     ! calls. The given processing unit will be used for any computations.

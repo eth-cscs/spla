@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
-project(spla LANGUAGES CXX VERSION 1.5.4)
+project(spla LANGUAGES CXX VERSION 1.5.5)
 set(SPLA_SO_VERSION 1)
 set(SPLA_VERSION ${PROJECT_VERSION})
 
@@ -34,6 +34,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 option(SPLA_STATIC "Compile as static library" OFF)
 option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
+option(SPLA_BUILD_EXAMPLES "Compile examples" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
 option(SPLA_FORTRAN "Compile fortran module" OFF)
 
@@ -330,6 +331,10 @@ list(APPEND SPLA_EXTERNAL_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/ext)
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################
 add_subdirectory(src)
+
+if(SPLA_BUILD_EXAMPLES)
+	add_subdirectory(examples)
+endif()
 
 # add tests for developement
 if(SPLA_BUILD_TESTS)
