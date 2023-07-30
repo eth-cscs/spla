@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 # Get GNU standard install prefixes
 include(GNUInstallDirs)
+include(CMakeDependentOption)
 
 #add local module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
@@ -37,6 +38,11 @@ option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_BUILD_EXAMPLES "Compile examples" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)
 option(SPLA_FORTRAN "Compile fortran module" OFF)
+option(SPLA_BUNDLED_TEST_LIBS "Use bundled libraries for building tests" ON)
+
+cmake_dependent_option(SPLA_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
+cmake_dependent_option(SPLA_BUNDLED_GTEST_MPI "Use bundled gtest_mpi lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
+cmake_dependent_option(SPLA_BUNDLED_CLI11 "Use bundled cli11 lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS

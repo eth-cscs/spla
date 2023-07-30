@@ -135,13 +135,17 @@ int main(int argc, char** argv) {
   app.add_option("-k", k, "Number of rows in A and B")->required();
   app.add_option("-o", outputFileName, "Output file name")->default_val("timers.json");
   app.add_option("-t,--threads", numThreads, "Number of threads")->default_val("-1");
-  app.add_set("--type", typeName, std::set<std::string>{"scalar", "complex"}, "Data type")
+  app.add_option("--type", typeName, "Data type")
+      ->check(CLI::IsMember({"scalar", "complex"}))
       ->default_val("complex");
-  app.add_set("-f, --func", funcName, std::set<std::string>{"ssb", "sbs"}, "Function to benchmark")
+  app.add_option("-f, --func", funcName, "Function to benchmark")
+      ->check(CLI::IsMember({"ssb", "sbs"}))
       ->default_val("ssb");
   app.add_option("-b,--blocksize", blacsBlockSize, "ScaLAPACK block size of C")->required();
-  app.add_set("-p", procName, std::set<std::string>{"cpu", "gpu", "gpu-gpu"}, "Processing unit")
+  app.add_option("-p", procName, "Processing unit")
+      ->check(CLI::IsMember({"cpu", "gpu", "gpu-gpu"}))
       ->required();
+
   try {
     app.parse(argc, argv);
   } catch (const CLI::ParseError& e) {

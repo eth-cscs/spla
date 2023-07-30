@@ -167,9 +167,12 @@ int main(int argc, char** argv) {
   app.add_option("-k", rows, "Number of rows in A and B")->required();
   app.add_option("-t,--threads", numThreads, "Number of threads")->required();
   app.add_option("-b,--blocksize", blacsBlockSize, "ScaLAPACK block size of C")->required();
-  app.add_set("-p", procName, std::set<std::string>{"cpu", "gpu"}, "Processing unit")->required();
+  app.add_option("-p", procName, "Processing unit")
+      ->check(CLI::IsMember({"cpu", "gpu", "gpu-gpu"}))
+      ->required();
   app.add_option("-l", lengthTarget, "Length target")->default_val("1024");
-  app.add_set("--type", typeName, std::set<std::string>{"scalar", "complex"}, "Data type")
+  app.add_option("--type", typeName, "Data type")
+      ->check(CLI::IsMember({"scalar", "complex"}))
       ->default_val("complex");
   try {
     app.parse(argc, argv);
