@@ -16,8 +16,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
@@ -50,8 +50,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y make clang libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make clang libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
@@ -86,7 +86,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
         cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.13.4/cmake-3.13.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.13.4-Linux-x86_64.tar.gz
 
     - name: Build
@@ -111,7 +111,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
