@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13 FATAL_ERROR) # git fetch module requires at least 3.13
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR) # FetchContent_MakeAvailable requires at least 3.14
 set(SPLA_TEST_LIBRARIES)
 
 # update time stamps when using FetchContent
