@@ -8,7 +8,7 @@ jobs:
   #########################
   build-test-gcc-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -42,7 +42,7 @@ jobs:
   ###########################
   build-test-clang-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -76,8 +76,8 @@ jobs:
   # Build with CUDA
   #################
   build-cuda:
-    runs-on: ubuntu-latest
-    container: nvidia/cuda:9.2-devel-ubuntu18.04
+    runs-on: ubuntu-22.04
+    container: nvidia/cuda:11.0.3-devel-ubuntu20.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -101,7 +101,7 @@ jobs:
   # Build with ROCm
   #################
   build-rocm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container: rocm/dev-ubuntu-22.04:5.6-complete
 
     steps:
