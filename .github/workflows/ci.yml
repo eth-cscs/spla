@@ -17,7 +17,8 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        # DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpich-dev wget git make cmake
 
     - name: Build
       run: |
