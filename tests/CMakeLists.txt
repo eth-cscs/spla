@@ -1,6 +1,10 @@
-cmake_minimum_required(VERSION 3.11 FATAL_ERROR) # git fetch module requires at least 3.11
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR) # FetchContent_MakeAvailable requires at least 3.14
 set(SPLA_TEST_LIBRARIES)
-set(SPLA_TEST_INCLUDE_DIRS)
+
+# update time stamps when using FetchContent
+if(POLICY CMP0135)
+	cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(BUILD_GMOCK OFF CACHE BOOL "")
 set(INSTALL_GTEST OFF CACHE BOOL "")
@@ -8,45 +12,30 @@ mark_as_advanced(BUILD_GMOCK INSTALL_GTEST)
 include(FetchContent)
 
 # add googletest
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        release-1.8.1
-)
-FetchContent_GetProperties(googletest)
-if(NOT googletest_POPULATED)
-  message(STATUS "Downloading Google Test repository...")
-  FetchContent_Populate(googletest)
+if(SPLA_BUNDLED_GOOGLETEST)
+	FetchContent_Declare(
+		googletest
+		URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz
+		URL_MD5 95b29f0038ec84a611df951d74d99897
+	)
+	FetchContent_MakeAvailable(googletest)
+else()
+  find_package(googletest CONFIG REQUIRED)
 endif()
-add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
 list(APPEND SPLA_TEST_LIBRARIES gtest_main)
 
-# add gtest_mpi
-FetchContent_Declare(
-  gtest_mpi
-  GIT_REPOSITORY https://github.com/AdhocMan/gtest_mpi.git
-  GIT_TAG        v1.0.0
-)
-FetchContent_GetProperties(gtest_mpi)
-if(NOT gtest_mpi_POPULATED)
-  message(STATUS "Downloading Google Test MPI extension repository...")
-  FetchContent_Populate(gtest_mpi)
-endif()
-add_subdirectory(${gtest_mpi_SOURCE_DIR} ${gtest_mpi_BINARY_DIR})
-list(APPEND SPLA_TEST_LIBRARIES gtest_mpi)
-
 # add command line parser
-FetchContent_Declare(
-  cli11
-  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-  GIT_TAG        v1.7.1
-)
-FetchContent_GetProperties(cli11)
-if(NOT cli11_POPULATED)
-  message(STATUS "Downloading CLI11 command line parser repository...")
-  FetchContent_Populate(cli11)
+if(SPLA_BUNDLED_CLI11)
+	FetchContent_Declare(
+		cli11
+		URL https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.3.2.tar.gz
+		URL_MD5 b80cb645dee25982110b068b426363ff
+	)
+	FetchContent_MakeAvailable(cli11)
+else()
+	find_package(CLI11 CONFIG REQUIRED)
 endif()
-list(APPEND SPLA_TEST_INCLUDE_DIRS ${cli11_SOURCE_DIR}/include)
+list(APPEND SPLA_TEST_LIBRARIES CLI11::CLI11)
 
 
 if(SPLA_BLAS_MKL)
@@ -69,20 +58,22 @@ endif()
 if(UNIX AND NOT APPLE)
 	# on Daint, dl library appears to be required
 	find_library(SPLA_DL_LIBRARY dl)
-	list(APPEND SPLA_TEST_LIBRARIES ${SPLA_DL_LIBRARY})
+	if(SPLA_DL_LIBRARY)
+		list(APPEND SPLA_TEST_LIBRARIES ${SPLA_DL_LIBRARY})
+	endif()
 endif()
 
-add_executable(run_tests programs/run_tests.cpp test_pool_allocator.cpp test_gemm.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp)
+add_executable(run_tests programs/run_tests.cpp test_pool_allocator.cpp test_gemm.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp gtest_mpi.cpp)
 target_link_libraries(run_tests PUBLIC spla_test ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LIBRARIES})
-target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
+target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(run_tests PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
 
 add_executable(benchmark programs/benchmark.cpp)
-target_link_libraries(benchmark PUBLIC spla_test ${SPLA_EXTERNAL_LIBS})
-target_include_directories(benchmark PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
+target_link_libraries(benchmark PUBLIC spla_test ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LIBRARIES})
+target_include_directories(benchmark PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS})
 target_compile_options(benchmark PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
 
 add_executable(benchmark_scalapack programs/benchmark_scalapack.cpp)
 target_link_libraries(benchmark_scalapack PUBLIC spla_test ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LIBRARIES})
-target_include_directories(benchmark_scalapack PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${SPLA_TEST_INCLUDE_DIRS})
+target_include_directories(benchmark_scalapack PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS})
 target_compile_options(benchmark_scalapack PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
