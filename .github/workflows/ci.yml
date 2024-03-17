@@ -18,14 +18,14 @@ jobs:
       run: |
         sudo apt-get update
         # DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
-        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpich-dev wget git make cmake libmpich-dev
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpich-dev wget git make cmake
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        CXX=mpicxx.mpich CC=mpicc.mpich cmake .. -DSPLA_BUILD_TESTS=ON
+        cmake .. -DSPLA_BUILD_TESTS=ON
         make -j2
 
     - name: Run tests
@@ -36,7 +36,7 @@ jobs:
     - name: Run tests with MPI
       run: |
         export OMPI_MCA_btl_vader_single_copy_mechanism=none
-        mpirun.mpich -n 2 ${GITHUB_WORKSPACE}/build/tests/run_tests
+        mpirun -n 2 ${GITHUB_WORKSPACE}/build/tests/run_tests
 
   ###########################
   # Build and test with clang
