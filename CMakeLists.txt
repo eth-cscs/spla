@@ -41,7 +41,6 @@ option(SPLA_FORTRAN "Compile fortran module" OFF)
 option(SPLA_BUNDLED_TEST_LIBS "Use bundled libraries for building tests" ON)
 
 cmake_dependent_option(SPLA_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
-cmake_dependent_option(SPLA_BUNDLED_GTEST_MPI "Use bundled gtest_mpi lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
 cmake_dependent_option(SPLA_BUNDLED_CLI11 "Use bundled cli11 lib" ON "SPLA_BUNDLED_TEST_LIBS" OFF)
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")

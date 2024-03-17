@@ -25,7 +25,7 @@ endif()
 list(APPEND SPLA_TEST_LIBRARIES gtest_main)
 
 # add command line parser
-if(SPLA_BUNDLED_GTEST_MPI)
+if(SPLA_BUNDLED_CLI11)
 	FetchContent_Declare(
 		cli11
 		URL https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.3.2.tar.gz
