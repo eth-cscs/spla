@@ -1,13 +1,13 @@
-#include <memory>
 #include <cstddef>
-#include <unordered_map>
 #include <cstdlib>
-#include <vector>
 #include <deque>
+#include <memory>
 #include <random>
-
+#include <unordered_map>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "gtest_mpi.hpp"
 #include "memory/allocator.hpp"
 #include "memory/pool_allocator.hpp"
 
@@ -58,6 +58,7 @@ class PoolAllocatorTest : public ::testing::Test {
 
 
 TEST_F(PoolAllocatorTest, Serial) {
+  GTEST_MPI_GUARD
   std::vector<std::size_t> sizes = {1, 2, 2, 3, 4, 5, 4, 3};
   std::vector<void*> pointers;
   pointers.reserve(sizes.size());
@@ -70,6 +71,7 @@ TEST_F(PoolAllocatorTest, Serial) {
 }
 
 TEST_F(PoolAllocatorTest, Interleaved) {
+  GTEST_MPI_GUARD
   std::vector<std::size_t> sizes = {1, 2, 2, 3, 4, 5, 4, 3};
   for(auto& s : sizes) {
     auto ptr = call_allocate(s);
@@ -78,6 +80,7 @@ TEST_F(PoolAllocatorTest, Interleaved) {
 }
 
 TEST_F(PoolAllocatorTest, Random) {
+  GTEST_MPI_GUARD
   const int numIter = 100 * 1000;
   std::mt19937 randGen;
   std::discrete_distribution<int> binaryDist(30, 70); // Allocate with 70% prob., deallocate with 30% prob.

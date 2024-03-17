@@ -10,8 +10,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "memory/buffer.hpp"
+#include "gtest_mpi.hpp"
 #include "memory/allocator_collection.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
@@ -328,6 +329,7 @@ typedef GemmSSBTest<double> GemmSSBScalar;
 typedef GemmSSBTest<std::complex<double>> GemmSSBComplex;
 
 TEST_P(GemmSSBScalar, FlatGrid) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_blacs_block_cyclic(MPI_COMM_WORLD, 'R', mpi_world_size(),
                                                               1, rowBlockSize_, colBlockSize_);
@@ -339,6 +341,7 @@ TEST_P(GemmSSBScalar, FlatGrid) {
 }
 
 TEST_P(GemmSSBComplex, FlatGrid) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_blacs_block_cyclic(MPI_COMM_WORLD, 'R', mpi_world_size(),
                                                               1, rowBlockSize_, colBlockSize_);
@@ -350,6 +353,7 @@ TEST_P(GemmSSBComplex, FlatGrid) {
 }
 
 TEST_P(GemmSSBScalar, SquareGrid) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -364,6 +368,7 @@ TEST_P(GemmSSBScalar, SquareGrid) {
 }
 
 TEST_P(GemmSSBComplex, SquareGrid) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -378,6 +383,7 @@ TEST_P(GemmSSBComplex, SquareGrid) {
 }
 
 TEST_P(GemmSSBScalar, SquareGridOffset) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -392,6 +398,7 @@ TEST_P(GemmSSBScalar, SquareGridOffset) {
 }
 
 TEST_P(GemmSSBComplex, SquareGridOffset) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -406,6 +413,7 @@ TEST_P(GemmSSBComplex, SquareGridOffset) {
 }
 
 TEST_P(GemmSSBScalar, Mirror) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 0, 0);
@@ -416,6 +424,7 @@ TEST_P(GemmSSBScalar, Mirror) {
 }
 
 TEST_P(GemmSSBComplex, Mirror) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 0, 0);
@@ -426,6 +435,7 @@ TEST_P(GemmSSBComplex, Mirror) {
 }
 
 TEST_P(GemmSSBScalar, MirrorOffset) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 2, 3);
@@ -436,6 +446,7 @@ TEST_P(GemmSSBScalar, MirrorOffset) {
 }
 
 TEST_P(GemmSSBComplex, MirrorOffset) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 2, 3);

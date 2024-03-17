@@ -24,19 +24,6 @@ else()
 endif()
 list(APPEND SPLA_TEST_LIBRARIES gtest_main)
 
-# add gtest_mpi
-if(SPLA_BUNDLED_GTEST_MPI)
-	FetchContent_Declare(
-		gtest_mpi
-		URL https://github.com/AdhocMan/gtest_mpi/archive/refs/tags/v1.1.0.tar.gz
-		URL_MD5 0fea4d6a8a8dce9a597d5dceab15e3d1
-	)
-	FetchContent_MakeAvailable(gtest_mpi)
-else()
-  find_package(gtest_mpi CONFIG REQUIRED)
-endif()
-list(APPEND SPLA_TEST_LIBRARIES gtest_mpi)
-
 # add command line parser
 if(SPLA_BUNDLED_GTEST_MPI)
 	FetchContent_Declare(
@@ -76,9 +63,9 @@ if(UNIX AND NOT APPLE)
 	endif()
 endif()
 
-add_executable(run_tests programs/run_tests.cpp test_pool_allocator.cpp test_gemm.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp)
+add_executable(run_tests programs/run_tests.cpp test_pool_allocator.cpp test_gemm.cpp test_gemm_ssb.cpp test_gemm_sbs.cpp gtest_mpi.cpp)
 target_link_libraries(run_tests PUBLIC spla_test ${SPLA_EXTERNAL_LIBS} ${SPLA_TEST_LIBRARIES})
-target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS})
+target_include_directories(run_tests PUBLIC ${SPLA_INCLUDE_DIRS} ${SPLA_EXTERNAL_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(run_tests PRIVATE ${SPLA_DEFINITIONS} ${SPLA_EXTERNAL_COMPILE_OPTIONS})
 
 add_executable(benchmark programs/benchmark.cpp)
