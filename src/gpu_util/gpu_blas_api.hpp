@@ -38,7 +38,7 @@
 #include <cublas_v2.h>
 
 #elif defined(SPLA_ROCM)
-#include <rocblas.h>
+#include <rocblas/rocblas.h>
 
 #else
 #error Either SPLA_CUDA or SPLA_ROCM must be defined!
