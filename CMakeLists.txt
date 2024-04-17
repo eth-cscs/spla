@@ -33,7 +33,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Options
 option(SPLA_STATIC "Compile as static library" OFF)
-option(SPLA_OMP "Compile with OpenMP support" ON)
 option(SPLA_BUILD_TESTS "Build tests" OFF)
 option(SPLA_BUILD_EXAMPLES "Compile examples" OFF)
 option(SPLA_INSTALL "Enable CMake install commands" ON)

@@ -157,6 +157,7 @@ typedef GemmTest<double> GemmScalar;
 typedef GemmTest<std::complex<double>> GemmComplex;
 
 TEST_P(GemmScalar, Host) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_host();
   } catch (const std::exception& e) {
@@ -236,18 +237,18 @@ static auto param_type_names(
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmScalar,
-                        ::testing::Combine(::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
-                        param_type_names);
+INSTANTIATE_TEST_SUITE_P(
+    FullGemmTest, GemmScalar,
+    ::testing::Combine(::testing::Values(1, 13, 32, 263), ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
+    param_type_names);
 
-INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmComplex,
-                        ::testing::Combine(::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
-                        param_type_names);
+INSTANTIATE_TEST_SUITE_P(
+    FullGemmTest, GemmComplex,
+    ::testing::Combine(::testing::Values(1, 13, 32, 263), ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
+    param_type_names);

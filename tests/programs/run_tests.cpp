@@ -1,5 +1,4 @@
 #include <mpi.h>
-#include <unistd.h>  // for MPI debugging
 
 #include "gtest/gtest.h"
 #include "gtest_mpi.hpp"

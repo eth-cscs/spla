@@ -20,9 +20,9 @@ if(SPLA_BUNDLED_GOOGLETEST)
 	)
 	FetchContent_MakeAvailable(googletest)
 else()
-  find_package(googletest CONFIG REQUIRED)
+  find_package(GTest CONFIG REQUIRED)
 endif()
-list(APPEND SPLA_TEST_LIBRARIES gtest_main)
+list(APPEND SPLA_TEST_LIBRARIES GTest::gtest)
 
 # add command line parser
 if(SPLA_BUNDLED_CLI11)

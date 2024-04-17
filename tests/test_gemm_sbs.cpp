@@ -159,18 +159,17 @@ static auto find_rectangle(int n) -> std::pair<int, int> {
 template <typename T>
 class GemmSBSTest
     : public ::testing::TestWithParam<
-          std::tuple<SplaProcessingUnit, int, int, int, std::pair<int, int>, int, int>> {
+          std::tuple<SplaProcessingUnit, int, int, std::pair<int, int>, int, int>> {
 protected:
   GemmSBSTest()
-      : rowBlockSize_(std::get<2>(GetParam())),
-        colBlockSize_(std::get<3>(GetParam())),
+      : rowBlockSize_(std::get<1>(GetParam())),
+        colBlockSize_(std::get<2>(GetParam())),
         m_(0),
-        n_(std::get<5>(GetParam())),
-        k_(std::get<6>(GetParam())),
+        n_(std::get<4>(GetParam())),
+        k_(std::get<5>(GetParam())),
         ctx_(std::get<0>(GetParam())) {
-    ctx_.set_num_threads(std::get<1>(GetParam()));
 
-    const std::pair<int, int> mRange = std::get<4>(GetParam());
+    const std::pair<int, int> mRange = std::get<3>(GetParam());
     std::uniform_int_distribution<int> mLocalDistribution(mRange.first, mRange.second);
 
     // generate local m size within range
@@ -461,7 +460,7 @@ TEST_P(GemmSBSComplex, MirrorOffset) {
 
 static auto param_type_names(
     const ::testing::TestParamInfo<
-        std::tuple<SplaProcessingUnit, int, int, int, std::pair<int, int>, int, int>>& info)
+        std::tuple<SplaProcessingUnit, int, int, std::pair<int, int>, int, int>>& info)
     -> std::string {
   std::stringstream stream;
   if (std::get<0>(info.param) == SplaProcessingUnit::SPLA_PU_HOST) {
@@ -469,25 +468,23 @@ static auto param_type_names(
   } else {
     stream << "GPU_";
   }
-  stream << "t_" << std::to_string(std::get<1>(info.param)) << "_";
-  stream << "mb_" << std::to_string(std::get<2>(info.param)) << "_";
-  stream << "nb_" << std::get<3>(info.param) << "_";
-  stream << "mMin_" << std::get<4>(info.param).first << "_";
-  stream << "mMax_" << std::get<4>(info.param).second << "_";
-  stream << "n_" << std::get<5>(info.param) << "_";
-  stream << "k_" << std::get<6>(info.param);
+  stream << "mb_" << std::to_string(std::get<1>(info.param)) << "_";
+  stream << "nb_" << std::get<2>(info.param) << "_";
+  stream << "mMin_" << std::get<3>(info.param).first << "_";
+  stream << "mMax_" << std::get<3>(info.param).second << "_";
+  stream << "n_" << std::get<4>(info.param) << "_";
+  stream << "k_" << std::get<5>(info.param);
 
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSScalar,
+INSTANTIATE_TEST_SUITE_P(GemmSBS, GemmSBSScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
                                                              SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                                              ),
-                                           ::testing::Values(1, 4),   // number of threads
                                            ::testing::Values(1, 64),  // row block size
                                            ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(std::pair<int, int>(0, 1),
@@ -497,14 +494,13 @@ INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSScalar,
                                            ::testing::Values(1, 13, 32, 263)),           // k
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSComplex,
+INSTANTIATE_TEST_SUITE_P(GemmSBS, GemmSBSComplex,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
                                                              SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                                              ),
-                                           ::testing::Values(1, 4),   // number of threads
                                            ::testing::Values(1, 64),  // row block size
                                            ::testing::Values(1, 64),  // coloumn block size
                                            ::testing::Values(std::pair<int, int>(0, 1),
@@ -514,14 +510,13 @@ INSTANTIATE_TEST_CASE_P(GemmSBS, GemmSBSComplex,
                                            ::testing::Values(1, 13, 32, 263)),           // k
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(LargeGemmSBS, GemmSBSScalar,
+INSTANTIATE_TEST_SUITE_P(LargeGemmSBS, GemmSBSScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
                                                              SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                                              ),
-                                           ::testing::Values(2),    // number of threads
                                            ::testing::Values(128),  // row block size
                                            ::testing::Values(128),  // coloumn block size
                                            ::testing::Values(std::pair<int, int>(50,

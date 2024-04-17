@@ -39,14 +39,6 @@ namespace blas {
 enum class Order { ROW_MAJOR = 101, COL_MAJOR = 102 };
 enum class Operation { NONE = 111, TRANS = 112, CONJ_TRANS = 113 };
 
-auto is_parallel() -> bool;
-
-auto is_thread_safe() -> bool;
-
-auto get_num_threads() -> IntType;
-
-auto set_num_threads(IntType numThreads) -> void;
-
 auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
           float alpha, const float *A, IntType lda, const float *B, IntType ldb, float beta,
           float *C, IntType ldc) -> void;

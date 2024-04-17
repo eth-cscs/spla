@@ -41,8 +41,7 @@ namespace spla {
 void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha, const float *A,
           int lda, const float *B, int ldb, float beta, float *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<float>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A, lda, B, ldb,
-                     beta, C, ldc);
+    gemm_host<float>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     gemm_gpu<float>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, *(ctx.ctxInternal_));
@@ -55,7 +54,7 @@ void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, float alpha
 void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, double alpha, const double *A,
           int lda, const double *B, int ldb, double beta, double *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<double>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A, lda, B, ldb,
+    gemm_host<double>( opA, opB, m, n, k, alpha, A, lda, B, ldb,
                       beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
@@ -70,8 +69,7 @@ void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, std::comple
           const std::complex<float> *A, int lda, const std::complex<float> *B, int ldb,
           std::complex<float> beta, std::complex<float> *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<std::complex<float>>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A,
-                                   lda, B, ldb, beta, C, ldc);
+    gemm_host<std::complex<float>>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     gemm_gpu<gpu::blas::ComplexFloatType>(
@@ -90,8 +88,7 @@ void gemm(SplaOperation opA, SplaOperation opB, int m, int n, int k, std::comple
           const std::complex<double> *A, int lda, const std::complex<double> *B, int ldb,
           std::complex<double> beta, std::complex<double> *C, int ldc, Context &ctx) {
   if (ctx.processing_unit() == SplaProcessingUnit::SPLA_PU_HOST) {
-    gemm_host<std::complex<double>>(ctx.ctxInternal_->num_threads(), opA, opB, m, n, k, alpha, A,
-                                    lda, B, ldb, beta, C, ldc);
+    gemm_host<std::complex<double>>(opA, opB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
   } else {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     gemm_gpu<gpu::blas::ComplexDoubleType>(

@@ -95,7 +95,7 @@ void gemm_gpu(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTyp
       k * n < ctx.op_threshold_gpu() / (2 * m)) {  // m always != 0 here
     using hostType = typename ComplexTypeHost<T>::type;
     return gemm_host<hostType>(
-        ctx.num_threads(), opA, opB, m, n, k, *reinterpret_cast<hostType *>(&alpha),
+        opA, opB, m, n, k, *reinterpret_cast<hostType *>(&alpha),
         reinterpret_cast<const hostType *>(A), lda, reinterpret_cast<const hostType *>(B), ldb,
         *reinterpret_cast<hostType *>(&beta), reinterpret_cast<hostType *>(C), ldc);
   }

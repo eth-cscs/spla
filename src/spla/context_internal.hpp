@@ -44,7 +44,6 @@
 #include "spla/context.hpp"
 #include "spla/exceptions.hpp"
 #include "util/common_types.hpp"
-#include "util/omp_definitions.hpp"
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include "gpu_util/gpu_blas_handle.hpp"
@@ -58,7 +57,6 @@ class ContextInternal {
 public:
   explicit ContextInternal(SplaProcessingUnit pu)
       : pu_(pu),
-        numThreads_(omp_get_max_threads()),
         numTiles_(4),
         tileSizeHost_(pu == SplaProcessingUnit::SPLA_PU_HOST ? 500 : 1500),
         tileSizeGPU_(2048),
@@ -105,8 +103,6 @@ public:
 
   inline auto processing_unit() const -> SplaProcessingUnit { return pu_; }
 
-  inline auto num_threads() const -> IntType { return numThreads_; }
-
   inline auto num_tiles() const -> IntType { return numTiles_; }
 
   inline auto tile_size_host() const -> IntType { return tileSizeHost_; }
@@ -123,16 +119,9 @@ public:
 
   // Set methods
 
-  inline auto set_num_threads(IntType numThreads) -> void {
-    if (numThreads > 0)
-      numThreads_ = numThreads;
-    else
-      numThreads_ = omp_get_max_threads();
-  }
-
-  inline auto set_num_tiles(IntType numTilesPerThread) -> void {
-    if (numTilesPerThread < 1) throw InvalidParameterError();
-    numTiles_ = numTilesPerThread;
+  inline auto set_num_tiles(IntType numTiles) -> void {
+    if (numTiles < 1) throw InvalidParameterError();
+    numTiles_ = numTiles;
   }
 
   inline auto set_tile_size_host(IntType tileSizeHost) -> void {
@@ -152,7 +141,6 @@ public:
 
 private:
   SplaProcessingUnit pu_;
-  IntType numThreads_;
   IntType numTiles_;
   IntType tileSizeHost_;
   IntType tileSizeGPU_;
