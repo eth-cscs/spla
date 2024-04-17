@@ -57,16 +57,16 @@ make -j8 install
 ```
 
 ### CMake options
-| Option                 |  Values                                                  | Default | Description                                      |
-|------------------------|----------------------------------------------------------|---------|--------------------------------------------------|
-| SPLA_OMP               |  ON, OFF                                                 | ON      | Enable multi-threading with OpenMP               |
-| SPLA_HOST_BLAS         |  AUTO, MKL, OPENBLAS, BLIS, CRAY_LIBSCI, ATLAS, GENERIC  | AUTO    | BLAS library for computations on host            |
-| SPLA_GPU_BACKEND       |  OFF, CUDA, ROCM                                         | OFF     | Select GPU backend                               |
-| SPLA_BUILD_TESTS       |  ON, OFF                                                 | OFF     | Build test executables                           |
-| SPLA_BUNDLED_TEST_LIBS |  ON, OFF                                                 | ON      | Download libraries required for tests            |
-| SPLA_BUILD_EXAMPLES    |  ON, OFF                                                 | OFF     | Build examples                                   |
-| SPLA_INSTALL           |  ON, OFF                                                 | ON      | Add library to install target                    |
-| SPLA_FORTRAN           |  ON, OFF                                                 | OFF     | Build Fortan module                              |
+| Option                 |  Values                                                  | Default | Description                                                           |
+|------------------------|----------------------------------------------------------|---------|-----------------------------------------------------------------------|
+| SPLA_OMP               |  ON, OFF                                                                      | ON      | Enable multi-threading with OpenMP               |
+| SPLA_GPU_BACKEND       |  OFF, CUDA, ROCM                                                              | OFF     | Select GPU backend                               |
+| SPLA_BUILD_TESTS       |  ON, OFF                                                                      | OFF     | Build test executables                           |
+| SPLA_BUNDLED_TEST_LIBS |  ON, OFF                                                                      | ON      | Download libraries required for tests            |
+| SPLA_BUILD_EXAMPLES    |  ON, OFF                                                                      | OFF     | Build examples                                   |
+| SPLA_INSTALL           |  ON, OFF                                                                      | ON      | Add library to install target                    |
+| SPLA_FORTRAN           |  ON, OFF                                                                      | OFF     | Build Fortan module                              |
+| BLA_VENDOR             |  Check CMake FindBLAS documentation. For Cray Libsci, set to "CRAY_LIBSCI".   |         | BLAS library for computations on host            |
 
 ## Implementation Details
 The implementation is based on a ring communication pattern as described in the paper [Accelerating large-scale excited-state GW calculations on leadership HPC systems](https://dl.acm.org/doi/10.5555/3433701.3433706) by Mauro Del Ben Et Al. For distributed matrix-matrix multiplications with distributions as used in the `pgemm_ssb` function, each process contributes to the result of every element. Therefore, some form of reduction operation is required. Compared to other reduction schemes, a ring requires more communication volume. However, by splitting up the result and computing multiple reductions concurrently, all processes share the work load at every step and more opportunities for communication - computation overlap arise.
