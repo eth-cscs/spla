@@ -87,12 +87,6 @@ interface
     integer(c_int), intent(out) :: processingUnit
   end function
 
-  integer(c_int) function spla_ctx_num_threads(ctx, numThreads) bind(C)
-    use iso_c_binding
-    type(c_ptr), value :: ctx
-    integer(c_int), intent(out) :: numThreads
-  end function
-
   integer(c_int) function spla_ctx_num_tiles(ctx, numTiles) bind(C)
     use iso_c_binding
     type(c_ptr), value :: ctx
@@ -139,12 +133,6 @@ interface
     use iso_c_binding
     type(c_ptr), value :: ctx
     integer(c_int_least64_t), intent(out) :: memSize
-  end function
-
-  integer(c_int) function spla_ctx_set_num_threads(ctx, numThreads) bind(C)
-    use iso_c_binding
-    type(c_ptr), value :: ctx
-    integer(c_int), value :: numThreads
   end function
 
   integer(c_int) function spla_ctx_set_num_tiles(ctx, numTiles) bind(C)
