@@ -8,7 +8,6 @@ macro(find_dependency_components)
 endmacro()
 
 # options used for building library
-set(SPLA_OMP @SPLA_OMP@)
 set(SPLA_STATIC @SPLA_STATIC@)
 set(SPLA_GPU_BACKEND @SPLA_GPU_BACKEND@)
 set(SPLA_BUILD_TESTS @SPLA_BUILD_TESTS@)
