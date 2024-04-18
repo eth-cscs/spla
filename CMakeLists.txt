@@ -162,7 +162,7 @@ if(BLA_VENDOR)
 	find_package(BLAS MODULE REQUIRED)
 else()
 	# Use custom priority for search
-	set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS  FLAME)
+	set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME)
 	foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
 		if(NOT BLAS_FOUND)
 			find_package(BLAS MODULE QUIET)

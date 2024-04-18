@@ -68,8 +68,7 @@ void gemm_host(SplaOperation opA, SplaOperation opB, IntType m, IntType n, IntTy
   if (ldb < 1) ldb = 1;
   if (ldc < 1) ldc = 1;
 
-  blas::gemm(blas::Order::COL_MAJOR, opBlasA, opBlasB, m, n, k, alpha, A, lda, B, ldb, beta, C,
-             ldc);
+  blas::gemm(opBlasA, opBlasB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
 template auto gemm_host<float>(SplaOperation opA, SplaOperation opB, IntType m, IntType n,

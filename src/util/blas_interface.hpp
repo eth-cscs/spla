@@ -36,23 +36,22 @@
 namespace spla {
 namespace blas {
 
-enum class Order { ROW_MAJOR = 101, COL_MAJOR = 102 };
 enum class Operation { NONE = 111, TRANS = 112, CONJ_TRANS = 113 };
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          float alpha, const float *A, IntType lda, const float *B, IntType ldb, float beta,
-          float *C, IntType ldc) -> void;
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, float alpha,
+          const float *A, IntType lda, const float *B, IntType ldb, float beta, float *C,
+          IntType ldc) -> void;
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          double alpha, const double *A, IntType lda, const double *B, IntType ldb, double beta,
-          double *C, IntType ldc) -> void;
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, double alpha,
+          const double *A, IntType lda, const double *B, IntType ldb, double beta, double *C,
+          IntType ldc) -> void;
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<float> alpha, const std::complex<float> *A, IntType lda,
           const std::complex<float> *B, IntType ldb, std::complex<float> beta,
           std::complex<float> *C, IntType ldc) -> void;
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<double> alpha, const std::complex<double> *A, IntType lda,
           const std::complex<double> *B, IntType ldb, std::complex<double> beta,
           std::complex<double> *C, IntType ldc) -> void;

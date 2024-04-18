@@ -71,8 +71,6 @@ void zgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, 
             const void* ALPHA, const void* A, const int* LDA, const void* B, const int* LDB,
             const void* BETA, void* C, const int* LDC, int TRANSA_len, int TRANSB_len);
 #endif
-
-
 }
 
 namespace spla {
@@ -90,7 +88,7 @@ static auto convert_operation(const Operation &op) -> CBLAS_TRANSPOSE {
   }
 }
 #else
-static auto convert_operation(const Operation &op) -> const char* {
+static auto convert_operation(const Operation& op) -> const char* {
   switch (op) {
     case Operation::TRANS:
       return "T";
@@ -102,11 +100,11 @@ static auto convert_operation(const Operation &op) -> const char* {
 }
 #endif
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          float alpha, const float *A, IntType lda, const float *B, IntType ldb, float beta,
-          float *C, IntType ldc) -> void {
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, float alpha,
+          const float *A, IntType lda, const float *B, IntType ldb, float beta, float *C,
+          IntType ldc) -> void {
 #ifdef SPLA_CBLAS
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
 
@@ -125,11 +123,11 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
 #endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          double alpha, const double *A, IntType lda, const double *B, IntType ldb, double beta,
-          double *C, IntType ldc) -> void {
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, double alpha,
+          const double *A, IntType lda, const double *B, IntType ldb, double beta, double *C,
+          IntType ldc) -> void {
 #ifdef SPLA_CBLAS
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_dgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
@@ -147,12 +145,12 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
 #endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<float> alpha, const std::complex<float> *A, IntType lda,
           const std::complex<float> *B, IntType ldb, std::complex<float> beta,
           std::complex<float> *C, IntType ldc) -> void {
 #ifdef SPLA_CBLAS
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_cgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
@@ -170,12 +168,12 @@ auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N,
 #endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<double> alpha, const std::complex<double> *A, IntType lda,
           const std::complex<double> *B, IntType ldb, std::complex<double> beta,
           std::complex<double> *C, IntType ldc) -> void {
 #ifdef SPLA_CBLAS
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_zgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
