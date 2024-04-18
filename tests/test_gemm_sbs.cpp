@@ -155,7 +155,6 @@ static auto find_rectangle(int n) -> std::pair<int, int> {
   return {n, 1};
 }
 
-// numThreads, rowBlockSize, colBlockSize, colsA, colsB, numLocalRows
 template <typename T>
 class GemmSBSTest
     : public ::testing::TestWithParam<

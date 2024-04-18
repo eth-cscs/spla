@@ -119,7 +119,6 @@ int main(int argc, char** argv) {
   int m = 5;
   int n = 5;
   int k = 5;
-  int numThreads = 6;
   int blacsBlockSize = 64;
   int lengthTarget = 256;
   std::string procName;
