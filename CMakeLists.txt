@@ -60,10 +60,9 @@ if(SPLA_GPU_BACKEND)
 	endif()
 endif()
 
-if(${SPLA_HOST_BLAS})
+if(SPLA_HOST_BLAS)
 	message(WARNING "SPLA_HOST_BLAS is no longer in use. Use BLA_VENDOR instead. Check CMake documentation for FindBLAS.")
 endif()
-
 
 # Fortran
 if(SPLA_FORTRAN)
@@ -189,20 +188,6 @@ include(CheckFunctionExists)
 
 unset(SPLA_CBLAS CACHE) # Result is cached, so change of library will not lead to a new check automatically
 CHECK_FUNCTION_EXISTS(cblas_zgemm SPLA_CBLAS)
-
-# make sure cblas symbols exist in blas library
-include(CheckCXXSymbolExists)
-set(CMAKE_REQUIRED_LIBRARIES ${SPLA_EXTERNAL_LIBS})
-unset(_SPLA_CBLAS_FOUND CACHE) # Result is cached, so change of library will not lead to a new check automatically
-if(SPLA_BLAS_HEADER_NAME)
-	check_cxx_symbol_exists(cblas_dgemm ${SPLA_BLAS_HEADER_NAME} _SPLA_CBLAS_FOUND)
-else()
-	set(CMAKE_REQUIRED_INCLUDES ${PROJECT_SOURCE_DIR}/cmake/util)
-	check_cxx_symbol_exists(cblas_dgemm blas_dgemm_symbol.h _SPLA_CBLAS_FOUND)
-endif()
-if(NOT _SPLA_CBLAS_FOUND)
-	message(FATAL_ERROR "CBlas symbols are required but not found in blas library!")
-endif()
 
 # generate config.h
 configure_file(include/spla/config.h.in ${PROJECT_BINARY_DIR}/spla/config.h)

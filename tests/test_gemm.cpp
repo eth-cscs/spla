@@ -87,8 +87,8 @@ protected:
     Context ctx(SPLA_PU_GPU);
 
     // compute reference by calling blas library directly
-    ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
-                       k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
+    ::spla::blas::gemm(convert_op(opA_), convert_op(opB_), m_, n_, k_, 2.0, vecA_.data(), lda_,
+                       vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
     // compute with public gemm interface
     gemm(opA_, opB_, m_, n_, k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecC_.data(),
@@ -104,8 +104,8 @@ protected:
     Context ctx(SPLA_PU_GPU);
 
     // compute reference by calling blas library directly
-    ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
-                       k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
+    ::spla::blas::gemm(convert_op(opA_), convert_op(opB_), m_, n_, k_, 2.0, vecA_.data(), lda_,
+                       vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
     Buffer<T, MemLoc::GPU> gpuBufferA(allocators_.gpu(), vecA_.size());
     Buffer<T, MemLoc::GPU> gpuBufferB(allocators_.gpu(), vecB_.size());
