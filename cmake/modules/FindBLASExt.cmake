@@ -1,4 +1,4 @@
-#  Copyright (c) 2019 ETH Zurich
+#  Copyright (c) 2024 ETH Zurich
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are met:
@@ -29,7 +29,7 @@
 # FindBLASExt
 # -----------
 #
-# This module tries to find the BLAS library (libsci) by Cray.
+# This module tries to find the BLAS library through FindBLAS with additional libraries like libsci by Cray.
 #
 # The following variables are set
 #
@@ -86,9 +86,8 @@ macro(find_blas_ext)
         endif()
 
 	else()
-        find_package(BLAS MODULE ${ARGV})
+        find_package(BLAS MODULE QUIET)
         if(BLAS_FOUND AND NOT BLASExt_LIBRARIES)
-            message(STATUS "BLAS_LIBRARIES= \"${BLAS_LIBRARIES}\"")
             set(BLASExt_LIBRARIES "${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS}" CACHE STRING "" FORCE)
 		endif()
 	endif()
@@ -97,18 +96,16 @@ endmacro()
 if(NOT BLA_VENDOR)
     set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME CRAY_LIBSCI)
 	foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
-        if(NOT BLASExt_LIBRARIES)
-            message(STATUS "Looking for ${BLA_VENDOR}")
-			find_blas_ext(QUIET)
-		endif()
+	    if(NOT BLASExt_LIBRARIES)
+		find_blas_ext()
+	    endif()
 	endforeach()
 	# if not found, search for any BLAS library
 	unset(BLA_VENDOR)
 endif()
 if(NOT BLASExt_LIBRARIES)
-	find_blas_ext(REQUIRED)
+	find_blas_ext()
 endif()
-
 
 # check if found
 include(FindPackageHandleStandardArgs)
