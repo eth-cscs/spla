@@ -187,6 +187,8 @@ if(NOT BLAS_EXT_FOUND)
 	find_blas_ext(MODULE REQUIRED)
 endif()
 
+message(STATUS "SPLA_EXTERNAL_LIBS = ${SPLA_EXTERNAL_LIBS}")
+
 # check if cblas available
 set(CMAKE_REQUIRED_LIBRARIES ${SPLA_EXTERNAL_LIBS})
 include(CheckFunctionExists)
