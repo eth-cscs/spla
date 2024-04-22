@@ -95,7 +95,7 @@ jobs:
         mkdir -p build
         cd build
         ${HOME}/cmake-3.18.0-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
-        make -j2
+        make -j2 VERBOSE=1
 
   #################
   # Build with ROCm
