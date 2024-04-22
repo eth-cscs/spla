@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(spla LANGUAGES CXX VERSION 1.5.5)
 set(SPLA_SO_VERSION 1)
 set(SPLA_VERSION ${PROJECT_VERSION})
