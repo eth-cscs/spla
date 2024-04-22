@@ -87,14 +87,14 @@ jobs:
       run: |
         apt-get update
         DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
-        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0-Linux-x86_64.tar.gz && tar -xzvf cmake-3.20.0-Linux-x86_64.tar.gz
+        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.18.0/cmake-3.18.0-Linux-x86_64.tar.gz && tar -xzvf cmake-3.18.0-Linux-x86_64.tar.gz
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        ${HOME}/cmake-3.20.0-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
+        ${HOME}/cmake-3.18.0-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
         make -j2 VERBOSE=1
 
   #################
