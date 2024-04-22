@@ -157,33 +157,38 @@ endif()
 
 # BLAS
 set(BLA_SIZEOF_INTEGER 4)
-if(BLA_VENDOR)
-	find_package(BLAS MODULE REQUIRED)
-else()
-	# Use custom priority for search
-	set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME)
+macro(find_blas_ext)
+	if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
+		find_package(SCI ${ARGV})
+		if(SCI_FOUND)
+			list(APPEND SPLA_EXTERNAL_LIBS SCI::sci)
+			set(BLAS_EXT_FOUND TRUE)
+		endif()
+	else()
+		find_package(BLAS ${ARGV})
+		if(BLAS_FOUND)
+			list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS)
+			set(BLAS_EXT_FOUND TRUE)
+		endif()
+	endif()
+endmacro()
+
+if(NOT BLA_VENDOR)
+	set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp FLAME CRAY_LIBSCI)
 	foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
-		if(NOT BLAS_FOUND)
-			find_package(BLAS MODULE QUIET)
+		if(NOT BLAS_EXT_FOUND)
+			find_blas_ext(MODULE QUIET)
 		endif()
 	endforeach()
-
 	# if not found, search for any BLAS library
 	unset(BLA_VENDOR)
-	if(NOT BLAS_FOUND)
-		find_package(BLAS MODULE REQUIRED)
-	endif()
 endif()
-
-# target is only available with CMake 3.18.0 and later
-if(NOT TARGET BLAS::BLAS)
-	add_library(BLAS::BLAS INTERFACE IMPORTED)
-	set_property(TARGET BLAS::BLAS PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+if(NOT BLAS_EXT_FOUND)
+	find_blas_ext(MODULE REQUIRED)
 endif()
-list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS)
 
 # check if cblas available
-set(CMAKE_REQUIRED_LIBRARIES BLAS::BLAS)
+set(CMAKE_REQUIRED_LIBRARIES ${SPLA_EXTERNAL_LIBS})
 include(CheckFunctionExists)
 
 unset(SPLA_CBLAS CACHE) # Result is cached, so change of library will not lead to a new check automatically
