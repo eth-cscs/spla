@@ -70,11 +70,7 @@ if(SPLA_CUDA)
 	endif()
 endif()
 
-find_dependency(BLAS)
-if(NOT TARGET BLAS::BLAS)
-	add_library(BLAS::BLAS INTERFACE IMPORTED)
-	set_property(TARGET BLAS::BLAS PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
-endif()
+find_dependency(BLASExt MODULE)
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path
 

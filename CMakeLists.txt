@@ -139,40 +139,12 @@ endif()
 
 # BLAS
 set(BLA_SIZEOF_INTEGER 4)
-macro(find_blas_ext)
-	if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
-		find_package(SCI ${ARGV})
-		if(SCI_FOUND)
-			list(APPEND SPLA_EXTERNAL_LIBS SCI::sci)
-			set(BLAS_EXT_FOUND TRUE)
-		endif()
-	else()
-		find_package(BLAS ${ARGV})
-		if(BLAS_FOUND)
-			list(APPEND SPLA_EXTERNAL_LIBS ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
-			set(BLAS_EXT_FOUND TRUE)
-		endif()
-	endif()
-endmacro()
-
-if(NOT BLA_VENDOR)
-	set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp FLAME CRAY_LIBSCI)
-	foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
-		if(NOT BLAS_EXT_FOUND)
-			find_blas_ext(MODULE QUIET)
-		endif()
-	endforeach()
-	# if not found, search for any BLAS library
-	unset(BLA_VENDOR)
-endif()
-if(NOT BLAS_EXT_FOUND)
-	find_blas_ext(MODULE REQUIRED)
-endif()
+find_package(BLASExt MODULE REQUIRED)
+list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS_EXT)
 
 # check if cblas available
-set(CMAKE_REQUIRED_LIBRARIES ${SPLA_EXTERNAL_LIBS})
+set(CMAKE_REQUIRED_LIBRARIES BLAS::BLAS_EXT)
 include(CheckFunctionExists)
-
 unset(SPLA_CBLAS CACHE) # Result is cached, so change of library will not lead to a new check automatically
 CHECK_FUNCTION_EXISTS(cblas_zgemm SPLA_CBLAS)
 
