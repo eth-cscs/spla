@@ -5,20 +5,20 @@ set(SPLA_VERSION ${PROJECT_VERSION})
 
 # allow {module}_ROOT variables to be set
 if(POLICY CMP0074)
-	cmake_policy(SET CMP0074 NEW)
+  cmake_policy(SET CMP0074 NEW)
 endif()
 
 # use INTERFACE_LINK_LIBRARIES property if available
 if(POLICY CMP0022)
-	cmake_policy(SET CMP0022 NEW)
+  cmake_policy(SET CMP0022 NEW)
 endif()
 
 # set default build type to RELEASE
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-	set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
-	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-		"Debug" "Release" "MinSizeRel" "RelWithDebInfo"
-		)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    "Debug" "Release" "MinSizeRel" "RelWithDebInfo"
+    )
 endif()
 
 # set language and standard
@@ -44,36 +44,36 @@ cmake_dependent_option(SPLA_BUNDLED_CLI11 "Use bundled cli11 lib" ON "SPLA_BUNDL
 
 set(SPLA_GPU_BACKEND "OFF" CACHE STRING "GPU backend")
 set_property(CACHE SPLA_GPU_BACKEND PROPERTY STRINGS
-	"OFF" "CUDA" "ROCM"
-	)
+  "OFF" "CUDA" "ROCM"
+  )
 
 # Options combination check
 set(SPLA_CUDA OFF)
 set(SPLA_ROCM OFF)
 if(SPLA_GPU_BACKEND)
-	if(SPLA_GPU_BACKEND STREQUAL "CUDA")
-		set(SPLA_CUDA ON)
-	elseif(SPLA_GPU_BACKEND STREQUAL "ROCM")
-		set(SPLA_ROCM ON)
-	else()
-		message(FATAL_ERROR "Invalid GPU backend")
-	endif()
+  if(SPLA_GPU_BACKEND STREQUAL "CUDA")
+    set(SPLA_CUDA ON)
+  elseif(SPLA_GPU_BACKEND STREQUAL "ROCM")
+    set(SPLA_ROCM ON)
+  else()
+    message(FATAL_ERROR "Invalid GPU backend")
+  endif()
 endif()
 
 if(SPLA_HOST_BLAS)
-	message(WARNING "SPLA_HOST_BLAS is no longer in use. Use BLA_VENDOR instead. Check CMake documentation for FindBLAS.")
+  message(WARNING "SPLA_HOST_BLAS is no longer in use. Use BLA_VENDOR instead. Check CMake documentation for FindBLAS.")
 endif()
 
 # Fortran
 if(SPLA_FORTRAN)
-	enable_language(Fortran)
+  enable_language(Fortran)
 endif()
 
 # set preferred library type
 if (SPLA_STATIC)
-	set(SPLA_LIBRARY_TYPE STATIC)
+  set(SPLA_LIBRARY_TYPE STATIC)
 else()
-	set(SPLA_LIBRARY_TYPE SHARED)
+  set(SPLA_LIBRARY_TYPE SHARED)
 endif()
 
 set(SPLA_DEFINITIONS)
@@ -87,36 +87,36 @@ set(SPLA_RESTRICT_ATTR " ")
 # check if restrict attribute is available
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
-	"
-			int f(double *__restrict__ x);
-			int main(void) {return 0;}
-	"
-	HAVE___RESTRICT__
-	)
+  "
+      int f(double *__restrict__ x);
+      int main(void) {return 0;}
+  "
+  HAVE___RESTRICT__
+  )
 if(${HAVE___RESTRICT__})
-	set(SPLA_RESTRICT_ATTR "__restrict__")
+  set(SPLA_RESTRICT_ATTR "__restrict__")
 else()
-	check_cxx_source_compiles(
-			"
-					int f(double *__restrict x);
-					int main(void) {return 0;}
-			"
-			HAVE___RESTRICT
-		)
-	if(HAVE___RESTRICT)
-		set(SPLA_RESTRICT_ATTR "__restrict")
-	else()
-		check_cxx_source_compiles(
-			"
-					int f(double *restrict x);
-					int main(void) {return 0;}
-			"
-			HAVE_RESTRICT
-			)
-		if(${HAVE_RESTRICT})
-			set(SPLA_RESTRICT_ATTR "restrict")
-		endif()
-	endif()
+  check_cxx_source_compiles(
+      "
+          int f(double *__restrict x);
+          int main(void) {return 0;}
+      "
+      HAVE___RESTRICT
+    )
+  if(HAVE___RESTRICT)
+    set(SPLA_RESTRICT_ATTR "__restrict")
+  else()
+    check_cxx_source_compiles(
+      "
+          int f(double *restrict x);
+          int main(void) {return 0;}
+      "
+      HAVE_RESTRICT
+      )
+    if(${HAVE_RESTRICT})
+      set(SPLA_RESTRICT_ATTR "restrict")
+    endif()
+  endif()
 endif()
 
 
@@ -126,14 +126,14 @@ list(APPEND SPLA_EXTERNAL_LIBS MPI::MPI_CXX)
 
 # CUDA
 if(SPLA_CUDA)
-	find_package(CUDAToolkit REQUIRED)
-	list(APPEND SPLA_EXTERNAL_LIBS CUDA::cudart CUDA::cublas)
+  find_package(CUDAToolkit REQUIRED)
+  list(APPEND SPLA_EXTERNAL_LIBS CUDA::cudart CUDA::cublas)
 endif()
 
 # ROCm
 if(SPLA_ROCM)
-	find_package(hip CONFIG REQUIRED)
-	find_package(rocblas CONFIG REQUIRED)
+  find_package(hip CONFIG REQUIRED)
+  find_package(rocblas CONFIG REQUIRED)
   list(APPEND SPLA_EXTERNAL_LIBS hip::host roc::rocblas)
 endif()
 
@@ -162,10 +162,10 @@ list(APPEND SPLA_EXTERNAL_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/ext)
 add_subdirectory(src)
 
 if(SPLA_BUILD_EXAMPLES)
-	add_subdirectory(examples)
+  add_subdirectory(examples)
 endif()
 
 # add tests for developement
 if(SPLA_BUILD_TESTS)
-	add_subdirectory(tests)
+  add_subdirectory(tests)
 endif()

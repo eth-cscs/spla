@@ -58,51 +58,52 @@ endif()
 
 set(BLASExt_LIBRARIES_DEPS)
 macro(find_blas_ext)
-	if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
-	    set(_sci_lib "sci_gnu")
+    if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
+        set(_sci_lib "sci_gnu")
 
-	    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
-		set(_sci_lib "sci_intel")
-	    elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-		set(_sci_lib "sci_cray")
-	    endif()
+        if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+            set(_sci_lib "sci_intel")
+        elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+            set(_sci_lib "sci_cray")
+        endif()
 
-	    # use multi-threaded version if OpenMP available
-	    find_package(OpenMP QUIET COMPONENTS CXX)
-	    if(TARGET OpenMP::OpenMP_CXX)
-		set(_sci_lib ${_sci_lib}_mp ${_sci_lib})
-	    endif()
+        # use multi-threaded version if OpenMP available
+        find_package(OpenMP QUIET COMPONENTS CXX)
+        if(TARGET OpenMP::OpenMP_CXX)
+            set(_sci_lib ${_sci_lib}_mp ${_sci_lib})
+        endif()
 
-	    find_library(
-		BLASExt_LIBRARIES
-		NAMES ${_sci_lib}
-		HINTS ${_BLASExt_PATHS}
-		ENV CRAY_LIBBLASExt_PREFIX_DIR
-		PATH_SUFFIXES "lib" "lib64"
-	    )
-	    if(BLASExt_LIBRARIES AND TARGET OpenMP::OpenMP_CXX)
-		list(APPEND BLASExt_LIBRARIES_DEPS $<LINK_ONLY:OpenMP::OpenMP_CXX>)
-	    endif()
-	else()
-	    find_package(BLAS MODULE QUIET)
-	    if(BLAS_FOUND AND NOT BLASExt_LIBRARIES)
-		set(BLASExt_LIBRARIES "${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS}" CACHE STRING "" FORCE)
-	    endif()
-	endif()
+        find_library(
+            BLASExt_LIBRARIES
+            NAMES ${_sci_lib}
+            HINTS ${_BLASExt_PATHS}
+            ENV CRAY_LIBBLASExt_PREFIX_DIR
+            PATH_SUFFIXES "lib" "lib64"
+        )
+        if(BLASExt_LIBRARIES AND TARGET OpenMP::OpenMP_CXX)
+            list(APPEND BLASExt_LIBRARIES_DEPS $<LINK_ONLY:OpenMP::OpenMP_CXX>)
+        endif()
+    else()
+        find_package(BLAS MODULE QUIET)
+        if(BLAS_FOUND AND NOT BLASExt_LIBRARIES)
+            set(BLASExt_LIBRARIES "${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS}" CACHE STRING "" FORCE)
+        endif()
+    endif()
 endmacro()
 
-if(NOT BLA_VENDOR)
+# use custom search order if no specfic blas vendor requested and BLAS has not been found already
+if(NOT BLA_VENDOR AND NOT BLAS_LIBRARIES)
     set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME CRAY_LIBSCI)
-	foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
-	    if(NOT BLASExt_LIBRARIES)
-		find_blas_ext()
-	    endif()
-	endforeach()
-	# if not found, search for any BLAS library
-	unset(BLA_VENDOR)
+    foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
+        if(NOT BLASExt_LIBRARIES)
+            find_blas_ext()
+        endif()
+    endforeach()
+    # if not found, search for any BLAS library
+    unset(BLA_VENDOR)
 endif()
 if(NOT BLASExt_LIBRARIES)
-	find_blas_ext()
+        find_blas_ext()
 endif()
 
 # check if found
@@ -119,4 +120,4 @@ if(BLASExt_FOUND)
 endif()
 
 # prevent clutter in cache
-MARK_AS_ADVANCED(BLASExt_FOUND BLASExt_LIBRARIES)
+MARK_AS_ADVANCED(BLASExt_FOUND BLASExt_LIBRARIES BLASExt_VENDOR)
