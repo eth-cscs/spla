@@ -56,7 +56,6 @@ if(BLA_VENDOR AND NOT "${BLA_VENDOR}" STREQUAL "${BLASExt_VENDOR}")
     set(BLASExt_VENDOR "${BLA_VENDOR}" CACHE STRING "" FORCE)
 endif()
 
-set(BLASExt_LIBRARIES_DEPS)
 macro(find_blas_ext)
     if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
         set(_sci_lib "sci_gnu")
@@ -67,12 +66,6 @@ macro(find_blas_ext)
             set(_sci_lib "sci_cray")
         endif()
 
-        # use multi-threaded version if OpenMP available
-        find_package(OpenMP QUIET COMPONENTS CXX)
-        if(TARGET OpenMP::OpenMP_CXX)
-            set(_sci_lib ${_sci_lib}_mp ${_sci_lib})
-        endif()
-
         find_library(
             BLASExt_LIBRARIES
             NAMES ${_sci_lib}
@@ -80,9 +73,6 @@ macro(find_blas_ext)
             ENV CRAY_LIBBLASExt_PREFIX_DIR
             PATH_SUFFIXES "lib" "lib64"
         )
-        if(BLASExt_LIBRARIES AND TARGET OpenMP::OpenMP_CXX)
-            list(APPEND BLASExt_LIBRARIES_DEPS $<LINK_ONLY:OpenMP::OpenMP_CXX>)
-        endif()
     else()
         find_package(BLAS MODULE QUIET)
         if(BLAS_FOUND AND NOT BLASExt_LIBRARIES)
@@ -115,8 +105,7 @@ if(BLASExt_FOUND)
     if(NOT TARGET BLAS::blas_ext)
         add_library(BLAS::BLAS_EXT INTERFACE IMPORTED)
     endif()
-    string(STRIP "${BLASExt_LIBRARIES} ${BLASExt_LIBRARIES_DEPS}" BLASExt_LIBRARIES_STRIPPED)
-    set_property(TARGET BLAS::BLAS_EXT PROPERTY INTERFACE_LINK_LIBRARIES ${BLASExt_LIBRARIES_STRIPPED})
+    target_link_libraries(BLAS::BLAS_EXT INTERFACE ${BLASExt_LIBRARIES})
 endif()
 
 # prevent clutter in cache
