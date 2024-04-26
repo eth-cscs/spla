@@ -53,7 +53,6 @@
 #include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
-#include "util/omp_definitions.hpp"
 
 namespace spla {
 

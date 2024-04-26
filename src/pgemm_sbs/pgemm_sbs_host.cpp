@@ -46,11 +46,9 @@
 #include "spla/spla.hpp"
 #include "timing/timing.hpp"
 #include "util/blas_interface.hpp"
-#include "util/blas_threads_guard.hpp"
 #include "util/block_size_selection.hpp"
 #include "util/check_gemm_param.hpp"
 #include "util/common_types.hpp"
-#include "util/omp_definitions.hpp"
 
 namespace spla {
 
@@ -101,12 +99,10 @@ void pgemm_sbs_host_internal(int mLocal, int n, int k, T alpha, const T *A, int 
   auto &comms = descB.get_comms(numTiles);
 
   std::array<RingSBSHost<T, BLOCK_GEN>, numTiles> tiles{
-      RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[0],
-                                ctx.allocators().host(), gen, alpha, viewA, viewB, bRowOffset,
-                                bColOffset, beta, viewC},
-      RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, ctx.num_threads(), comms[1],
-                                ctx.allocators().host(), gen, alpha, viewA, viewB, bRowOffset,
-                                bColOffset, beta, viewC}};
+      RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, comms[0], ctx.allocators().host(), gen,
+                                alpha, viewA, viewB, bRowOffset, bColOffset, beta, viewC},
+      RingSBSHost<T, BLOCK_GEN>{ringThreshold, maxBlockSize, comms[1], ctx.allocators().host(), gen,
+                                alpha, viewA, viewB, bRowOffset, bColOffset, beta, viewC}};
 
   std::vector<Block> blocks;
   blocks.reserve(descB.comm().size());
@@ -182,7 +178,7 @@ void pgemm_sbs_host(int mLocal, int n, int k, T alpha, const T *A, int lda, cons
 
   // Check if local operations only
   if (descB.comm().size() == 1 || descB.type() == SplaDistributionType::SPLA_DIST_MIRROR) {
-    return gemm_host<T>(ctx.num_threads(), SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k, alpha, A, lda,
+    return gemm_host<T>(SPLA_OP_NONE, SPLA_OP_NONE, mLocal, n, k, alpha, A, lda,
                         B + bRowOffset + bColOffset * ldb, ldb, beta, C, ldc);
   }
 

@@ -72,14 +72,6 @@ SPLA_EXPORT SplaError spla_ctx_processing_unit(SplaContext ctx, SplaProcessingUn
 /**
  * Access a Context parameter.
  * @param[in] ctx Context handle.
- * @param[out] numThreads Maximum number of threads used for computations.
- * @return Error code or SPLA_SUCCESS.
- */
-SPLA_EXPORT SPLA_DEPRECATED SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads);
-
-/**
- * Access a Context parameter.
- * @param[in] ctx Context handle.
  * @param[out] numTiles Number of tiles used to overlap computation and communication.
  * @return Error code or SPLA_SUCCESS.
  */
@@ -146,15 +138,6 @@ SPLA_EXPORT SplaError spla_ctx_allocated_memory_pinned(SplaContext ctx, uint_lea
  * @return Error code or SPLA_SUCCESS.
  */
 SPLA_EXPORT SplaError spla_ctx_allocated_memory_gpu(SplaContext ctx, uint_least64_t* size) ;
-
-/**
- * Set the number of threads to be used.
- *
- * @param[in] ctx Context handle.
- * @param[in] numThreads Number of threads.
- * @return Error code or SPLA_SUCCESS.
- */
-SPLA_EXPORT SPLA_DEPRECATED SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads);
 
 /**
  * Set the number of tiles.

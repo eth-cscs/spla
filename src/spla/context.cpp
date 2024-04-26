@@ -40,8 +40,6 @@ Context::Context(SplaProcessingUnit pu) : ctxInternal_(new ContextInternal(pu)) 
 
 SplaProcessingUnit Context::processing_unit() const { return ctxInternal_->processing_unit(); }
 
-int Context::num_threads() const { return ctxInternal_->num_threads(); }
-
 int Context::num_tiles() const { return ctxInternal_->num_tiles(); }
 
 int Context::tile_size_host() const { return ctxInternal_->tile_size_host(); }
@@ -72,10 +70,8 @@ std::uint_least64_t Context::allocated_memory_gpu() const {
 #endif
 }
 
-void Context::set_num_threads(int numThreads) { ctxInternal_->set_num_threads(numThreads); }
-
-void Context::set_num_tiles(int numTilesPerThread) {
-  ctxInternal_->set_num_tiles(numTilesPerThread);
+void Context::set_num_tiles(int numTiles) {
+  ctxInternal_->set_num_tiles(numTiles);
 }
 
 void Context::set_tile_size_host(int tileSizeHost) {
@@ -146,20 +142,6 @@ SplaError spla_ctx_destroy(SplaContext* ctx) {
     return SplaError::SPLA_UNKNOWN_ERROR;
   }
   *ctx = nullptr;
-  return SplaError::SPLA_SUCCESS;
-}
-
-SplaError spla_ctx_num_threads(SplaContext ctx, int* numThreads) {
-  if (!ctx) {
-    return SplaError::SPLA_INVALID_HANDLE_ERROR;
-  }
-  try {
-    *numThreads = reinterpret_cast<spla::Context*>(ctx)->num_threads();
-  } catch (const spla::GenericError& e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
   return SplaError::SPLA_SUCCESS;
 }
 
@@ -267,20 +249,6 @@ SplaError spla_ctx_allocated_memory_gpu(SplaContext ctx, uint_least64_t* size) {
   }
   try {
     *size = reinterpret_cast<spla::Context*>(ctx)->allocated_memory_host();
-  } catch (const spla::GenericError& e) {
-    return e.error_code();
-  } catch (...) {
-    return SplaError::SPLA_UNKNOWN_ERROR;
-  }
-  return SplaError::SPLA_SUCCESS;
-}
-
-SplaError spla_ctx_set_num_threads(SplaContext ctx, int numThreads) {
-  if (!ctx) {
-    return SplaError::SPLA_INVALID_HANDLE_ERROR;
-  }
-  try {
-    reinterpret_cast<spla::Context*>(ctx)->set_num_threads(numThreads);
   } catch (const spla::GenericError& e) {
     return e.error_code();
   } catch (...) {

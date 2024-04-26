@@ -56,11 +56,11 @@ class RingSSBHost {
 public:
   using ValueType = T;
 
-  RingSSBHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-              MPICommunicatorHandle comm, const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
-              BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
-              const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
-              ValueType beta, HostArrayView2D<ValueType> C);
+  RingSSBHost(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
+              const std::shared_ptr<Allocator<MemLoc::Host>> allocator, BLOCK_GEN baseMatGen,
+              SplaOperation opA, ValueType alpha, const HostArrayConstView2D<ValueType> &A,
+              const HostArrayConstView2D<ValueType> &B, ValueType beta,
+              HostArrayView2D<ValueType> C);
 
   // Prepare to process input blocks
   auto prepare(std::vector<Block>::const_iterator begin, std::vector<Block>::const_iterator end)
@@ -107,7 +107,6 @@ private:
   HostArrayView2D<ValueType> C_;
   const ValueType alpha_, beta_;
   const SplaOperation opA_;
-  const IntType numThreads_;
   const IntType maxBlockSize_;
   const double ringThreshold_;
 };

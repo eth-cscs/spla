@@ -119,7 +119,6 @@ int main(int argc, char** argv) {
   int m = 5;
   int n = 5;
   int k = 5;
-  int numThreads = 6;
   int blacsBlockSize = 64;
   int lengthTarget = 256;
   std::string procName;
@@ -134,7 +133,6 @@ int main(int argc, char** argv) {
   app.add_option("-m", m, "Number of rows in C")->required();
   app.add_option("-k", k, "Number of rows in A and B")->required();
   app.add_option("-o", outputFileName, "Output file name")->default_val("timers.json");
-  app.add_option("-t,--threads", numThreads, "Number of threads")->default_val("-1");
   app.add_option("--type", typeName, "Data type")
       ->check(CLI::IsMember({"scalar", "complex"}))
       ->default_val("complex");
@@ -156,7 +154,6 @@ int main(int argc, char** argv) {
       procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
   spla::Context ctx(pu);
   ctx.set_tile_size_host(lengthTarget);
-  ctx.set_num_threads(numThreads);
   ctx.set_tile_size_gpu(4096);
 
   if (worldRank == 0) {
@@ -169,7 +166,6 @@ int main(int argc, char** argv) {
     std::cout << "repeats = " << repeats << std::endl;
     std::cout << "proc = " << procName << std::endl;
     std::cout << "type = " << typeName << std::endl;
-    std::cout << "threads = " << ctx.num_threads() << std::endl;
   }
 
   spla::AllocatorCollection allocators;

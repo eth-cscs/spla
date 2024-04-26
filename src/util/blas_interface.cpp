@@ -31,37 +31,9 @@
 
 #include "spla/config.h"
 
-namespace spla {
-namespace blas {
-// OpenBlas uses different types
-#if defined(SPLA_BLAS_OPENBLAS)
-
-using FloatComplex = float;
-using DoubleComplex = double;
-
-#elif defined(SPLA_BLAS_ARMPL)
-
-using FloatComplex = armpl_singlecomplex_t;
-using DoubleComplex = armpl_doublecomplex_t;
-
-#else
-
-using FloatComplex = void;
-using DoubleComplex = void;
-
-#endif
-}  // namespace blas
-}  // namespace spla
-
-// use blas header if found
-#if defined(SPLA_BLAS_HEADER_NAME)
-
-#include SPLA_BLAS_HEADER_NAME
-
-#else
-
 extern "C" {
 
+#ifdef SPLA_CBLAS
 enum CBLAS_ORDER { CblasRowMajor = 101, CblasColMajor = 102 };
 enum CBLAS_TRANSPOSE { CblasNoTrans = 111, CblasTrans = 112, CblasConjTrans = 113 };
 
@@ -80,13 +52,31 @@ void cblas_cgemm(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transA, enum CBLAS
 void cblas_zgemm(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transA, enum CBLAS_TRANSPOSE transB,
                  int M, int N, int K, const void *alpha, const void *A, int lda, const void *B,
                  int ldb, const void *beta, void *C, int ldc);
-}
 
+#else
+
+void sgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, const int* K,
+            const void* ALPHA, const void* A, const int* LDA, const void* B, const int* LDB,
+            const void* BETA, void* C, const int* LDC, int TRANSA_len, int TRANSB_len);
+
+void dgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, const int* K,
+            const void* ALPHA, const void* A, const int* LDA, const void* B, const int* LDB,
+            const void* BETA, void* C, const int* LDC, int TRANSA_len, int TRANSB_len);
+
+void cgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, const int* K,
+            const void* ALPHA, const void* A, const int* LDA, const void* B, const int* LDB,
+            const void* BETA, void* C, const int* LDC, int TRANSA_len, int TRANSB_len);
+
+void zgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, const int* K,
+            const void* ALPHA, const void* A, const int* LDA, const void* B, const int* LDB,
+            const void* BETA, void* C, const int* LDC, int TRANSA_len, int TRANSB_len);
 #endif
+}
 
 namespace spla {
 namespace blas {
 
+#ifdef SPLA_CBLAS
 static auto convert_operation(const Operation &op) -> CBLAS_TRANSPOSE {
   switch (op) {
     case Operation::TRANS:
@@ -97,108 +87,107 @@ static auto convert_operation(const Operation &op) -> CBLAS_TRANSPOSE {
       return CblasNoTrans;
   }
 }
+#else
+static auto convert_operation(const Operation& op) -> const char* {
+  switch (op) {
+    case Operation::TRANS:
+      return "T";
+    case Operation::CONJ_TRANS:
+      return "C";
+    default:
+      return "N";
+  }
+}
+#endif
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          float alpha, const float *A, IntType lda, const float *B, IntType ldb, float beta,
-          float *C, IntType ldc) -> void {
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, float alpha,
+          const float *A, IntType lda, const float *B, IntType ldb, float beta, float *C,
+          IntType ldc) -> void {
+#ifdef SPLA_CBLAS
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
 
   cblas_sgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
               static_cast<int>(K), alpha, A, static_cast<int>(lda), B, static_cast<int>(ldb), beta,
               C, static_cast<int>(ldc));
+#else
+  auto intM = static_cast<int>(M);
+  auto intN = static_cast<int>(N);
+  auto intK = static_cast<int>(K);
+  auto intLda = static_cast<int>(lda);
+  auto intLdb = static_cast<int>(ldb);
+  auto intLdc = static_cast<int>(ldc);
+  sgemm_(convert_operation(transA), convert_operation(transB), &intM, &intN, &intK, &alpha, A,
+         &intLda, B, &intLdb, &beta, C, &intLdc, 1, 1);
+#endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
-          double alpha, const double *A, IntType lda, const double *B, IntType ldb, double beta,
-          double *C, IntType ldc) -> void {
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K, double alpha,
+          const double *A, IntType lda, const double *B, IntType ldb, double beta, double *C,
+          IntType ldc) -> void {
+#ifdef SPLA_CBLAS
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_dgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
               static_cast<int>(K), alpha, A, static_cast<int>(lda), B, static_cast<int>(ldb), beta,
               C, static_cast<int>(ldc));
+#else
+  auto intM = static_cast<int>(M);
+  auto intN = static_cast<int>(N);
+  auto intK = static_cast<int>(K);
+  auto intLda = static_cast<int>(lda);
+  auto intLdb = static_cast<int>(ldb);
+  auto intLdc = static_cast<int>(ldc);
+  dgemm_(convert_operation(transA), convert_operation(transB), &intM, &intN, &intK, &alpha, A,
+         &intLda, B, &intLdb, &beta, C, &intLdc, 1, 1);
+#endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<float> alpha, const std::complex<float> *A, IntType lda,
           const std::complex<float> *B, IntType ldb, std::complex<float> beta,
           std::complex<float> *C, IntType ldc) -> void {
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+#ifdef SPLA_CBLAS
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_cgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
-              static_cast<int>(K), reinterpret_cast<const FloatComplex *>(&alpha),
-              reinterpret_cast<const FloatComplex *>(A), static_cast<int>(lda),
-              reinterpret_cast<const FloatComplex *>(B), static_cast<int>(ldb),
-              reinterpret_cast<const FloatComplex *>(&beta), reinterpret_cast<FloatComplex *>(C),
-              static_cast<int>(ldc));
+              static_cast<int>(K), &alpha, A, static_cast<int>(lda), B, static_cast<int>(ldb),
+              &beta, C, static_cast<int>(ldc));
+#else
+  auto intM = static_cast<int>(M);
+  auto intN = static_cast<int>(N);
+  auto intK = static_cast<int>(K);
+  auto intLda = static_cast<int>(lda);
+  auto intLdb = static_cast<int>(ldb);
+  auto intLdc = static_cast<int>(ldc);
+  cgemm_(convert_operation(transA), convert_operation(transB), &intM, &intN, &intK, &alpha, A,
+         &intLda, B, &intLdb, &beta, C, &intLdc, 1, 1);
+#endif
 }
 
-auto gemm(Order order, Operation transA, Operation transB, IntType M, IntType N, IntType K,
+auto gemm(Operation transA, Operation transB, IntType M, IntType N, IntType K,
           std::complex<double> alpha, const std::complex<double> *A, IntType lda,
           const std::complex<double> *B, IntType ldb, std::complex<double> beta,
           std::complex<double> *C, IntType ldc) -> void {
-  CBLAS_ORDER cblasOrder = order == Order::COL_MAJOR ? CblasColMajor : CblasRowMajor;
+#ifdef SPLA_CBLAS
+  CBLAS_ORDER cblasOrder = CblasColMajor;
   CBLAS_TRANSPOSE cblasTransA = convert_operation(transA);
   CBLAS_TRANSPOSE cblasTransB = convert_operation(transB);
   cblas_zgemm(cblasOrder, cblasTransA, cblasTransB, static_cast<int>(M), static_cast<int>(N),
-              static_cast<int>(K), reinterpret_cast<const DoubleComplex *>(&alpha),
-              reinterpret_cast<const DoubleComplex *>(A), static_cast<int>(lda),
-              reinterpret_cast<const DoubleComplex *>(B), static_cast<int>(ldb),
-              reinterpret_cast<const DoubleComplex *>(&beta), reinterpret_cast<DoubleComplex *>(C),
-              static_cast<int>(ldc));
-}
-
-auto get_num_threads() -> IntType {
-#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
-  return openblas_get_num_threads();
-#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
-  return mkl_get_max_threads();
-#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
-  return armpl_get_num_threads();
-#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
-  return bli_thread_get_num_threads();
+              static_cast<int>(K), &alpha, A, static_cast<int>(lda), B, static_cast<int>(ldb),
+              &beta, C, static_cast<int>(ldc));
 #else
-  return 1;
-#endif
-}
-
-auto set_num_threads(IntType numThreads) -> void {
-#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
-  openblas_set_num_threads(numThreads);
-#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
-  mkl_set_num_threads(numThreads);
-#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
-  armpl_set_num_threads(numThreads);
-#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
-  bli_thread_set_num_threads(numThreads);
-#endif
-}
-
-auto is_parallel() -> bool {
-#if defined(SPLA_BLAS_OPENBLAS) && defined(SPLA_BLAS_HEADER_NAME)
-  return openblas_get_parallel();
-#elif defined(SPLA_BLAS_MKL) && defined(SPLA_BLAS_HEADER_NAME)
-  return mkl_get_max_threads() != 1;
-#elif defined(SPLA_BLAS_ARMPL) && defined(SPLA_BLAS_HEADER_NAME)
-  return  armpl_get_max_threads() != 1;
-#elif defined(SPLA_BLAS_BLIS) && defined(SPLA_BLAS_HEADER_NAME)
-  return bli_info_get_enable_threading();
-#elif defined(SPLA_BLAS_SCI)
-  return true;
-#else
-  return false;
-#endif
-}
-
-auto is_thread_safe() -> bool {
-#if defined(SPLA_BLAS_OPENBLAS) || defined(SPLA_BLAS_UNKNOWN)
-  // OpenBLAS is not thread-safe and unknown blas library may not be either
-  return false;
-#else
-  return true;
+  auto intM = static_cast<int>(M);
+  auto intN = static_cast<int>(N);
+  auto intK = static_cast<int>(K);
+  auto intLda = static_cast<int>(lda);
+  auto intLdb = static_cast<int>(ldb);
+  auto intLdc = static_cast<int>(ldc);
+  zgemm_(convert_operation(transA), convert_operation(transB), &intM, &intN, &intK, &alpha, A,
+         &intLda, B, &intLdb, &beta, C, &intLdc, 1, 1);
 #endif
 }
 

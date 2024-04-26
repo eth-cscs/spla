@@ -85,12 +85,6 @@ public:
 
   /**
    * Access a Context parameter.
-   * @return Maximum number of threads used for computations.
-   */
-  SPLA_DEPRECATED int num_threads() const;
-
-  /**
-   * Access a Context parameter.
    * @return Number of tiles used to overlap computation and communication.
    */
   int num_tiles() const;
@@ -143,18 +137,11 @@ public:
   std::uint_least64_t allocated_memory_gpu() const;
 
   /**
-   * Set the number of threads to be used.
-   *
-   * @param[in] numThreads Number of threads.
-   */
-  SPLA_DEPRECATED void set_num_threads(int numThreads);
-
-  /**
    * Set the number of tiles.
    *
-   * @param[in] numTilesPerThread Number of tiles.
+   * @param[in] numTiles Number of tiles.
    */
-  void set_num_tiles(int numTilesPerThread);
+  void set_num_tiles(int numTiles);
 
   /**
    * Set the tile size used for computations on host and partitioning of communication.

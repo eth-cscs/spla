@@ -83,8 +83,8 @@ static void call_pdgemr2d(int m, int n, double* a, int ia, int ja, int* desca, d
 
 template <typename T>
 void run_gemm(const std::shared_ptr<spla::Allocator<spla::MemLoc::Host>>& allocator,
-              spla::Context& ctx, int globalRows, int colsA, int colsB, int numThreads,
-              int blacsBlockSize, int numRepeats) {
+              spla::Context& ctx, int globalRows, int colsA, int colsB, int blacsBlockSize,
+              int numRepeats) {
   int worldRank, worldSize;
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -102,7 +102,6 @@ void run_gemm(const std::shared_ptr<spla::Allocator<spla::MemLoc::Host>>& alloca
 
   auto arrayDesc = spla::MatrixDistribution::create_blacs_block_cyclic(
       MPI_COMM_WORLD, 'R', worldSize, 1, blacsBlockSize, blacsBlockSize);
-  ctx.set_num_threads(numThreads);
 
   // run once to warm up
   spla::pgemm_ssb(colsA, colsB, localNumRows, SPLA_OP_CONJ_TRANSPOSE, 1.0, A.data(), localNumRows,
@@ -152,7 +151,6 @@ int main(int argc, char** argv) {
   int colsA = 5;
   int colsB = 5;
   int rows = 5;
-  int numThreads = 6;
   int blacsBlockSize = 256;
   std::string procName;
   std::string typeName;
@@ -165,7 +163,6 @@ int main(int argc, char** argv) {
   app.add_option("-n", colsB, "Number of columns in C")->required();
   app.add_option("-m", colsA, "Number of rows in C")->required();
   app.add_option("-k", rows, "Number of rows in A and B")->required();
-  app.add_option("-t,--threads", numThreads, "Number of threads")->required();
   app.add_option("-b,--blocksize", blacsBlockSize, "ScaLAPACK block size of C")->required();
   app.add_option("-p", procName, "Processing unit")
       ->check(CLI::IsMember({"cpu", "gpu", "gpu-gpu"}))
@@ -184,7 +181,6 @@ int main(int argc, char** argv) {
       procName == "cpu" ? SplaProcessingUnit::SPLA_PU_HOST : SplaProcessingUnit::SPLA_PU_GPU;
   spla::Context ctx(pu);
   ctx.set_tile_size_host(lengthTarget);
-  ctx.set_num_threads(numThreads);
   ctx.set_tile_size_gpu(4096);
 
   spla::AllocatorCollection allocators;
@@ -192,21 +188,19 @@ int main(int argc, char** argv) {
   if (ctx.processing_unit() == SPLA_PU_GPU) {
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
     if (typeName == "scalar")
-      run_gemm<double>(allocators.pinned(), ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
-                       repeats);
+      run_gemm<double>(allocators.pinned(), ctx, rows, colsA, colsB, blacsBlockSize, repeats);
     else
-      run_gemm<std::complex<double>>(allocators.pinned(), ctx, rows, colsA, colsB, numThreads,
-                                     blacsBlockSize, repeats);
+      run_gemm<std::complex<double>>(allocators.pinned(), ctx, rows, colsA, colsB, blacsBlockSize,
+                                     repeats);
 #else
     throw spla::GPUSupportError();
 #endif
   } else {
     if (typeName == "scalar")
-      run_gemm<double>(allocators.host(), ctx, rows, colsA, colsB, numThreads, blacsBlockSize,
-                       repeats);
+      run_gemm<double>(allocators.host(), ctx, rows, colsA, colsB, blacsBlockSize, repeats);
     else
-      run_gemm<std::complex<double>>(allocators.host(), ctx, rows, colsA, colsB, numThreads,
-                                     blacsBlockSize, repeats);
+      run_gemm<std::complex<double>>(allocators.host(), ctx, rows, colsA, colsB, blacsBlockSize,
+                                     repeats);
   }
 
   int worldRank;
