@@ -137,6 +137,7 @@ if(SPLA_ROCM)
   list(APPEND SPLA_EXTERNAL_LIBS hip::host roc::rocblas)
 endif()
 
+
 # BLAS
 set(BLA_SIZEOF_INTEGER 4)
 if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
@@ -146,9 +147,12 @@ elseif(NOT BLA_VENDOR AND NOT BLAS_LIBRARIES)
   # search in custom order first
   set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME)
   foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
-    if(NOT BLAS_LIBRARIES)
-      find_package(BLAS MODULE QUIET)
+    find_package(BLAS MODULE QUIET)
+    if(BLAS_LIBRARIES)
+      message(STATUS "Found BLAS library ${BLA_VENDOR}: ${BLAS_LIBRARIES}")
+      break()
     endif()
+    message(STATUS "Could NOT find BLAS library ${BLA_VENDOR}")
   endforeach()
   # if not found, search for any BLAS library
   if(NOT BLAS_LIBRARIES)
