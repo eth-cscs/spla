@@ -17,6 +17,7 @@ set(SPLA_GPU_BACKEND @SPLA_GPU_BACKEND@)
 set(SPLA_BUILD_TESTS @SPLA_BUILD_TESTS@)
 set(SPLA_TIMING @SPLA_TIMING@)
 set(SPLA_FORTRAN @SPLA_FORTRAN@)
+set(SPLA_BLA_VENDOR @BLA_VENDOR@)
 
 # make sure CXX is enabled
 get_property(_LANGUAGES GLOBAL PROPERTY ENABLED_LANGUAGES)
@@ -70,7 +71,34 @@ if(SPLA_CUDA)
     endif()
 endif()
 
-find_dependency(BLASExt MODULE)
+if(NOT BLA_VENDOR AND SPLA_BLA_VENDOR)
+    set(BLA_VENDOR ${SPLA_BLA_VENDOR})
+endif()
+
+set(BLA_SIZEOF_INTEGER 4)
+if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
+  find_dependency(SCI MODULE)
+elseif(NOT BLA_VENDOR AND NOT BLAS_LIBRARIES)
+  # search in custom order first
+  set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME)
+  foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
+    if(NOT BLAS_LIBRARIES)
+      find_package(BLAS MODULE QUIET)
+    endif()
+  endforeach()
+  # if not found, search for any BLAS library
+  if(NOT BLAS_LIBRARIES)
+    unset(BLA_VENDOR)
+    find_dependency(BLAS MODULE)
+  endif()
+else()
+  find_dependency(BLAS MODULE)
+endif()
+
+if(TARGET BLAS::BLAS)
+  # some CMAKE versions (3.18-3.19) don't include libaries in target
+  target_link_libraries(BLAS::BLAS INTERFACE ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+endif()
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path
 

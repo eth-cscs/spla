@@ -139,11 +139,35 @@ endif()
 
 # BLAS
 set(BLA_SIZEOF_INTEGER 4)
-find_package(BLASExt MODULE REQUIRED)
-list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS_EXT)
+if(BLA_VENDOR AND "${BLA_VENDOR}" STREQUAL "CRAY_LIBSCI")
+  find_package(SCI MODULE REQUIRED)
+  list(APPEND SPLA_EXTERNAL_LIBS SCI::sci)
+elseif(NOT BLA_VENDOR AND NOT BLAS_LIBRARIES)
+  # search in custom order first
+  set(_BLAS_VENDOR_LIST Intel10_64lp AOCL_mt Arm_mp OpenBLAS FLAME)
+  foreach(BLA_VENDOR IN LISTS _BLAS_VENDOR_LIST)
+    if(NOT BLAS_LIBRARIES)
+      find_package(BLAS MODULE QUIET)
+    endif()
+  endforeach()
+  # if not found, search for any BLAS library
+  if(NOT BLAS_LIBRARIES)
+    unset(BLA_VENDOR)
+    find_package(BLAS MODULE REQUIRED)
+  endif()
+  list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS)
+else()
+  find_package(BLAS MODULE REQUIRED)
+  list(APPEND SPLA_EXTERNAL_LIBS BLAS::BLAS)
+endif()
+
+if(TARGET BLAS::BLAS)
+  # some CMAKE versions (3.18-3.19) don't include libaries in target
+  target_link_libraries(BLAS::BLAS INTERFACE ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+endif()
 
 # check if cblas available
-set(CMAKE_REQUIRED_LIBRARIES BLAS::BLAS_EXT)
+set(CMAKE_REQUIRED_LIBRARIES ${SPLA_EXTERNAL_LIBS})
 include(CheckFunctionExists)
 unset(SPLA_CBLAS CACHE) # Result is cached, so change of library will not lead to a new check automatically
 CHECK_FUNCTION_EXISTS(cblas_zgemm SPLA_CBLAS)
