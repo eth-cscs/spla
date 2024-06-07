@@ -10,8 +10,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "memory/buffer.hpp"
+#include "gtest_mpi.hpp"
 #include "memory/allocator_collection.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
@@ -150,22 +151,20 @@ static auto find_rectangle(int n) -> std::pair<int, int> {
   return {n, 1};
 }
 
-// numThreads, rowBlockSize, colBlockSize, colsA, colsB, numLocalRows
 template <typename T>
 class GemmSSBTest
     : public ::testing::TestWithParam<
-          std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>> {
+          std::tuple<SplaProcessingUnit, int, int, int, int, std::pair<int, int>>> {
 protected:
   GemmSSBTest()
-      : rowBlockSize_(std::get<2>(GetParam())),
-        colBlockSize_(std::get<3>(GetParam())),
-        m_(std::get<4>(GetParam())),
-        n_(std::get<5>(GetParam())),
+      : rowBlockSize_(std::get<1>(GetParam())),
+        colBlockSize_(std::get<2>(GetParam())),
+        m_(std::get<3>(GetParam())),
+        n_(std::get<4>(GetParam())),
         k_(0),
         ctx_(std::get<0>(GetParam())) {
-    ctx_.set_num_threads(std::get<1>(GetParam()));
 
-    const std::pair<int, int> kRange = std::get<6>(GetParam());
+    const std::pair<int, int> kRange = std::get<5>(GetParam());
     std::uniform_int_distribution<int> kLocalDistribution(kRange.first, kRange.second);
 
     // generate local k size within range
@@ -328,6 +327,7 @@ typedef GemmSSBTest<double> GemmSSBScalar;
 typedef GemmSSBTest<std::complex<double>> GemmSSBComplex;
 
 TEST_P(GemmSSBScalar, FlatGrid) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_blacs_block_cyclic(MPI_COMM_WORLD, 'R', mpi_world_size(),
                                                               1, rowBlockSize_, colBlockSize_);
@@ -339,6 +339,7 @@ TEST_P(GemmSSBScalar, FlatGrid) {
 }
 
 TEST_P(GemmSSBComplex, FlatGrid) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_blacs_block_cyclic(MPI_COMM_WORLD, 'R', mpi_world_size(),
                                                               1, rowBlockSize_, colBlockSize_);
@@ -350,6 +351,7 @@ TEST_P(GemmSSBComplex, FlatGrid) {
 }
 
 TEST_P(GemmSSBScalar, SquareGrid) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -364,6 +366,7 @@ TEST_P(GemmSSBScalar, SquareGrid) {
 }
 
 TEST_P(GemmSSBComplex, SquareGrid) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -378,6 +381,7 @@ TEST_P(GemmSSBComplex, SquareGrid) {
 }
 
 TEST_P(GemmSSBScalar, SquareGridOffset) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -392,6 +396,7 @@ TEST_P(GemmSSBScalar, SquareGridOffset) {
 }
 
 TEST_P(GemmSSBComplex, SquareGridOffset) {
+  GTEST_MPI_GUARD
   try {
     int gridRows, gridCols;
     std::tie(gridRows, gridCols) = find_rectangle(mpi_world_size());
@@ -406,6 +411,7 @@ TEST_P(GemmSSBComplex, SquareGridOffset) {
 }
 
 TEST_P(GemmSSBScalar, Mirror) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 0, 0);
@@ -416,6 +422,7 @@ TEST_P(GemmSSBScalar, Mirror) {
 }
 
 TEST_P(GemmSSBComplex, Mirror) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 0, 0);
@@ -426,6 +433,7 @@ TEST_P(GemmSSBComplex, Mirror) {
 }
 
 TEST_P(GemmSSBScalar, MirrorOffset) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 2, 3);
@@ -436,6 +444,7 @@ TEST_P(GemmSSBScalar, MirrorOffset) {
 }
 
 TEST_P(GemmSSBComplex, MirrorOffset) {
+  GTEST_MPI_GUARD
   try {
     auto desc = MatrixDistribution::create_mirror(MPI_COMM_WORLD);
     multiply(desc, 2, 3);
@@ -447,7 +456,7 @@ TEST_P(GemmSSBComplex, MirrorOffset) {
 
 static auto param_type_names(
     const ::testing::TestParamInfo<
-        std::tuple<SplaProcessingUnit, int, int, int, int, int, std::pair<int, int>>>& info)
+        std::tuple<SplaProcessingUnit, int, int, int, int, std::pair<int, int>>>& info)
     -> std::string {
   std::stringstream stream;
   if (std::get<0>(info.param) == SplaProcessingUnit::SPLA_PU_HOST) {
@@ -455,25 +464,23 @@ static auto param_type_names(
   } else {
     stream << "GPU_";
   }
-  stream << "t_" << std::to_string(std::get<1>(info.param)) << "_";
-  stream << "mb_" << std::to_string(std::get<2>(info.param)) << "_";
-  stream << "nb_" << std::get<3>(info.param) << "_";
-  stream << "m_" << std::get<4>(info.param) << "_";
-  stream << "n_" << std::get<5>(info.param) << "_";
-  stream << "kMin_" << std::get<6>(info.param).first << "_";
-  stream << "kMax_" << std::get<6>(info.param).second;
+  stream << "mb_" << std::to_string(std::get<1>(info.param)) << "_";
+  stream << "nb_" << std::get<2>(info.param) << "_";
+  stream << "m_" << std::get<3>(info.param) << "_";
+  stream << "n_" << std::get<4>(info.param) << "_";
+  stream << "kMin_" << std::get<5>(info.param).first << "_";
+  stream << "kMax_" << std::get<5>(info.param).second;
 
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBScalar,
+INSTANTIATE_TEST_SUITE_P(GemmSSB, GemmSSBScalar,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
                                                              SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                                              ),
-                                           ::testing::Values(1, 4),            // number of threads
                                            ::testing::Values(1, 64),           // coloumn block size
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
@@ -483,14 +490,13 @@ INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBScalar,
                                                                                  400))),  // k range
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBComplex,
+INSTANTIATE_TEST_SUITE_P(GemmSSB, GemmSSBComplex,
                         ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
                                                              ,
                                                              SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                                              ),
-                                           ::testing::Values(1, 4),            // number of threads
                                            ::testing::Values(1, 64),           // coloumn block size
                                            ::testing::Values(1, 64),           // row block size
                                            ::testing::Values(1, 13, 32, 263),  // m
@@ -500,7 +506,7 @@ INSTANTIATE_TEST_CASE_P(GemmSSB, GemmSSBComplex,
                                                                                  400))),  // k range
                         param_type_names);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LargeGemmSSB, GemmSSBScalar,
     ::testing::Combine(::testing::Values(SplaProcessingUnit::SPLA_PU_HOST
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
@@ -508,7 +514,6 @@ INSTANTIATE_TEST_CASE_P(
                                          SplaProcessingUnit::SPLA_PU_GPU
 #endif
                                          ),
-                       ::testing::Values(2),     // number of threads
                        ::testing::Values(64),    // coloumn block size
                        ::testing::Values(128),   // row block size
                        ::testing::Values(3000),  // m

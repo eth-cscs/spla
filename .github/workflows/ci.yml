@@ -8,24 +8,23 @@ jobs:
   #########################
   build-test-gcc-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
-        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON
+        cmake .. -DSPLA_BUILD_TESTS=ON
         make -j2
 
     - name: Run tests
@@ -43,24 +42,23 @@ jobs:
   ###########################
   build-test-clang-cpu:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make clang libopenblas-dev libscalapack-mpi-dev wget git make
-        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make clang libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        CXX=clang++ ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_OMP=OFF
+        CXX=clang++ cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_OMP=OFF
         make -j2
 
     - name: Run tests
@@ -78,43 +76,48 @@ jobs:
   # Build with CUDA
   #################
   build-cuda:
-    runs-on: ubuntu-latest
-    container: nvidia/cuda:9.2-devel-ubuntu18.04
+    runs-on: ubuntu-22.04
+    container: nvidia/cuda:11.0.3-devel-ubuntu20.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
-        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.11.4/cmake-3.11.4-Linux-x86_64.tar.gz && tar -xzvf cmake-3.11.4-Linux-x86_64.tar.gz
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make
+        cd ${HOME} && wget https://github.com/Kitware/CMake/releases/download/v3.18.0/cmake-3.18.0-Linux-x86_64.tar.gz && tar -xzvf cmake-3.18.0-Linux-x86_64.tar.gz
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        ${HOME}/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
-        make -j2
+        ${HOME}/cmake-3.18.0-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=CUDA
+        make -j2 VERBOSE=1
 
   #################
   # Build with ROCm
   #################
   build-rocm:
-    runs-on: ubuntu-latest
-    container: adhocman/master:ubuntu18.04_rocm
+    runs-on: ubuntu-22.04
+    container: rocm/dev-ubuntu-22.04:5.6-complete
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        /root/cmake-3.11.4-Linux-x86_64/bin/cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=ROCM -DCMAKE_PREFIX_PATH="/opt/rocm;/opt/rocm/hip"
+        cmake .. -DSPLA_BUILD_TESTS=ON -DSPLA_GPU_BACKEND=ROCM -DCMAKE_PREFIX_PATH="/opt/rocm;/opt/rocm/hip"
         make -j2
 

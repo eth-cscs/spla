@@ -51,7 +51,7 @@ static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
 RingSBSHost<T, BLOCK_GEN>::RingSBSHost(
-    double ringThreshold, IntType maxBlockSize, IntType numThreads, MPICommunicatorHandle comm,
+    double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
     const std::shared_ptr<Allocator<MemLoc::Host>> allocator, BLOCK_GEN baseMatGen, ValueType alpha,
     const HostArrayConstView2D<ValueType> &A, const HostArrayConstView2D<ValueType> &B,
     IntType bRowOffset, IntType bColOffset, ValueType beta, HostArrayView2D<ValueType> C)
@@ -66,7 +66,6 @@ RingSBSHost<T, BLOCK_GEN>::RingSBSHost(
       bColOffset_(bColOffset),
       alpha_(alpha),
       beta_(beta),
-      numThreads_(numThreads),
       maxBlockSize_(maxBlockSize),
       ringThreshold_(ringThreshold) {
   assert(A_.dim_inner() == C_.dim_inner());
@@ -194,10 +193,9 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType> &b
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
-      gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-                   A_.dim_inner(), block.numCols, block.numRows, alpha_, &A_(block.row, 0),
-                   A_.ld_inner(), sendView_.data(), block.numRows, beta, &C_(block.col, 0),
-                   C_.ld_inner());
+      gemm_host<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, A_.dim_inner(),
+                   block.numCols, block.numRows, alpha_, &A_(block.row, 0), A_.ld_inner(),
+                   sendView_.data(), block.numRows, beta, &C_(block.col, 0), C_.ld_inner());
     }
   }
   state_ = stepIdx_ >= comm_.size() - 1 ? TileState::Empty : TileState::PartiallyProcessed;
@@ -224,10 +222,9 @@ auto RingSBSHost<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntTyp
         betaColIndeces.emplace(block.col);
         beta = beta_;
       }
-      gemm_host<T>(numThreads_, SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE,
-                   A_.dim_inner(), block.numCols, block.numRows, alpha_, &A_(block.row, 0),
-                   A_.ld_inner(), blockView.data(), block.numRows, beta, &C_(block.col, 0),
-                   C_.ld_inner());
+      gemm_host<T>(SplaOperation::SPLA_OP_NONE, SplaOperation::SPLA_OP_NONE, A_.dim_inner(),
+                   block.numCols, block.numRows, alpha_, &A_(block.row, 0), A_.ld_inner(),
+                   blockView.data(), block.numRows, beta, &C_(block.col, 0), C_.ld_inner());
     }
   }
 

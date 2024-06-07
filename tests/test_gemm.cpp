@@ -7,8 +7,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "memory/buffer.hpp"
+#include "gtest_mpi.hpp"
 #include "memory/allocator_collection.hpp"
+#include "memory/buffer.hpp"
 #include "memory/host_array_const_view.hpp"
 #include "memory/host_array_view.hpp"
 #include "mpi_util/mpi_communicator_handle.hpp"
@@ -68,8 +69,8 @@ protected:
     Context ctx(SPLA_PU_HOST);
 
     // compute reference by calling blas library directly
-    ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
-                       k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
+    ::spla::blas::gemm(convert_op(opA_), convert_op(opB_), m_, n_, k_, 2.0, vecA_.data(), lda_,
+                       vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
     // compute with public gemm interface
     gemm(opA_, opB_, m_, n_, k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecC_.data(),
@@ -86,8 +87,8 @@ protected:
     Context ctx(SPLA_PU_GPU);
 
     // compute reference by calling blas library directly
-    ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
-                       k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
+    ::spla::blas::gemm(convert_op(opA_), convert_op(opB_), m_, n_, k_, 2.0, vecA_.data(), lda_,
+                       vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
     // compute with public gemm interface
     gemm(opA_, opB_, m_, n_, k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecC_.data(),
@@ -103,8 +104,8 @@ protected:
     Context ctx(SPLA_PU_GPU);
 
     // compute reference by calling blas library directly
-    ::spla::blas::gemm(::spla::blas::Order::COL_MAJOR, convert_op(opA_), convert_op(opB_), m_, n_,
-                       k_, 2.0, vecA_.data(), lda_, vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
+    ::spla::blas::gemm(convert_op(opA_), convert_op(opB_), m_, n_, k_, 2.0, vecA_.data(), lda_,
+                       vecB_.data(), ldb_, 3.0, vecCRef_.data(), ldc_);
 
     Buffer<T, MemLoc::GPU> gpuBufferA(allocators_.gpu(), vecA_.size());
     Buffer<T, MemLoc::GPU> gpuBufferB(allocators_.gpu(), vecB_.size());
@@ -156,6 +157,7 @@ typedef GemmTest<double> GemmScalar;
 typedef GemmTest<std::complex<double>> GemmComplex;
 
 TEST_P(GemmScalar, Host) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_host();
   } catch (const std::exception& e) {
@@ -166,6 +168,7 @@ TEST_P(GemmScalar, Host) {
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 TEST_P(GemmScalar, GPU) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_gpu();
   } catch (const std::exception& e) {
@@ -175,6 +178,7 @@ TEST_P(GemmScalar, GPU) {
 }
 
 TEST_P(GemmScalar, GPUFromGPU) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_gpu_from_gpu();
   } catch (const std::exception& e) {
@@ -185,6 +189,7 @@ TEST_P(GemmScalar, GPUFromGPU) {
 #endif
 
 TEST_P(GemmComplex, Host) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_host();
   } catch (const std::exception& e) {
@@ -195,6 +200,7 @@ TEST_P(GemmComplex, Host) {
 
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 TEST_P(GemmComplex, GPU) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_gpu();
   } catch (const std::exception& e) {
@@ -204,6 +210,7 @@ TEST_P(GemmComplex, GPU) {
 }
 
 TEST_P(GemmComplex, GPUFromGPU) {
+  GTEST_MPI_GUARD
   try {
     this->mulitply_gpu_from_gpu();
   } catch (const std::exception& e) {
@@ -230,18 +237,18 @@ static auto param_type_names(
   return stream.str();
 }
 
-INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmScalar,
-                        ::testing::Combine(::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
-                        param_type_names);
+INSTANTIATE_TEST_SUITE_P(
+    FullGemmTest, GemmScalar,
+    ::testing::Combine(::testing::Values(1, 13, 32, 263), ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
+    param_type_names);
 
-INSTANTIATE_TEST_CASE_P(FullGemmTest, GemmComplex,
-                        ::testing::Combine(::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(1, 13, 32, 263),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
-                                           ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
-                        param_type_names);
+INSTANTIATE_TEST_SUITE_P(
+    FullGemmTest, GemmComplex,
+    ::testing::Combine(::testing::Values(1, 13, 32, 263), ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(1, 13, 32, 263),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE),
+                       ::testing::Values(SPLA_OP_NONE, SPLA_OP_CONJ_TRANSPOSE)),
+    param_type_names);

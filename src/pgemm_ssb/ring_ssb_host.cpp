@@ -52,7 +52,7 @@ static constexpr int ringTag = 2;
 
 template <typename T, typename BLOCK_GEN>
 RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSize,
-                                       IntType numThreads, MPICommunicatorHandle comm,
+                                       MPICommunicatorHandle comm,
                                        const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
                                        BLOCK_GEN baseMatGen, SplaOperation opA, ValueType alpha,
                                        const HostArrayConstView2D<ValueType> &A,
@@ -69,7 +69,6 @@ RingSSBHost<T, BLOCK_GEN>::RingSSBHost(double ringThreshold, IntType maxBlockSiz
       alpha_(alpha),
       beta_(beta),
       opA_(opA),
-      numThreads_(numThreads),
       maxBlockSize_(maxBlockSize),
       ringThreshold_(ringThreshold) {
   assert(A_.dim_inner() == B_.dim_inner());
@@ -162,9 +161,9 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_ring() -> void {
     const auto &block = blocks_[blockIdx];
     if (A_.dim_inner() != 0) {
       SCOPED_TIMING("gemm")
-      gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
-                   A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
-                   B_.ld_inner(), 1.0, sendView_.data(), block.numRows);
+      gemm_host<T>(opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols, A_.dim_inner(),
+                   alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0), B_.ld_inner(), 1.0,
+                   sendView_.data(), block.numRows);
     }
     if (stepIdx_ < comm_.size() - 1) {  // continue sending around in ring
       SCOPED_TIMING("send")
@@ -216,9 +215,9 @@ auto RingSSBHost<T, BLOCK_GEN>::process_step_reduction() -> void {
     std::memset(sendView_.data(), 0, sendView_.size() * sizeof(T));
   } else {
     SCOPED_TIMING("gemm")
-    gemm_host<T>(numThreads_, opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols,
-                 A_.dim_inner(), alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0),
-                 B_.ld_inner(), 0.0, sendView_.data(), block.numRows);
+    gemm_host<T>(opA_, SplaOperation::SPLA_OP_NONE, block.numRows, block.numCols, A_.dim_inner(),
+                 alpha_, &A_(block.row, 0), A_.ld_inner(), &B_(block.col, 0), B_.ld_inner(), 0.0,
+                 sendView_.data(), block.numRows);
   }
 
   START_TIMING("iallreduce")

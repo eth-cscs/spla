@@ -55,9 +55,9 @@ class RingSBSHost {
 public:
   using ValueType = T;
 
-  RingSBSHost(double ringThreshold, IntType maxBlockSize, IntType numThreads,
-              MPICommunicatorHandle comm, const std::shared_ptr<Allocator<MemLoc::Host>> allocator,
-              BLOCK_GEN baseMatGen, ValueType alpha, const HostArrayConstView2D<ValueType>& A,
+  RingSBSHost(double ringThreshold, IntType maxBlockSize, MPICommunicatorHandle comm,
+              const std::shared_ptr<Allocator<MemLoc::Host>> allocator, BLOCK_GEN baseMatGen,
+              ValueType alpha, const HostArrayConstView2D<ValueType>& A,
               const HostArrayConstView2D<ValueType>& B, IntType bRowOffset, IntType bColOffset,
               ValueType beta, HostArrayView2D<ValueType> C);
 
@@ -101,7 +101,6 @@ private:
   HostArrayView2D<ValueType> C_;
   const IntType bRowOffset_, bColOffset_;
   const ValueType alpha_, beta_;
-  const IntType numThreads_;
   const IntType maxBlockSize_;
   const double ringThreshold_;
 };

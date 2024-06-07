@@ -36,15 +36,7 @@
 #cmakedefine SPLA_CUDA
 #cmakedefine SPLA_ROCM
 #cmakedefine SPLA_OMP
-#cmakedefine SPLA_BLAS_MKL
-#cmakedefine SPLA_BLAS_ARMPL
-#cmakedefine SPLA_BLAS_OPENBLAS
-#cmakedefine SPLA_BLAS_ATLAS
-#cmakedefine SPLA_BLAS_SCI
-#cmakedefine SPLA_BLAS_BLIS
-#cmakedefine SPLA_BLAS_GENERIC
-#cmakedefine SPLA_BLAS_UNKNOWN
-#cmakedefine SPLA_BLAS_HEADER_NAME <@SPLA_BLAS_HEADER_NAME@>
+#cmakedefine SPLA_CBLAS
 #cmakedefine SPLA_RESTRICT_ATTR @SPLA_RESTRICT_ATTR@
 
 #include "spla/spla_export.h"
