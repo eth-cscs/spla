@@ -121,7 +121,7 @@ jobs:
         cat rocm.gpg.key  | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
         echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${{ matrix.rocm_version }} jammy main" | sudo tee --append /etc/apt/sources.list.d/rocm.list
         sudo apt-get update
-        sudo apt-get install -y hip-dev rocblas-dev
+        sudo apt-get install -y hip-dev rocblas-dev rocm-device-libs
 
 
     - name: Build
