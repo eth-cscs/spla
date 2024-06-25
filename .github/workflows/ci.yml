@@ -101,8 +101,12 @@ jobs:
   # Build with ROCm
   #################
   build-rocm:
+    strategy:
+      fail-fast: false
+      matrix:
+        rocm_version: [5.6, 6.0.2]
+
     runs-on: ubuntu-22.04
-    container: rocm/dev-ubuntu-22.04:5.6-complete
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
@@ -110,8 +114,15 @@ jobs:
 
     - name: Install dependencies
       run: |
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake
+        sudo apt-get update
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake gpg
+        cd ${HOME}
+        wget https://repo.radeon.com/rocm/rocm.gpg.key
+        cat rocm.gpg.key  | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${{ matrix.rocm_version }} jammy main" | sudo tee --append /etc/apt/sources.list.d/rocm.list
+        sudo apt-get update
+        sudo apt-get install -y hip-dev rocblas-dev rocm-device-libs
+
 
     - name: Build
       run: |
