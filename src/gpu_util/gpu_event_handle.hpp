@@ -31,6 +31,7 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <memory>
+#include <tuple>
 
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "spla/exceptions.hpp"
@@ -46,7 +47,7 @@ public:
     gpu::check_status(gpu::event_create_with_flags(&event, flag));
 
     event_ = std::shared_ptr<gpu::EventType>(new gpu::EventType(event), [](gpu::EventType* ptr) {
-      gpu::event_destroy(*ptr);
+        std::ignore = gpu::event_destroy(*ptr);
       delete ptr;
     });
   };
