@@ -29,6 +29,7 @@
 #ifndef SPLA_GPU_POINTER_TRANSLATION_HPP
 #define SPLA_GPU_POINTER_TRANSLATION_HPP
 
+#include <tuple>
 #include <utility>
 
 #include "gpu_util/gpu_runtime_api.hpp"
@@ -45,7 +46,7 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
   auto status = gpu::pointer_get_attributes(&attr, static_cast<const void*>(inputPointer));
 
   if (status != gpu::status::Success) {
-    gpu::get_last_error();  // clear error from cache
+    std::ignore = gpu::get_last_error();  // clear error from cache
     // Invalid value is always indicated before CUDA 11 for valid host pointers, which have not been
     // registered. -> Don't throw error in this case.
     if (status != gpu::status::ErrorInvalidValue) gpu::check_status(status);
