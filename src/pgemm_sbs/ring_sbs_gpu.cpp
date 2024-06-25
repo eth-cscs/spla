@@ -284,13 +284,13 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_ring(std::unordered_set<IntType>& be
       // Make sure no other stream is writing to the same location. Select event based on coloumn
       // index, which determines the write location.
       auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
-      gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
+      gpu::check_status(gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0));
 
       sbs_gemm_gpu_async<T>(proc.blasHandle, alpha_,
                             proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
                             GPUConstMatrixAccessor<T>(blockViewGPU), beta,
                             proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
-      gpu::event_record(event.get(), proc.blasHandle.stream_handle().get());
+      gpu::check_status(gpu::event_record(event.get(), proc.blasHandle.stream_handle().get()));
     }
   }
   state_ = stepIdx_ >= comm_.size() - 1 ? TileState::Empty : TileState::PartiallyProcessed;
@@ -337,13 +337,13 @@ auto RingSBSGPU<T, BLOCK_GEN>::process_step_broadcast(std::unordered_set<IntType
       // Make sure no other stream is writing to the same location. Select event based on coloumn
       // index, which determines the write location.
       auto& event = colEvents[(block.col / block.numCols) % colEvents.size()];
-      gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0);
+      gpu::check_status(gpu::stream_wait_event(proc.blasHandle.stream_handle().get(), event.get(), 0));
 
       sbs_gemm_gpu_async<T>(proc.blasHandle, alpha_,
                             proc.matA.sub_accessor(0, block.row, proc.matA.rows(), block.numRows),
                             GPUConstMatrixAccessor<T>(blockViewGPU), beta,
                             proc.matC.sub_accessor(0, block.col, proc.matC.rows(), block.numCols));
-      gpu::event_record(event.get(), proc.blasHandle.stream_handle().get());
+      gpu::check_status(gpu::event_record(event.get(), proc.blasHandle.stream_handle().get()));
     }
   }
 
