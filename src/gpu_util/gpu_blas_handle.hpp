@@ -32,6 +32,7 @@
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <cassert>
 #include <memory>
+#include <tuple>
 
 #include "gpu_util/gpu_blas_api.hpp"
 #include "gpu_util/gpu_runtime_api.hpp"
@@ -47,7 +48,7 @@ public:
 
     handle_ = std::shared_ptr<gpu::blas::HandleType>(new gpu::blas::HandleType(rawHandle),
                                                      [](gpu::blas::HandleType* ptr) {
-                                                       gpu::blas::destroy(*ptr);
+                                                       std::ignore = gpu::blas::destroy(*ptr);
                                                        delete ptr;
                                                      });
 

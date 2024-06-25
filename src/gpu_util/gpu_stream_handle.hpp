@@ -31,6 +31,7 @@
 #include "spla/config.h"
 #if defined(SPLA_CUDA) || defined(SPLA_ROCM)
 #include <memory>
+#include <tuple>
 
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "spla/exceptions.hpp"
@@ -49,7 +50,7 @@ public:
 
     stream_ =
         std::shared_ptr<gpu::StreamType>(new gpu::StreamType(rawStream), [](gpu::StreamType* ptr) {
-          gpu::stream_destroy(*ptr);
+          std::ignore = gpu::stream_destroy(*ptr);
           delete ptr;
         });
   };

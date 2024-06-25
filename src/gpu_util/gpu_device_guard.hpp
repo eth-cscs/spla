@@ -29,6 +29,7 @@
 #define SPLA_GPU_DEVICE_GUARD_HPP
 
 #include <memory>
+#include <tuple>
 
 #include "gpu_util/gpu_runtime_api.hpp"
 #include "spla/config.h"
@@ -51,7 +52,8 @@ public:
 
   ~GPUDeviceGuard() {
     if (targetDeviceId_ != originalDeviceId_) {
-      gpu::set_device(originalDeviceId_);  // no check to avoid throw exeception in destructor
+      // no check to avoid throw exeception in destructor
+      std::ignore = gpu::set_device(originalDeviceId_);
     }
   }
 
