@@ -53,8 +53,8 @@ auto translate_gpu_pointer(const T* inputPointer) -> std::pair<const T*, const T
 
   std::pair<const T*, const T*> ptrPair{nullptr, nullptr};
 
-  // get memory type - cuda 10 changed attribute name
-#if defined(SPLA_CUDA) && (CUDART_VERSION >= 10000)
+  // get memory type - cuda 10 and HIP 6.0 changed attribute name
+#if (defined(SPLA_CUDA) && (CUDART_VERSION >= 10000)) || (defined(SPLA_ROCM) && (HIP_VERSION_MAJOR >= 6))
   auto memoryType = attr.type;
 #else
   auto memoryType = attr.memoryType;
