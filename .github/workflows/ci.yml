@@ -100,9 +100,14 @@ jobs:
   #################
   # Build with ROCm
   #################
-  build-rocm:
+  build-rocm-5.6:
+    strategy:
+      fail-fast: false
+      matrix:
+        rocm_version: [5.6, 6.1.2]
+
     runs-on: ubuntu-22.04
-    container: rocm/dev-ubuntu-22.04:5.6-complete
+    container: rocm/dev-ubuntu-22.04:${{ matrix.rocm_version }}-complete
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
