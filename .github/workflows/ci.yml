@@ -114,14 +114,14 @@ jobs:
 
     - name: Install dependencies
       run: |
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake gpg
+        sudo apt-get update
+        DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y make g++ libopenblas-dev libscalapack-mpi-dev wget git make cmake gpg
         cd ${HOME}
         wget https://repo.radeon.com/rocm/rocm.gpg.key
-        cat rocm.gpg.key  | gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
-        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${{ matrix.rocm_version }} jammy main" | tee --append /etc/apt/sources.list.d/rocm.list
-        apt-get update
-        apt-get install -y hip-dev rocblas-dev
+        cat rocm.gpg.key  | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${{ matrix.rocm_version }} jammy main" | sudo tee --append /etc/apt/sources.list.d/rocm.list
+        sudo apt-get update
+        sudo apt-get install -y hip-dev rocblas-dev
 
 
     - name: Build
