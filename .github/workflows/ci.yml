@@ -107,7 +107,7 @@ jobs:
         rocm_version: [5.6, 6.0.2]
 
     runs-on: ubuntu-22.04
-    container: rocm/dev-ubuntu-22.04:${{ matrix.rocm_version }}-complete
+    container: rocm/dev-ubuntu-22.04:${{ matrix.rocm_version }}
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
