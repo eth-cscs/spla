@@ -104,7 +104,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rocm_version: [5.6, 6.1.2]
+        rocm_version: [5.6, 6.0.2]
 
     runs-on: ubuntu-22.04
     container: rocm/dev-ubuntu-22.04:${{ matrix.rocm_version }}-complete
